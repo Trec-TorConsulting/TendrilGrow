@@ -67,11 +67,14 @@ class TendrilGrowTuyaCoordinator(DataUpdateCoordinator[dict[str, dict[str, float
         )
 
         self.device_names: dict[str, str] = {}
+        access_id = str(cfg.get(CONF_TUYA_ACCESS_ID, "")).strip()
+        access_secret = str(cfg.get(CONF_TUYA_ACCESS_SECRET, "")).strip()
+        region = str(cfg.get(CONF_TUYA_REGION, "us")).strip().lower() or "us"
         self._client = TuyaCloudClient(
             async_get_clientsession(hass),
-            str(cfg.get(CONF_TUYA_ACCESS_ID, "")),
-            str(cfg.get(CONF_TUYA_ACCESS_SECRET, "")),
-            str(cfg.get(CONF_TUYA_REGION, "us")),
+            access_id,
+            access_secret,
+            region,
         )
         self._uid = str(cfg.get(CONF_TUYA_UID, "")).strip()
 
