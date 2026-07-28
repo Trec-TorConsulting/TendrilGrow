@@ -76,6 +76,15 @@ Main runtime modules:
 7. Go to Settings -> Devices & Services -> Add Integration.
 8. Add `TendrilGrow`.
 
+During install in HACS, you will see behavior similar to:
+
+- `TendrilGrow`
+- `Commit 343460c will be downloaded`
+- Installed path: `/config/custom_components/tendrilgrow`
+
+Home Assistant restart is required after downloading custom integrations.
+Changes in `custom_components` are not applied until restart.
+
 ### First-time setup flow
 
 For each grow space (one entry per space):
