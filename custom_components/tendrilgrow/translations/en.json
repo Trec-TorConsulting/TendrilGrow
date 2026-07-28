@@ -1,0 +1,46 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Create grow space",
+        "description": "Create one config entry per grow space.",
+        "data": {
+          "grow_space_name": "Grow space name",
+          "grow_type": "Grow type",
+          "grow_size": "Grow size/descriptor"
+        }
+      },
+      "entity_mapping": {
+        "title": "Map entities",
+        "description": "Map your Home Assistant entities to grow roles."
+      },
+      "ai_provider": {
+        "title": "AI provider",
+        "description": "Select provider for this grow space."
+      },
+      "ai_credentials": {
+        "title": "Provider credentials",
+        "description": "Enter credentials and discover available models."
+      },
+      "ai_model_select": {
+        "title": "Choose model",
+        "description": "Pick a discovered model."
+      }
+    },
+    "error": {
+      "duplicate_name": "A grow space with this name already exists.",
+      "unsupported_provider": "Selected provider is not supported.",
+      "invalid_base_url": "Base URL must start with http:// or https://.",
+      "missing_required": "A required field is missing.",
+      "model_discovery_failed": "Model discovery failed. Retry or enter a model manually."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Grow space settings",
+        "description": "Update mappings and settings for this grow space."
+      }
+    }
+  }
+}

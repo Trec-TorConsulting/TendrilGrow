@@ -1,0 +1,52 @@
+schema: spec-driven
+
+# Project context (shown to AI when creating artifacts)
+context: |
+  Product: TendrilGrow — an all-in-one Home Assistant package (custom integration +
+  Lovelace dashboards + AI advisor + automations) for indoor plant cultivation,
+  distributed via HACS.
+
+  Distribution:
+    - HACS custom integration under custom_components/tendrilgrow/
+    - Bundled/companion Lovelace dashboard cards
+    - NOT a Supervisor Add-on (HACS integration + cards model)
+
+  Tech stack:
+    - Python (Home Assistant custom_components, async, config flow / options flow)
+    - Follows HA integration quality-scale conventions and hassfest/HACS validation
+    - Optional TypeScript build later for custom cards (not in foundation)
+    - Target the latest Home Assistant release and the latest Python version it supports
+
+  Domain (indoor grows):
+    - Grow spaces are flexible: tents/rooms/zones of varying size and grow type
+    - Reference setup: 2 RDWC (Recirculating Deep Water Culture) systems in 2 Vivosun tents
+        * Tent A: 3x3, Vivosun E42a+ controller, 2 sites (mothers), 200W adjustable LED, Reolink camera
+        * Tent B: 4x4 RDWC, Vivosun E42a+ controller, 4 sites, 400W adjustable LED, Reolink 4K camera
+    - Vivosun E42a+ controllers manage lights, fans, inline fans
+    - Sensors in use: temp/humidity (VPD), light PPFD/lux + schedules, pH/EC/TDS, cameras
+    - Must be adjustable/configurable so any user's sensors, grow types, and spaces work
+
+  Companion integrations (maintainer's live setup, user-provided entities):
+    - Vivosun HACS integration exposes the E42a+ controllers (lights, fans, inline fans)
+    - Tuya HACS integration exposes water monitors in the RDWC header buckets
+
+  Configuration model:
+    - One config entry PER grow space; each space owns its equipment, settings, grow, requirements
+    - Entities are user-mapped via config flow / options flow (no hardcoded entity ids)
+    - Per-grow-space config: sensors, controls, grow type, targets, schedules
+
+  AI model:
+    - Pluggable AI provider chosen by the user (Google Gemini, Ollama, OpenAI/ChatGPT, etc.)
+    - Provider abstraction with per-provider API keys/endpoints configured by the user
+    - After credentials are entered, fetch the provider's available models for the user to pick
+    - AI provides grow advice and (later) visual reviews from grow cameras
+
+  Principles:
+    - Use the maintainer's live HA data/grows as the primary validation source
+    - Keep OpenSpec artifacts (proposals, specs, designs, tasks) continuously up to date
+      as decisions, questions, and scope evolve
+
+# Per-artifact rules (optional)
+# rules:
+#   proposal:
+#     - Keep proposals focused and scoped

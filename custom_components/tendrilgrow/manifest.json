@@ -1,0 +1,17 @@
+{
+  "domain": "tendrilgrow",
+  "name": "TendrilGrow",
+  "version": "0.1.0",
+  "documentation": "https://github.com/trecto282/TendrilGrow",
+  "issue_tracker": "https://github.com/trecto282/TendrilGrow/issues",
+  "codeowners": [
+    "@trecto282"
+  ],
+  "config_flow": true,
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "loggers": [
+    "custom_components.tendrilgrow"
+  ],
+  "requirements": []
+}
