@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -67,6 +67,7 @@ class TendrilGrowTuyaCoordinator(DataUpdateCoordinator[dict[str, dict[str, float
         )
 
         self.device_names: dict[str, str] = {}
+        self.device_last_updated: dict[str, datetime] = {}
         access_id = str(cfg.get(CONF_TUYA_ACCESS_ID, "")).strip()
         access_secret = str(cfg.get(CONF_TUYA_ACCESS_SECRET, "")).strip()
         region = str(cfg.get(CONF_TUYA_REGION, "us")).strip().lower() or "us"
@@ -109,6 +110,7 @@ class TendrilGrowTuyaCoordinator(DataUpdateCoordinator[dict[str, dict[str, float
             try:
                 statuses = await self._client.fetch_device_statuses(device_id)
                 readings[device_id] = normalize_tuya_statuses(statuses)
+                self.device_last_updated[device_id] = datetime.now(UTC)
             except Exception as err:  # noqa: BLE001
                 failures.append(f"{device_id}: {err}")
 

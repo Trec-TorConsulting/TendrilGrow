@@ -113,6 +113,7 @@ async def async_setup_entry(
     for device_id in device_ids:
         for metric in METRICS:
             entities.append(TuyaMetricSensor(coordinator, entry, device_id, metric))
+        entities.append(TuyaLastUpdatedSensor(coordinator, entry, device_id))
     async_add_entities(entities)
 
 
@@ -195,3 +196,45 @@ class TuyaMetricSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEnti
             self.entity_id,
             self._entry.entry_id,
         )
+
+
+class TuyaLastUpdatedSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEntity):
+    """Timestamp sensor showing when a device was last refreshed successfully."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: TendrilGrowTuyaCoordinator,
+        entry: ConfigEntry,
+        device_id: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._device_id = device_id
+
+        suffix = device_id[-6:] if len(device_id) >= 6 else device_id
+        self._attr_unique_id = f"{entry.entry_id}_{device_id}_last_updated"
+        self._attr_name = f"Last Updated ({suffix})"
+
+    @property
+    def device_info(self):
+        name = self.coordinator.device_names.get(self._device_id, f"Tuya {self._device_id[-6:]}")
+        return {
+            "identifiers": {("tendrilgrow", f"{self._entry.entry_id}_{self._device_id}")},
+            "name": f"{self._entry.title} {name}",
+            "manufacturer": "Tuya",
+            "model": "Water Monitor",
+        }
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return self._device_id in self.coordinator.device_last_updated
+
+    @property
+    def native_value(self):
+        return self.coordinator.device_last_updated.get(self._device_id)
