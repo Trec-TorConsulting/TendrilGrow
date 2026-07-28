@@ -151,7 +151,7 @@ async def test_options_flow_edit_creates_options_payload() -> None:
     })
     assert result["type"] == "create_entry"
     assert result["data"]["grow_type"] == "soil"
-    assert result["data"][CONF_SENSOR_MAPPINGS]["temperature"] == "sensor.new"
+    assert result["data"][CONF_SENSOR_MAPPINGS] == {}
     assert result["data"][CONF_TUYA_ENABLED] is True
     assert result["data"][CONF_TUYA_DEVICE_IDS] == ["dev-1", "dev-2"]
 
@@ -173,6 +173,48 @@ async def test_entity_mapping_form_includes_water_quality_roles() -> None:
     assert CONF_TUYA_ENABLED in schema_keys
     assert CONF_TUYA_ACCESS_ID in schema_keys
     assert CONF_TUYA_REGION in schema_keys
+
+
+@pytest.mark.asyncio
+async def test_entity_mapping_form_hides_sensor_roles_when_tuya_enabled() -> None:
+    flow = TendrilGrowConfigFlow()
+    _patch_show_form(flow)
+    flow._data[CONF_TUYA_ENABLED] = True
+
+    result = await flow.async_step_entity_mapping()
+
+    schema_keys = {key.schema for key in result["data_schema"].schema}
+    assert SENSOR_ROLE_PH not in schema_keys
+    assert SENSOR_ROLE_EC not in schema_keys
+    assert SENSOR_ROLE_CF not in schema_keys
+    assert SENSOR_ROLE_ORP not in schema_keys
+    assert SENSOR_ROLE_TDS not in schema_keys
+    assert CONF_TUYA_ENABLED in schema_keys
+
+
+@pytest.mark.asyncio
+async def test_options_form_hides_sensor_roles_when_tuya_enabled() -> None:
+    entry = SimpleNamespace(
+        data={
+            "grow_type": "rdwc",
+            "grow_size": "3x3",
+            "sensor_mappings": {"ph": "sensor.old_ph"},
+            "control_mappings": {},
+            CONF_TUYA_ENABLED: True,
+        }
+    )
+    flow = TendrilGrowOptionsFlow(entry)
+    _patch_show_form(flow)
+
+    result = await flow.async_step_init()
+
+    schema_keys = {key.schema for key in result["data_schema"].schema}
+    assert SENSOR_ROLE_PH not in schema_keys
+    assert SENSOR_ROLE_EC not in schema_keys
+    assert SENSOR_ROLE_CF not in schema_keys
+    assert SENSOR_ROLE_ORP not in schema_keys
+    assert SENSOR_ROLE_TDS not in schema_keys
+    assert CONF_TUYA_ENABLED in schema_keys
 
 
 @pytest.mark.asyncio

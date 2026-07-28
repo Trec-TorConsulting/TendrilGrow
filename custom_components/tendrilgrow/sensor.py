@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
@@ -12,6 +13,28 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import TendrilGrowTuyaCoordinator, has_tuya_credentials, tuya_device_ids, tuya_enabled
+from .const import (
+    DOMAIN,
+    SENSOR_ROLE_CF,
+    SENSOR_ROLE_EC,
+    SENSOR_ROLE_HUMIDITY,
+    SENSOR_ROLE_ORP,
+    SENSOR_ROLE_PH,
+    SENSOR_ROLE_TDS,
+    SENSOR_ROLE_TEMPERATURE,
+)
+
+LOGGER = logging.getLogger(__name__)
+
+_METRIC_TO_ROLE: dict[str, str] = {
+    "ph": SENSOR_ROLE_PH,
+    "ec": SENSOR_ROLE_EC,
+    "cf": SENSOR_ROLE_CF,
+    "orp": SENSOR_ROLE_ORP,
+    "tds": SENSOR_ROLE_TDS,
+    "water_temp_c": SENSOR_ROLE_TEMPERATURE,
+    "ambient_humidity": SENSOR_ROLE_HUMIDITY,
+}
 
 
 @dataclass(slots=True, frozen=True)
@@ -138,3 +161,29 @@ class TuyaMetricSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEnti
     def native_value(self):
         metrics = self.coordinator.data.get(self._device_id, {})
         return metrics.get(self.entity_description.key)
+
+    async def async_added_to_hass(self) -> None:
+        """Backfill grow role mappings from Tuya entities when missing."""
+        await super().async_added_to_hass()
+        if not self.entity_id:
+            return
+
+        role = _METRIC_TO_ROLE.get(self.entity_description.key)
+        if not role:
+            return
+
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        grow_space = getattr(runtime, "grow_space", None)
+        if grow_space is None:
+            return
+
+        if grow_space.sensor_mappings.get(role):
+            return
+
+        grow_space.sensor_mappings[role] = self.entity_id
+        LOGGER.debug(
+            "Auto-mapped TendrilGrow role %s to entity %s for entry %s",
+            role,
+            self.entity_id,
+            self._entry.entry_id,
+        )

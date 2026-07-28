@@ -81,6 +81,10 @@ def _normalize_sensor_mappings(sensor_mappings: dict[str, str]) -> dict[str, str
     return normalized
 
 
+def _tuya_enabled_from_input(user_input: dict[str, Any], default: bool = False) -> bool:
+    return bool(user_input.get(CONF_TUYA_ENABLED, default))
+
+
 class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for TendrilGrow."""
 
@@ -121,15 +125,18 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_entity_mapping(self, user_input: dict[str, Any] | None = None):
         """Map sensor and control roles to user entities."""
         if user_input is not None:
-            sensor_mappings = {
-                role: value for role, value in user_input.items() if role in SENSOR_ROLES and value
-            }
+            tuya_enabled = _tuya_enabled_from_input(user_input)
+            sensor_mappings = {}
+            if not tuya_enabled:
+                sensor_mappings = {
+                    role: value for role, value in user_input.items() if role in SENSOR_ROLES and value
+                }
             control_mappings = {
                 role: value for role, value in user_input.items() if role in CONTROL_ROLES and value
             }
             self._data[CONF_SENSOR_MAPPINGS] = sensor_mappings
             self._data[CONF_CONTROL_MAPPINGS] = control_mappings
-            self._data[CONF_TUYA_ENABLED] = bool(user_input.get(CONF_TUYA_ENABLED, False))
+            self._data[CONF_TUYA_ENABLED] = tuya_enabled
             self._data[CONF_TUYA_ACCESS_ID] = str(user_input.get(CONF_TUYA_ACCESS_ID, "")).strip()
             self._data[CONF_TUYA_ACCESS_SECRET] = str(
                 user_input.get(CONF_TUYA_ACCESS_SECRET, "")
@@ -145,11 +152,13 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_ai_provider()
 
         fields: dict[Any, Any] = {}
-        for role in SENSOR_ROLES_CONFIGURABLE:
-            fields[vol.Optional(role)] = _entity_selector()
+        tuya_enabled = bool(self._data.get(CONF_TUYA_ENABLED, False))
+        if not tuya_enabled:
+            for role in SENSOR_ROLES_CONFIGURABLE:
+                fields[vol.Optional(role)] = _entity_selector()
         for role in CONTROL_ROLES:
             fields[vol.Optional(role)] = _entity_selector()
-        fields[vol.Optional(CONF_TUYA_ENABLED, default=False)] = bool
+        fields[vol.Optional(CONF_TUYA_ENABLED, default=tuya_enabled)] = bool
         fields[vol.Optional(CONF_TUYA_ACCESS_ID)] = str
         fields[vol.Optional(CONF_TUYA_ACCESS_SECRET)] = str
         fields[vol.Optional(CONF_TUYA_REGION, default="us")] = vol.In(TUYA_REGIONS)
@@ -299,9 +308,12 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
             current.update(getattr(self._entry, "options", {}))
             submitted_secret = str(user_input.get(CONF_TUYA_ACCESS_SECRET, "")).strip()
             resolved_secret = submitted_secret or str(current.get(CONF_TUYA_ACCESS_SECRET, "")).strip()
-            sensor_mappings = {
-                role: value for role, value in user_input.items() if role in SENSOR_ROLES and value
-            }
+            tuya_enabled = _tuya_enabled_from_input(user_input, bool(current.get(CONF_TUYA_ENABLED, False)))
+            sensor_mappings = {}
+            if not tuya_enabled:
+                sensor_mappings = {
+                    role: value for role, value in user_input.items() if role in SENSOR_ROLES and value
+                }
             control_mappings = {
                 role: value for role, value in user_input.items() if role in CONTROL_ROLES and value
             }
@@ -312,7 +324,7 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                     CONF_GROW_SIZE: user_input.get(CONF_GROW_SIZE, ""),
                     CONF_SENSOR_MAPPINGS: sensor_mappings,
                     CONF_CONTROL_MAPPINGS: control_mappings,
-                    CONF_TUYA_ENABLED: bool(user_input.get(CONF_TUYA_ENABLED, False)),
+                    CONF_TUYA_ENABLED: tuya_enabled,
                     CONF_TUYA_ACCESS_ID: str(user_input.get(CONF_TUYA_ACCESS_ID, "")).strip(),
                     CONF_TUYA_ACCESS_SECRET: resolved_secret,
                     CONF_TUYA_REGION: str(user_input.get(CONF_TUYA_REGION, "us")),
@@ -332,14 +344,15 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
         }
 
         sensor_mappings = _normalize_sensor_mappings(current.get(CONF_SENSOR_MAPPINGS, {}))
-        for role in SENSOR_ROLES_CONFIGURABLE:
-            _optional_entity_field(fields, role, sensor_mappings)
+        tuya_enabled = bool(current.get(CONF_TUYA_ENABLED, False))
+        if not tuya_enabled:
+            for role in SENSOR_ROLES_CONFIGURABLE:
+                _optional_entity_field(fields, role, sensor_mappings)
 
         control_mappings = current.get(CONF_CONTROL_MAPPINGS, {})
         for role in CONTROL_ROLES:
             _optional_entity_field(fields, role, control_mappings)
 
-        tuya_enabled = bool(current.get(CONF_TUYA_ENABLED, False))
         tuya_device_ids = current.get(CONF_TUYA_DEVICE_IDS, [])
         fields[vol.Optional(CONF_TUYA_ENABLED, default=tuya_enabled)] = bool
         fields[vol.Optional(CONF_TUYA_ACCESS_ID, default=current.get(CONF_TUYA_ACCESS_ID, ""))] = str
