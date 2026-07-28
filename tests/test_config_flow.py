@@ -14,6 +14,9 @@ from custom_components.tendrilgrow.config_flow import (
     TendrilGrowOptionsFlow,
 )
 from custom_components.tendrilgrow.const import (
+    CONF_AI_HEALTH_INTERVAL_HOURS,
+    CONF_AI_RESULT_RETENTION_DAYS,
+    CONF_AI_SEVERE_THRESHOLD,
     CONF_AI_PROVIDER,
     CONF_BASE_URL,
     CONF_GROW_SIZE,
@@ -26,6 +29,7 @@ from custom_components.tendrilgrow.const import (
     CONF_TUYA_REGION,
     CONF_TUYA_SCAN_INTERVAL,
     PROVIDER_NONE,
+    SENSOR_ROLE_CAMERA,
     SENSOR_ROLE_CF,
     SENSOR_ROLE_EC,
     SENSOR_ROLE_ORP,
@@ -143,15 +147,19 @@ async def test_options_flow_edit_creates_options_payload() -> None:
         "grow_type": "soil",
         "grow_size": "5x5",
         "temperature": "sensor.new",
+        SENSOR_ROLE_CAMERA: "camera.tent_a",
         CONF_TUYA_ENABLED: True,
         CONF_TUYA_ACCESS_ID: "abc123",
         CONF_TUYA_REGION: "us",
         CONF_TUYA_DEVICE_IDS: "dev-1,dev-2",
         CONF_TUYA_SCAN_INTERVAL: 120,
+        CONF_AI_HEALTH_INTERVAL_HOURS: 12,
+        CONF_AI_SEVERE_THRESHOLD: 20,
+        CONF_AI_RESULT_RETENTION_DAYS: 30,
     })
     assert result["type"] == "create_entry"
     assert result["data"]["grow_type"] == "soil"
-    assert result["data"][CONF_SENSOR_MAPPINGS] == {}
+    assert result["data"][CONF_SENSOR_MAPPINGS] == {SENSOR_ROLE_CAMERA: "camera.tent_a"}
     assert result["data"][CONF_TUYA_ENABLED] is True
     assert result["data"][CONF_TUYA_DEVICE_IDS] == ["dev-1", "dev-2"]
 
@@ -189,6 +197,7 @@ async def test_entity_mapping_form_hides_sensor_roles_when_tuya_enabled() -> Non
     assert SENSOR_ROLE_CF not in schema_keys
     assert SENSOR_ROLE_ORP not in schema_keys
     assert SENSOR_ROLE_TDS not in schema_keys
+    assert SENSOR_ROLE_CAMERA in schema_keys
     assert CONF_TUYA_ENABLED in schema_keys
 
 
@@ -214,6 +223,7 @@ async def test_options_form_hides_sensor_roles_when_tuya_enabled() -> None:
     assert SENSOR_ROLE_CF not in schema_keys
     assert SENSOR_ROLE_ORP not in schema_keys
     assert SENSOR_ROLE_TDS not in schema_keys
+    assert SENSOR_ROLE_CAMERA in schema_keys
     assert CONF_TUYA_ENABLED in schema_keys
 
 

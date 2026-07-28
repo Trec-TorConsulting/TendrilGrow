@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -98,6 +99,10 @@ class ProviderDiscoveryError(RuntimeError):
     """Runtime error while discovering provider models."""
 
 
+class ProviderExecutionError(RuntimeError):
+    """Runtime error while executing an AI provider request."""
+
+
 def validate_provider_config(provider: str, config: dict[str, Any]) -> None:
     """Ensure required fields exist and look non-empty."""
     definition = PROVIDERS.get(provider)
@@ -128,3 +133,123 @@ async def discover_models(hass: HomeAssistant, provider: str, config: dict[str, 
     if not models:
         raise ProviderDiscoveryError("no_models_found")
     return sorted(set(models))
+
+
+def _extract_openai_text(payload: dict[str, Any]) -> str:
+    choices = payload.get("choices", [])
+    if not choices:
+        return ""
+    message = choices[0].get("message", {})
+    content = message.get("content", "")
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = [part.get("text", "") for part in content if isinstance(part, dict)]
+        return "\n".join(part for part in parts if part).strip()
+    return ""
+
+
+def _extract_gemini_text(payload: dict[str, Any]) -> str:
+    candidates = payload.get("candidates", [])
+    if not candidates:
+        return ""
+    parts = candidates[0].get("content", {}).get("parts", [])
+    chunks = [part.get("text", "") for part in parts if isinstance(part, dict)]
+    return "\n".join(chunk for chunk in chunks if chunk).strip()
+
+
+async def _read_json_or_raise(resp: Any, provider: str) -> dict[str, Any]:
+    """Return parsed JSON, or raise ProviderExecutionError with the response body."""
+    if resp.status >= 400:
+        body = await resp.text()
+        raise ProviderExecutionError(f"{provider} HTTP {resp.status}: {body[:400].strip()}")
+    return await resp.json(content_type=None)
+
+
+async def generate_vision_health_report(
+    hass: HomeAssistant,
+    provider: str,
+    model: str,
+    config: dict[str, Any],
+    *,
+    prompt: str,
+    image_bytes: bytes,
+    mime_type: str = "image/jpeg",
+) -> str:
+    """Generate a vision-aware health report for one grow-space snapshot."""
+    definition = PROVIDERS.get(provider)
+    if definition is None:
+        raise ProviderExecutionError("unsupported_provider")
+
+    encoded = base64.b64encode(image_bytes).decode("ascii")
+    session = async_get_clientsession(hass)
+
+    try:
+        if provider == PROVIDER_GEMINI:
+            api_key = str(config.get(CONF_API_KEY, "")).strip()
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": prompt},
+                            {
+                                "inline_data": {
+                                    "mime_type": mime_type,
+                                    "data": encoded,
+                                }
+                            },
+                        ]
+                    }
+                ],
+            }
+            async with session.post(url, json=payload) as resp:
+                body = await _read_json_or_raise(resp, provider)
+            return _extract_gemini_text(body)
+
+        if provider == PROVIDER_OPENAI:
+            api_key = str(config.get(CONF_API_KEY, "")).strip()
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": model,
+                "temperature": 0.2,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{mime_type};base64,{encoded}"},
+                            },
+                        ],
+                    }
+                ],
+            }
+            async with session.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload) as resp:
+                body = await _read_json_or_raise(resp, provider)
+            return _extract_openai_text(body)
+
+        if provider == PROVIDER_OLLAMA:
+            base_url = str(config.get(CONF_BASE_URL, "")).rstrip("/")
+            payload = {
+                "model": model,
+                "stream": False,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt,
+                        "images": [encoded],
+                    }
+                ],
+            }
+            async with session.post(f"{base_url}/api/chat", json=payload) as resp:
+                body = await _read_json_or_raise(resp, provider)
+            return str(body.get("message", {}).get("content", "")).strip()
+    except ClientError as err:
+        raise ProviderExecutionError(str(err)) from err
+
+    raise ProviderExecutionError("unsupported_provider")

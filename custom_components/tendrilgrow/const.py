@@ -18,6 +18,10 @@ CONF_AI_PROVIDER = "ai_provider"
 CONF_AI_MODEL = "ai_model"
 CONF_API_KEY = "api_key"
 CONF_BASE_URL = "base_url"
+CONF_AI_HEALTH_INTERVAL_HOURS = "ai_health_interval_hours"
+CONF_AI_SEVERE_THRESHOLD = "ai_severe_threshold"
+CONF_AI_NOTIFY_SERVICE = "ai_notify_service"
+CONF_AI_RESULT_RETENTION_DAYS = "ai_result_retention_days"
 
 CONF_TUYA_ENABLED = "tuya_enabled"
 CONF_TUYA_ACCESS_ID = "tuya_access_id"
@@ -73,6 +77,65 @@ SENSOR_ROLES_CONFIGURABLE: tuple[str, ...] = (
     SENSOR_ROLE_TDS,
     SENSOR_ROLE_CAMERA,
 )
+
+SENSOR_ROLES_TUYA_OPTIONAL: tuple[str, ...] = (
+    SENSOR_ROLE_CAMERA,
+)
+
+DEFAULT_AI_HEALTH_INTERVAL_HOURS = 12
+DEFAULT_AI_SEVERE_THRESHOLD = 20
+DEFAULT_AI_RESULT_RETENTION_DAYS = 30
+
+# Grow cultivation context (editable helper entities) used to enrich AI reports.
+CTX_STAGE = "ctx_stage"
+CTX_STRAIN = "ctx_strain"
+CTX_WEEK_IN_STAGE = "ctx_week_in_stage"
+CTX_RESERVOIR_VOLUME = "ctx_reservoir_volume_gal"
+CTX_SITE_COUNT = "ctx_site_count"
+CTX_TARGET_PH = "ctx_target_ph"
+CTX_TARGET_EC = "ctx_target_ec"
+CTX_FEED_INTERVAL_DAYS = "ctx_feed_interval_days"
+CTX_LIGHTS_ON_HOURS = "ctx_lights_on_hours"
+CTX_RUNOFF_TARGET_PCT = "ctx_runoff_target_pct"
+CTX_NUTRIENT_LINE = "ctx_nutrient_line"
+CTX_BASE_NUTRIENTS = "ctx_base_nutrients"
+CTX_ADDITIVES = "ctx_additives"
+
+STAGE_OPTIONS: tuple[str, ...] = (
+    "seedling",
+    "vegetative",
+    "early_flower",
+    "mid_flower",
+    "late_flower",
+    "flush",
+)
+
+# Per-stage target ranges used to calibrate AI scoring. Operator can tune these.
+STAGE_TARGETS: dict[str, dict[str, str]] = {
+    "seedling": {"ph": "5.8-6.2", "ec_ms_cm": "0.4-0.8", "vpd_kpa": "0.4-0.8"},
+    "vegetative": {"ph": "5.6-6.0", "ec_ms_cm": "1.2-1.8", "vpd_kpa": "0.8-1.1"},
+    "early_flower": {"ph": "5.8-6.1", "ec_ms_cm": "1.6-2.2", "vpd_kpa": "1.0-1.3"},
+    "mid_flower": {"ph": "5.8-6.2", "ec_ms_cm": "1.8-2.4", "vpd_kpa": "1.2-1.5"},
+    "late_flower": {"ph": "6.0-6.3", "ec_ms_cm": "1.4-2.0", "vpd_kpa": "1.3-1.6"},
+    "flush": {"ph": "5.8-6.2", "ec_ms_cm": "0.0-0.4", "vpd_kpa": "1.3-1.6"},
+}
+
+# Maps grow-context unique-id suffixes to prompt labels.
+GROW_CONTEXT_LABELS: dict[str, str] = {
+    CTX_STAGE: "growth_stage",
+    CTX_STRAIN: "strain_genetics",
+    CTX_WEEK_IN_STAGE: "week_in_stage",
+    CTX_RESERVOIR_VOLUME: "reservoir_volume_gal",
+    CTX_SITE_COUNT: "site_count_plants",
+    CTX_TARGET_PH: "target_ph",
+    CTX_TARGET_EC: "target_ec_ms_cm",
+    CTX_FEED_INTERVAL_DAYS: "feed_interval_days",
+    CTX_LIGHTS_ON_HOURS: "lights_on_hours",
+    CTX_RUNOFF_TARGET_PCT: "runoff_target_pct",
+    CTX_NUTRIENT_LINE: "nutrient_line",
+    CTX_BASE_NUTRIENTS: "base_nutrients",
+    CTX_ADDITIVES: "additives",
+}
 
 CONTROL_ROLES: tuple[str, ...] = (
     CONTROL_ROLE_LIGHTS,

@@ -28,10 +28,20 @@ async def async_get_config_entry_diagnostics(
     runtime = hass.data.get("tendrilgrow", {}).get(entry.entry_id) if hass else None
     auto_mapped = {}
     effective_sensor_mappings = {}
+    ai_health = {}
     if runtime is not None:
         auto_mapped = dict(getattr(runtime, "auto_mapped_sensor_roles", {}) or {})
         grow_space = getattr(runtime, "grow_space", None)
         effective_sensor_mappings = dict(getattr(grow_space, "sensor_mappings", {}) or {})
+        ai_state = getattr(runtime, "ai_health_state", None)
+        if ai_state is not None:
+            latest = ai_state.latest.to_dict() if ai_state.latest else None
+            ai_health = {
+                "running": bool(getattr(ai_state, "running", False)),
+                "last_error": str(getattr(ai_state, "last_error", "") or ""),
+                "history_count": len(getattr(ai_state, "history", []) or []),
+                "latest": latest,
+            }
 
     return {
         "entry_id": entry.entry_id,
@@ -41,5 +51,6 @@ async def async_get_config_entry_diagnostics(
         "runtime": {
             "auto_mapped_sensor_roles": auto_mapped,
             "effective_sensor_mappings": effective_sensor_mappings,
+            "ai_health": _safe_redact(ai_health),
         },
     }

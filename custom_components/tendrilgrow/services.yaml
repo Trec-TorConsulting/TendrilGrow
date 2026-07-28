@@ -7,3 +7,18 @@ rebuild_automap:
       description: Optional specific TendrilGrow config entry ID to reload. Leave empty to reload all loaded TendrilGrow entries.
       selector:
         text:
+
+run_ai_health_check:
+  name: Run AI health check
+  description: Run a camera-based AI health analysis for one or all loaded TendrilGrow entries.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: Optional specific TendrilGrow config entry ID to run. Leave empty to run all loaded TendrilGrow entries.
+      selector:
+        text:
+    reason:
+      name: Reason
+      description: Optional reason string recorded with the AI check result.
+      selector:
+        text:

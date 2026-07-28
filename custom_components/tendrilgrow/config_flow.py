@@ -18,8 +18,12 @@ from .ai.providers import (
     validate_provider_config,
 )
 from .const import (
+    CONF_AI_HEALTH_INTERVAL_HOURS,
     CONF_AI_MODEL,
+    CONF_AI_NOTIFY_SERVICE,
     CONF_AI_PROVIDER,
+    CONF_AI_RESULT_RETENTION_DAYS,
+    CONF_AI_SEVERE_THRESHOLD,
     CONF_API_KEY,
     CONF_BASE_URL,
     CONF_CONTROL_MAPPINGS,
@@ -37,12 +41,16 @@ from .const import (
     CONF_TUYA_UID,
     CONF_TARGETS,
     CONTROL_ROLES,
+    DEFAULT_AI_HEALTH_INTERVAL_HOURS,
+    DEFAULT_AI_RESULT_RETENTION_DAYS,
+    DEFAULT_AI_SEVERE_THRESHOLD,
     DOMAIN,
     PROVIDER_GEMINI,
     PROVIDER_OLLAMA,
     PROVIDER_NONE,
     PROVIDER_OPENAI,
     SENSOR_ROLE_EC_TDS_LEGACY,
+    SENSOR_ROLES_TUYA_OPTIONAL,
     SENSOR_ROLE_TDS,
     SENSOR_ROLES,
     SENSOR_ROLES_CONFIGURABLE,
@@ -127,9 +135,12 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             tuya_enabled = _tuya_enabled_from_input(user_input)
             sensor_mappings = {}
-            if not tuya_enabled:
+            allowed_sensor_roles = SENSOR_ROLES if not tuya_enabled else SENSOR_ROLES_TUYA_OPTIONAL
+            if allowed_sensor_roles:
                 sensor_mappings = {
-                    role: value for role, value in user_input.items() if role in SENSOR_ROLES and value
+                    role: value
+                    for role, value in user_input.items()
+                    if role in allowed_sensor_roles and value
                 }
             control_mappings = {
                 role: value for role, value in user_input.items() if role in CONTROL_ROLES and value
@@ -147,15 +158,27 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 str(user_input.get(CONF_TUYA_DEVICE_IDS, ""))
             )
             self._data[CONF_TUYA_SCAN_INTERVAL] = int(user_input.get(CONF_TUYA_SCAN_INTERVAL, 60))
+            self._data[CONF_AI_HEALTH_INTERVAL_HOURS] = int(
+                user_input.get(CONF_AI_HEALTH_INTERVAL_HOURS, DEFAULT_AI_HEALTH_INTERVAL_HOURS)
+            )
+            self._data[CONF_AI_SEVERE_THRESHOLD] = int(
+                user_input.get(CONF_AI_SEVERE_THRESHOLD, DEFAULT_AI_SEVERE_THRESHOLD)
+            )
+            self._data[CONF_AI_NOTIFY_SERVICE] = str(
+                user_input.get(CONF_AI_NOTIFY_SERVICE, "")
+            ).strip()
+            self._data[CONF_AI_RESULT_RETENTION_DAYS] = int(
+                user_input.get(CONF_AI_RESULT_RETENTION_DAYS, DEFAULT_AI_RESULT_RETENTION_DAYS)
+            )
             self._data.setdefault(CONF_TARGETS, {})
             self._data.setdefault(CONF_SCHEDULES, {})
             return await self.async_step_ai_provider()
 
         fields: dict[Any, Any] = {}
         tuya_enabled = bool(self._data.get(CONF_TUYA_ENABLED, False))
-        if not tuya_enabled:
-            for role in SENSOR_ROLES_CONFIGURABLE:
-                fields[vol.Optional(role)] = _entity_selector()
+        visible_sensor_roles = SENSOR_ROLES_CONFIGURABLE if not tuya_enabled else SENSOR_ROLES_TUYA_OPTIONAL
+        for role in visible_sensor_roles:
+            fields[vol.Optional(role)] = _entity_selector()
         for role in CONTROL_ROLES:
             fields[vol.Optional(role)] = _entity_selector()
         fields[vol.Optional(CONF_TUYA_ENABLED, default=tuya_enabled)] = bool
@@ -167,6 +190,17 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         fields[vol.Optional(CONF_TUYA_SCAN_INTERVAL, default=60)] = vol.All(
             vol.Coerce(int),
             vol.Range(min=30, max=3600),
+        )
+        fields[vol.Optional(CONF_AI_HEALTH_INTERVAL_HOURS, default=DEFAULT_AI_HEALTH_INTERVAL_HOURS)] = (
+            vol.All(vol.Coerce(int), vol.Range(min=1, max=168))
+        )
+        fields[vol.Optional(CONF_AI_SEVERE_THRESHOLD, default=DEFAULT_AI_SEVERE_THRESHOLD)] = vol.All(
+            vol.Coerce(int),
+            vol.Range(min=0, max=100),
+        )
+        fields[vol.Optional(CONF_AI_NOTIFY_SERVICE)] = str
+        fields[vol.Optional(CONF_AI_RESULT_RETENTION_DAYS, default=DEFAULT_AI_RESULT_RETENTION_DAYS)] = (
+            vol.All(vol.Coerce(int), vol.Range(min=1, max=180))
         )
         schema = vol.Schema(fields)
         return self.async_show_form(step_id="entity_mapping", data_schema=schema, errors={})
@@ -283,6 +317,19 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data[CONF_TUYA_UID] = self._data.get(CONF_TUYA_UID, "")
         data[CONF_TUYA_DEVICE_IDS] = self._data.get(CONF_TUYA_DEVICE_IDS, [])
         data[CONF_TUYA_SCAN_INTERVAL] = self._data.get(CONF_TUYA_SCAN_INTERVAL, 60)
+        data[CONF_AI_HEALTH_INTERVAL_HOURS] = self._data.get(
+            CONF_AI_HEALTH_INTERVAL_HOURS,
+            DEFAULT_AI_HEALTH_INTERVAL_HOURS,
+        )
+        data[CONF_AI_SEVERE_THRESHOLD] = self._data.get(
+            CONF_AI_SEVERE_THRESHOLD,
+            DEFAULT_AI_SEVERE_THRESHOLD,
+        )
+        data[CONF_AI_NOTIFY_SERVICE] = self._data.get(CONF_AI_NOTIFY_SERVICE, "")
+        data[CONF_AI_RESULT_RETENTION_DAYS] = self._data.get(
+            CONF_AI_RESULT_RETENTION_DAYS,
+            DEFAULT_AI_RESULT_RETENTION_DAYS,
+        )
         if CONF_API_KEY in self._data:
             data[CONF_API_KEY] = self._data[CONF_API_KEY]
         if CONF_BASE_URL in self._data:
@@ -310,9 +357,12 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
             resolved_secret = submitted_secret or str(current.get(CONF_TUYA_ACCESS_SECRET, "")).strip()
             tuya_enabled = _tuya_enabled_from_input(user_input, bool(current.get(CONF_TUYA_ENABLED, False)))
             sensor_mappings = {}
-            if not tuya_enabled:
+            allowed_sensor_roles = SENSOR_ROLES if not tuya_enabled else SENSOR_ROLES_TUYA_OPTIONAL
+            if allowed_sensor_roles:
                 sensor_mappings = {
-                    role: value for role, value in user_input.items() if role in SENSOR_ROLES and value
+                    role: value
+                    for role, value in user_input.items()
+                    if role in allowed_sensor_roles and value
                 }
             control_mappings = {
                 role: value for role, value in user_input.items() if role in CONTROL_ROLES and value
@@ -333,6 +383,31 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                         str(user_input.get(CONF_TUYA_DEVICE_IDS, ""))
                     ),
                     CONF_TUYA_SCAN_INTERVAL: int(user_input.get(CONF_TUYA_SCAN_INTERVAL, 60)),
+                    CONF_AI_HEALTH_INTERVAL_HOURS: int(
+                        user_input.get(
+                            CONF_AI_HEALTH_INTERVAL_HOURS,
+                            current.get(
+                                CONF_AI_HEALTH_INTERVAL_HOURS,
+                                DEFAULT_AI_HEALTH_INTERVAL_HOURS,
+                            ),
+                        )
+                    ),
+                    CONF_AI_SEVERE_THRESHOLD: int(
+                        user_input.get(
+                            CONF_AI_SEVERE_THRESHOLD,
+                            current.get(CONF_AI_SEVERE_THRESHOLD, DEFAULT_AI_SEVERE_THRESHOLD),
+                        )
+                    ),
+                    CONF_AI_NOTIFY_SERVICE: str(user_input.get(CONF_AI_NOTIFY_SERVICE, "")).strip(),
+                    CONF_AI_RESULT_RETENTION_DAYS: int(
+                        user_input.get(
+                            CONF_AI_RESULT_RETENTION_DAYS,
+                            current.get(
+                                CONF_AI_RESULT_RETENTION_DAYS,
+                                DEFAULT_AI_RESULT_RETENTION_DAYS,
+                            ),
+                        )
+                    ),
                 },
             )
 
@@ -345,9 +420,9 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
 
         sensor_mappings = _normalize_sensor_mappings(current.get(CONF_SENSOR_MAPPINGS, {}))
         tuya_enabled = bool(current.get(CONF_TUYA_ENABLED, False))
-        if not tuya_enabled:
-            for role in SENSOR_ROLES_CONFIGURABLE:
-                _optional_entity_field(fields, role, sensor_mappings)
+        visible_sensor_roles = SENSOR_ROLES_CONFIGURABLE if not tuya_enabled else SENSOR_ROLES_TUYA_OPTIONAL
+        for role in visible_sensor_roles:
+            _optional_entity_field(fields, role, sensor_mappings)
 
         control_mappings = current.get(CONF_CONTROL_MAPPINGS, {})
         for role in CONTROL_ROLES:
@@ -365,5 +440,35 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
         fields[vol.Optional(CONF_TUYA_SCAN_INTERVAL, default=current.get(CONF_TUYA_SCAN_INTERVAL, 60))] = (
             vol.All(vol.Coerce(int), vol.Range(min=30, max=3600))
         )
+        fields[
+            vol.Optional(
+                CONF_AI_HEALTH_INTERVAL_HOURS,
+                default=current.get(
+                    CONF_AI_HEALTH_INTERVAL_HOURS,
+                    DEFAULT_AI_HEALTH_INTERVAL_HOURS,
+                ),
+            )
+        ] = vol.All(vol.Coerce(int), vol.Range(min=1, max=168))
+        fields[
+            vol.Optional(
+                CONF_AI_SEVERE_THRESHOLD,
+                default=current.get(CONF_AI_SEVERE_THRESHOLD, DEFAULT_AI_SEVERE_THRESHOLD),
+            )
+        ] = vol.All(vol.Coerce(int), vol.Range(min=0, max=100))
+        fields[
+            vol.Optional(
+                CONF_AI_NOTIFY_SERVICE,
+                default=current.get(CONF_AI_NOTIFY_SERVICE, ""),
+            )
+        ] = str
+        fields[
+            vol.Optional(
+                CONF_AI_RESULT_RETENTION_DAYS,
+                default=current.get(
+                    CONF_AI_RESULT_RETENTION_DAYS,
+                    DEFAULT_AI_RESULT_RETENTION_DAYS,
+                ),
+            )
+        ] = vol.All(vol.Coerce(int), vol.Range(min=1, max=180))
 
         return self.async_show_form(step_id="init", data_schema=vol.Schema(fields), errors={})
