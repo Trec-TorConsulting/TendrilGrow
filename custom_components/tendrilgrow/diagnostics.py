@@ -25,10 +25,21 @@ async def async_get_config_entry_diagnostics(
     entry: ConfigEntry,
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry with secrets redacted."""
-    _ = hass
+    runtime = hass.data.get("tendrilgrow", {}).get(entry.entry_id) if hass else None
+    auto_mapped = {}
+    effective_sensor_mappings = {}
+    if runtime is not None:
+        auto_mapped = dict(getattr(runtime, "auto_mapped_sensor_roles", {}) or {})
+        grow_space = getattr(runtime, "grow_space", None)
+        effective_sensor_mappings = dict(getattr(grow_space, "sensor_mappings", {}) or {})
+
     return {
         "entry_id": entry.entry_id,
         "title": entry.title,
         "data": _safe_redact(entry.data),
         "options": _safe_redact(entry.options),
+        "runtime": {
+            "auto_mapped_sensor_roles": auto_mapped,
+            "effective_sensor_mappings": effective_sensor_mappings,
+        },
     }

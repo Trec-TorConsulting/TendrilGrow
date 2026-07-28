@@ -23,6 +23,7 @@ class RuntimeData:
     """Runtime data for one grow-space config entry."""
 
     grow_space: GrowSpace
+    auto_mapped_sensor_roles: dict[str, str]
     unsubscribe_update_listener: Any
 
 
@@ -42,7 +43,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     grow_space = GrowSpace.from_dict(merged_config)
     unsubscribe = entry.add_update_listener(async_update_options)
 
-    runtime = RuntimeData(grow_space=grow_space, unsubscribe_update_listener=unsubscribe)
+    runtime = RuntimeData(
+        grow_space=grow_space,
+        auto_mapped_sensor_roles={},
+        unsubscribe_update_listener=unsubscribe,
+    )
     hass.data[DOMAIN][entry.entry_id] = runtime
     entry.runtime_data = runtime
 

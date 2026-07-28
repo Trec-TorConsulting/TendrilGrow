@@ -181,8 +181,12 @@ class TuyaMetricSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEnti
             return
 
         grow_space.sensor_mappings[role] = self.entity_id
-        LOGGER.debug(
-            "Auto-mapped TendrilGrow role %s to entity %s for entry %s",
+        auto_map_store = getattr(runtime, "auto_mapped_sensor_roles", None)
+        if isinstance(auto_map_store, dict):
+            auto_map_store[role] = self.entity_id
+
+        LOGGER.info(
+            "Auto-mapped TendrilGrow role %s -> %s for entry %s",
             role,
             self.entity_id,
             self._entry.entry_id,
