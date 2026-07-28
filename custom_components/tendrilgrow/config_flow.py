@@ -62,6 +62,18 @@ def _entity_selector() -> selector.EntitySelector:
     return selector.EntitySelector(selector.EntitySelectorConfig(multiple=False))
 
 
+def _optional_entity_field(
+    fields: dict[Any, Any],
+    role: str,
+    mapping: dict[str, str],
+) -> None:
+    existing = mapping.get(role, "")
+    if existing:
+        fields[vol.Optional(role, default=existing)] = _entity_selector()
+        return
+    fields[vol.Optional(role)] = _entity_selector()
+
+
 def _normalize_sensor_mappings(sensor_mappings: dict[str, str]) -> dict[str, str]:
     normalized = dict(sensor_mappings)
     if SENSOR_ROLE_EC_TDS_LEGACY in normalized and SENSOR_ROLE_TDS not in normalized:
@@ -321,11 +333,11 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
 
         sensor_mappings = _normalize_sensor_mappings(current.get(CONF_SENSOR_MAPPINGS, {}))
         for role in SENSOR_ROLES_CONFIGURABLE:
-            fields[vol.Optional(role, default=sensor_mappings.get(role, ""))] = _entity_selector()
+            _optional_entity_field(fields, role, sensor_mappings)
 
         control_mappings = current.get(CONF_CONTROL_MAPPINGS, {})
         for role in CONTROL_ROLES:
-            fields[vol.Optional(role, default=control_mappings.get(role, ""))] = _entity_selector()
+            _optional_entity_field(fields, role, control_mappings)
 
         tuya_enabled = bool(current.get(CONF_TUYA_ENABLED, False))
         tuya_device_ids = current.get(CONF_TUYA_DEVICE_IDS, [])
