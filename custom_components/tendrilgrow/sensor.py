@@ -107,7 +107,7 @@ async def async_setup_entry(
         return
 
     coordinator = TendrilGrowTuyaCoordinator(hass, entry)
-    await coordinator.async_config_entry_first_refresh()
+    await coordinator.async_refresh()
 
     entities: list[TuyaMetricSensor] = []
     for device_id in device_ids:
@@ -152,6 +152,8 @@ class TuyaMetricSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEnti
     def available(self) -> bool:
         if not super().available:
             return False
+        if not isinstance(self.coordinator.data, dict):
+            return False
         metrics = self.coordinator.data.get(self._device_id)
         if not metrics:
             return False
@@ -159,6 +161,8 @@ class TuyaMetricSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEnti
 
     @property
     def native_value(self):
+        if not isinstance(self.coordinator.data, dict):
+            return None
         metrics = self.coordinator.data.get(self._device_id, {})
         return metrics.get(self.entity_description.key)
 
