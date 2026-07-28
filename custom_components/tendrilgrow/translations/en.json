@@ -12,7 +12,21 @@
       },
       "entity_mapping": {
         "title": "Map entities",
-        "description": "Map your Home Assistant entities to grow roles."
+        "description": "Map your Home Assistant entities to grow roles.",
+        "data": {
+          "temperature": "Air/water temperature sensor",
+          "humidity": "Humidity sensor",
+          "light_ppfd": "PPFD/light sensor",
+          "ph": "pH sensor",
+          "ec": "EC sensor",
+          "cf": "CF sensor",
+          "orp": "ORP sensor",
+          "tds": "TDS sensor",
+          "camera": "Camera entity",
+          "lights": "Lights control",
+          "fans": "Fans control",
+          "inline_fans": "Inline fans control"
+        }
       },
       "ai_provider": {
         "title": "AI provider",
@@ -39,7 +53,23 @@
     "step": {
       "init": {
         "title": "Grow space settings",
-        "description": "Update mappings and settings for this grow space."
+        "description": "Update mappings and settings for this grow space.",
+        "data": {
+          "grow_type": "Grow type",
+          "grow_size": "Grow size/descriptor",
+          "temperature": "Air/water temperature sensor",
+          "humidity": "Humidity sensor",
+          "light_ppfd": "PPFD/light sensor",
+          "ph": "pH sensor",
+          "ec": "EC sensor",
+          "cf": "CF sensor",
+          "orp": "ORP sensor",
+          "tds": "TDS sensor",
+          "camera": "Camera entity",
+          "lights": "Lights control",
+          "fans": "Fans control",
+          "inline_fans": "Inline fans control"
+        }
       }
     }
   }

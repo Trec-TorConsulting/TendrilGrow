@@ -35,13 +35,23 @@ from .const import (
     PROVIDER_OLLAMA,
     PROVIDER_NONE,
     PROVIDER_OPENAI,
+    SENSOR_ROLE_EC_TDS_LEGACY,
+    SENSOR_ROLE_TDS,
     SENSOR_ROLES,
+    SENSOR_ROLES_CONFIGURABLE,
 )
 from .models.grow import GrowSpace
 
 
 def _entity_selector() -> selector.EntitySelector:
     return selector.EntitySelector(selector.EntitySelectorConfig(multiple=False))
+
+
+def _normalize_sensor_mappings(sensor_mappings: dict[str, str]) -> dict[str, str]:
+    normalized = dict(sensor_mappings)
+    if SENSOR_ROLE_EC_TDS_LEGACY in normalized and SENSOR_ROLE_TDS not in normalized:
+        normalized[SENSOR_ROLE_TDS] = normalized[SENSOR_ROLE_EC_TDS_LEGACY]
+    return normalized
 
 
 class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -97,7 +107,7 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_ai_provider()
 
         fields: dict[Any, Any] = {}
-        for role in SENSOR_ROLES:
+        for role in SENSOR_ROLES_CONFIGURABLE:
             fields[vol.Optional(role)] = _entity_selector()
         for role in CONTROL_ROLES:
             fields[vol.Optional(role)] = _entity_selector()
@@ -238,8 +248,8 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
             vol.Optional(CONF_GROW_SIZE, default=current.get(CONF_GROW_SIZE, "")): str,
         }
 
-        sensor_mappings = current.get(CONF_SENSOR_MAPPINGS, {})
-        for role in SENSOR_ROLES:
+        sensor_mappings = _normalize_sensor_mappings(current.get(CONF_SENSOR_MAPPINGS, {}))
+        for role in SENSOR_ROLES_CONFIGURABLE:
             fields[vol.Optional(role, default=sensor_mappings.get(role, ""))] = _entity_selector()
 
         control_mappings = current.get(CONF_CONTROL_MAPPINGS, {})

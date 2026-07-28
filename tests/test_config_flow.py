@@ -20,6 +20,11 @@ from custom_components.tendrilgrow.const import (
     CONF_GROW_SPACE_NAME,
     CONF_GROW_TYPE,
     PROVIDER_NONE,
+    SENSOR_ROLE_CF,
+    SENSOR_ROLE_EC,
+    SENSOR_ROLE_ORP,
+    SENSOR_ROLE_PH,
+    SENSOR_ROLE_TDS,
 )
 
 
@@ -131,6 +136,22 @@ async def test_options_flow_edit_creates_options_payload() -> None:
     result = await flow.async_step_init({"grow_type": "soil", "grow_size": "5x5"})
     assert result["type"] == "create_entry"
     assert result["data"]["grow_type"] == "soil"
+
+
+@pytest.mark.asyncio
+async def test_entity_mapping_form_includes_water_quality_roles() -> None:
+    flow = TendrilGrowConfigFlow()
+    _patch_show_form(flow)
+
+    result = await flow.async_step_entity_mapping()
+
+    assert result["type"] == "form"
+    schema_keys = {key.schema for key in result["data_schema"].schema}
+    assert SENSOR_ROLE_PH in schema_keys
+    assert SENSOR_ROLE_EC in schema_keys
+    assert SENSOR_ROLE_CF in schema_keys
+    assert SENSOR_ROLE_ORP in schema_keys
+    assert SENSOR_ROLE_TDS in schema_keys
 
 
 @pytest.mark.asyncio

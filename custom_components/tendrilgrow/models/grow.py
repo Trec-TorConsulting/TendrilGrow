@@ -7,7 +7,7 @@ from math import exp
 from typing import Any
 from uuid import uuid4
 
-from ..const import CONTROL_ROLES, SENSOR_ROLES
+from ..const import CONTROL_ROLES, SENSOR_ROLE_EC_TDS_LEGACY, SENSOR_ROLE_TDS, SENSOR_ROLES
 
 
 @dataclass(slots=True)
@@ -69,13 +69,18 @@ class GrowSpace:
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "GrowSpace":
         """Deserialize a grow space from config-entry data."""
+        sensor_mappings = dict(value.get("sensor_mappings", {}))
+        # Migrate legacy combined EC/TDS role to a dedicated TDS role.
+        if SENSOR_ROLE_EC_TDS_LEGACY in sensor_mappings and SENSOR_ROLE_TDS not in sensor_mappings:
+            sensor_mappings[SENSOR_ROLE_TDS] = sensor_mappings[SENSOR_ROLE_EC_TDS_LEGACY]
+
         return cls(
             space_id=value["space_id"],
             name=value["name"],
             grow_type=value["grow_type"],
             descriptor=value.get("grow_size", value.get("descriptor", "")),
             sites=[GrowSite(**site) for site in value.get("sites", [])],
-            sensor_mappings=dict(value.get("sensor_mappings", {})),
+            sensor_mappings=sensor_mappings,
             control_mappings=dict(value.get("control_mappings", {})),
             targets=dict(value.get("targets", {})),
             schedules=dict(value.get("schedules", {})),

@@ -1,6 +1,11 @@
 """Tests for grow-space model and derived metrics."""
 
-from custom_components.tendrilgrow.const import SENSOR_ROLE_HUMIDITY, SENSOR_ROLE_TEMPERATURE
+from custom_components.tendrilgrow.const import (
+    SENSOR_ROLE_EC_TDS_LEGACY,
+    SENSOR_ROLE_HUMIDITY,
+    SENSOR_ROLE_TDS,
+    SENSOR_ROLE_TEMPERATURE,
+)
 from custom_components.tendrilgrow.models.grow import GrowSite, GrowSpace
 
 
@@ -27,3 +32,21 @@ def test_vpd_unavailable_on_missing_inputs() -> None:
     assert GrowSpace.compute_vpd_c_kpa(None, 50.0) is None
     assert GrowSpace.compute_vpd_c_kpa(24.0, None) is None
     assert GrowSpace.compute_vpd_c_kpa(24.0, 0.0) is None
+
+
+def test_legacy_ec_tds_mapping_is_migrated_to_tds() -> None:
+    restored = GrowSpace.from_dict(
+        {
+            "space_id": "space-1",
+            "name": "Tent A",
+            "grow_type": "rdwc",
+            "descriptor": "3x3",
+            "sites": [],
+            "sensor_mappings": {SENSOR_ROLE_EC_TDS_LEGACY: "sensor.bucket_ec_tds"},
+            "control_mappings": {},
+            "targets": {},
+            "schedules": {},
+        }
+    )
+
+    assert restored.sensor_mappings[SENSOR_ROLE_TDS] == "sensor.bucket_ec_tds"

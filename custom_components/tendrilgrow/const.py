@@ -28,7 +28,12 @@ SENSOR_ROLE_TEMPERATURE = "temperature"
 SENSOR_ROLE_HUMIDITY = "humidity"
 SENSOR_ROLE_LIGHT = "light_ppfd"
 SENSOR_ROLE_PH = "ph"
-SENSOR_ROLE_EC = "ec_tds"
+SENSOR_ROLE_EC = "ec"
+SENSOR_ROLE_CF = "cf"
+SENSOR_ROLE_ORP = "orp"
+SENSOR_ROLE_TDS = "tds"
+# Backward-compatibility alias for early foundation entries.
+SENSOR_ROLE_EC_TDS_LEGACY = "ec_tds"
 SENSOR_ROLE_CAMERA = "camera"
 
 CONTROL_ROLE_LIGHTS = "lights"
@@ -41,6 +46,23 @@ SENSOR_ROLES: tuple[str, ...] = (
     SENSOR_ROLE_LIGHT,
     SENSOR_ROLE_PH,
     SENSOR_ROLE_EC,
+    SENSOR_ROLE_CF,
+    SENSOR_ROLE_ORP,
+    SENSOR_ROLE_TDS,
+    SENSOR_ROLE_EC_TDS_LEGACY,
+    SENSOR_ROLE_CAMERA,
+)
+
+# Sensor roles shown in config and options forms.
+SENSOR_ROLES_CONFIGURABLE: tuple[str, ...] = (
+    SENSOR_ROLE_TEMPERATURE,
+    SENSOR_ROLE_HUMIDITY,
+    SENSOR_ROLE_LIGHT,
+    SENSOR_ROLE_PH,
+    SENSOR_ROLE_EC,
+    SENSOR_ROLE_CF,
+    SENSOR_ROLE_ORP,
+    SENSOR_ROLE_TDS,
     SENSOR_ROLE_CAMERA,
 )
 

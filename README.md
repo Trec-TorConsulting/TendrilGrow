@@ -16,8 +16,8 @@ AI-provider model selection into a single HACS-installable package.
 - One grow-space config entry per tent/room/zone
 - Flexible grow-space model: sites, mapped sensors, mapped controls, targets,
 	schedules
-- Extensible role mappings (temperature, humidity/VPD, light, pH, EC/TDS,
-	cameras, lights, fans, inline fans)
+- Extensible role mappings (temperature, humidity/VPD, light, pH, EC, CF,
+	ORP, TDS, cameras, lights, fans, inline fans)
 - Derived metric support (VPD)
 - Pluggable AI provider selection:
 	- Google Gemini
