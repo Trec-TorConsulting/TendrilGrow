@@ -148,7 +148,7 @@ class TuyaCloudClient:
 
     def _sign(self, method: str, path: str, timestamp: str, token: str = "", body: str = "") -> str:
         content_sha256 = hashlib.sha256(body.encode("utf-8")).hexdigest() if body else _EMPTY_SHA256
-        string_to_sign = f"{self._access_id}{token}{timestamp}{method}\\n{content_sha256}\\n\\n{path}"
+        string_to_sign = f"{self._access_id}{token}{timestamp}{method}\n{content_sha256}\n\n{path}"
         return (
             hmac.new(
                 self._access_secret.encode("utf-8"),
