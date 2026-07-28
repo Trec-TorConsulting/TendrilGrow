@@ -79,7 +79,7 @@ Main runtime modules:
 During install in HACS, you will see behavior similar to:
 
 - `TendrilGrow`
-- `Commit 343460c will be downloaded`
+- `Commit <sha> will be downloaded`
 - Installed path: `/config/custom_components/tendrilgrow`
 
 Home Assistant restart is required after downloading custom integrations.
