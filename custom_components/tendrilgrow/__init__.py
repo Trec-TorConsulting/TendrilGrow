@@ -14,7 +14,7 @@ from .const import DOMAIN
 from .models.grow import GrowSpace
 
 LOGGER = logging.getLogger(__name__)
-PLATFORMS: list[str] = []
+PLATFORMS: list[str] = ["sensor"]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
@@ -37,7 +37,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up TendrilGrow from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    grow_space = GrowSpace.from_dict(dict(entry.data))
+    merged_config = dict(entry.data)
+    merged_config.update(getattr(entry, "options", {}))
+    grow_space = GrowSpace.from_dict(merged_config)
     unsubscribe = entry.add_update_listener(async_update_options)
 
     runtime = RuntimeData(grow_space=grow_space, unsubscribe_update_listener=unsubscribe)

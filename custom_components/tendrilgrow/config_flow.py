@@ -28,6 +28,13 @@ from .const import (
     CONF_GROW_TYPE,
     CONF_SCHEDULES,
     CONF_SENSOR_MAPPINGS,
+    CONF_TUYA_ACCESS_ID,
+    CONF_TUYA_ACCESS_SECRET,
+    CONF_TUYA_DEVICE_IDS,
+    CONF_TUYA_ENABLED,
+    CONF_TUYA_REGION,
+    CONF_TUYA_SCAN_INTERVAL,
+    CONF_TUYA_UID,
     CONF_TARGETS,
     CONTROL_ROLES,
     DOMAIN,
@@ -41,6 +48,14 @@ from .const import (
     SENSOR_ROLES_CONFIGURABLE,
 )
 from .models.grow import GrowSpace
+
+TUYA_REGIONS: tuple[str, ...] = ("us", "eu", "cn", "in")
+
+
+def _parse_tuya_device_ids(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    return [device_id.strip() for device_id in raw.split(",") if device_id.strip()]
 
 
 def _entity_selector() -> selector.EntitySelector:
@@ -102,6 +117,17 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
             self._data[CONF_SENSOR_MAPPINGS] = sensor_mappings
             self._data[CONF_CONTROL_MAPPINGS] = control_mappings
+            self._data[CONF_TUYA_ENABLED] = bool(user_input.get(CONF_TUYA_ENABLED, False))
+            self._data[CONF_TUYA_ACCESS_ID] = str(user_input.get(CONF_TUYA_ACCESS_ID, "")).strip()
+            self._data[CONF_TUYA_ACCESS_SECRET] = str(
+                user_input.get(CONF_TUYA_ACCESS_SECRET, "")
+            ).strip()
+            self._data[CONF_TUYA_REGION] = str(user_input.get(CONF_TUYA_REGION, "us"))
+            self._data[CONF_TUYA_UID] = str(user_input.get(CONF_TUYA_UID, "")).strip()
+            self._data[CONF_TUYA_DEVICE_IDS] = _parse_tuya_device_ids(
+                str(user_input.get(CONF_TUYA_DEVICE_IDS, ""))
+            )
+            self._data[CONF_TUYA_SCAN_INTERVAL] = int(user_input.get(CONF_TUYA_SCAN_INTERVAL, 60))
             self._data.setdefault(CONF_TARGETS, {})
             self._data.setdefault(CONF_SCHEDULES, {})
             return await self.async_step_ai_provider()
@@ -111,6 +137,24 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             fields[vol.Optional(role)] = _entity_selector()
         for role in CONTROL_ROLES:
             fields[vol.Optional(role)] = _entity_selector()
+        fields[vol.Optional(CONF_TUYA_ENABLED, default=False)] = selector.BooleanSelector()
+        fields[vol.Optional(CONF_TUYA_ACCESS_ID)] = str
+        fields[vol.Optional(CONF_TUYA_ACCESS_SECRET)] = selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+        )
+        fields[vol.Optional(CONF_TUYA_REGION, default="us")] = selector.SelectSelector(
+            selector.SelectSelectorConfig(options=list(TUYA_REGIONS), mode=selector.SelectSelectorMode.DROPDOWN)
+        )
+        fields[vol.Optional(CONF_TUYA_UID)] = str
+        fields[vol.Optional(CONF_TUYA_DEVICE_IDS)] = str
+        fields[vol.Optional(CONF_TUYA_SCAN_INTERVAL, default=60)] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=30,
+                max=3600,
+                step=10,
+                mode=selector.NumberSelectorMode.BOX,
+            )
+        )
         schema = vol.Schema(fields)
         return self.async_show_form(step_id="entity_mapping", data_schema=schema, errors={})
 
@@ -219,6 +263,13 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data[CONF_GROW_SIZE] = self._data.get(CONF_GROW_SIZE, "")
         data[CONF_AI_PROVIDER] = self._data.get(CONF_AI_PROVIDER, PROVIDER_NONE)
         data[CONF_AI_MODEL] = self._data.get(CONF_AI_MODEL, "")
+        data[CONF_TUYA_ENABLED] = self._data.get(CONF_TUYA_ENABLED, False)
+        data[CONF_TUYA_ACCESS_ID] = self._data.get(CONF_TUYA_ACCESS_ID, "")
+        data[CONF_TUYA_ACCESS_SECRET] = self._data.get(CONF_TUYA_ACCESS_SECRET, "")
+        data[CONF_TUYA_REGION] = self._data.get(CONF_TUYA_REGION, "us")
+        data[CONF_TUYA_UID] = self._data.get(CONF_TUYA_UID, "")
+        data[CONF_TUYA_DEVICE_IDS] = self._data.get(CONF_TUYA_DEVICE_IDS, [])
+        data[CONF_TUYA_SCAN_INTERVAL] = self._data.get(CONF_TUYA_SCAN_INTERVAL, 60)
         if CONF_API_KEY in self._data:
             data[CONF_API_KEY] = self._data[CONF_API_KEY]
         if CONF_BASE_URL in self._data:
@@ -240,9 +291,37 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            current = dict(self._entry.data)
+            current.update(getattr(self._entry, "options", {}))
+            submitted_secret = str(user_input.get(CONF_TUYA_ACCESS_SECRET, "")).strip()
+            resolved_secret = submitted_secret or str(current.get(CONF_TUYA_ACCESS_SECRET, "")).strip()
+            sensor_mappings = {
+                role: value for role, value in user_input.items() if role in SENSOR_ROLES and value
+            }
+            control_mappings = {
+                role: value for role, value in user_input.items() if role in CONTROL_ROLES and value
+            }
+            return self.async_create_entry(
+                title="",
+                data={
+                    CONF_GROW_TYPE: user_input.get(CONF_GROW_TYPE, "rdwc"),
+                    CONF_GROW_SIZE: user_input.get(CONF_GROW_SIZE, ""),
+                    CONF_SENSOR_MAPPINGS: sensor_mappings,
+                    CONF_CONTROL_MAPPINGS: control_mappings,
+                    CONF_TUYA_ENABLED: bool(user_input.get(CONF_TUYA_ENABLED, False)),
+                    CONF_TUYA_ACCESS_ID: str(user_input.get(CONF_TUYA_ACCESS_ID, "")).strip(),
+                    CONF_TUYA_ACCESS_SECRET: resolved_secret,
+                    CONF_TUYA_REGION: str(user_input.get(CONF_TUYA_REGION, "us")),
+                    CONF_TUYA_UID: str(user_input.get(CONF_TUYA_UID, "")).strip(),
+                    CONF_TUYA_DEVICE_IDS: _parse_tuya_device_ids(
+                        str(user_input.get(CONF_TUYA_DEVICE_IDS, ""))
+                    ),
+                    CONF_TUYA_SCAN_INTERVAL: int(user_input.get(CONF_TUYA_SCAN_INTERVAL, 60)),
+                },
+            )
 
         current = dict(self._entry.data)
+        current.update(getattr(self._entry, "options", {}))
         fields: dict[Any, Any] = {
             vol.Required(CONF_GROW_TYPE, default=current.get(CONF_GROW_TYPE, "rdwc")): str,
             vol.Optional(CONF_GROW_SIZE, default=current.get(CONF_GROW_SIZE, "")): str,
@@ -255,5 +334,32 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
         control_mappings = current.get(CONF_CONTROL_MAPPINGS, {})
         for role in CONTROL_ROLES:
             fields[vol.Optional(role, default=control_mappings.get(role, ""))] = _entity_selector()
+
+        tuya_enabled = bool(current.get(CONF_TUYA_ENABLED, False))
+        tuya_device_ids = current.get(CONF_TUYA_DEVICE_IDS, [])
+        fields[vol.Optional(CONF_TUYA_ENABLED, default=tuya_enabled)] = selector.BooleanSelector()
+        fields[vol.Optional(CONF_TUYA_ACCESS_ID, default=current.get(CONF_TUYA_ACCESS_ID, ""))] = str
+        fields[vol.Optional(CONF_TUYA_ACCESS_SECRET)] = selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+        )
+        fields[vol.Optional(CONF_TUYA_REGION, default=current.get(CONF_TUYA_REGION, "us"))] = (
+            selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(TUYA_REGIONS), mode=selector.SelectSelectorMode.DROPDOWN
+                )
+            )
+        )
+        fields[vol.Optional(CONF_TUYA_UID, default=current.get(CONF_TUYA_UID, ""))] = str
+        fields[vol.Optional(CONF_TUYA_DEVICE_IDS, default=",".join(tuya_device_ids))] = str
+        fields[vol.Optional(CONF_TUYA_SCAN_INTERVAL, default=current.get(CONF_TUYA_SCAN_INTERVAL, 60))] = (
+            selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=30,
+                    max=3600,
+                    step=10,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            )
+        )
 
         return self.async_show_form(step_id="init", data_schema=vol.Schema(fields), errors={})

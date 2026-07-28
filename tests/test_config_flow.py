@@ -19,6 +19,12 @@ from custom_components.tendrilgrow.const import (
     CONF_GROW_SIZE,
     CONF_GROW_SPACE_NAME,
     CONF_GROW_TYPE,
+    CONF_SENSOR_MAPPINGS,
+    CONF_TUYA_ACCESS_ID,
+    CONF_TUYA_DEVICE_IDS,
+    CONF_TUYA_ENABLED,
+    CONF_TUYA_REGION,
+    CONF_TUYA_SCAN_INTERVAL,
     PROVIDER_NONE,
     SENSOR_ROLE_CF,
     SENSOR_ROLE_EC,
@@ -133,9 +139,21 @@ async def test_options_flow_edit_creates_options_payload() -> None:
     form = await flow.async_step_init()
     assert form["type"] == "form"
 
-    result = await flow.async_step_init({"grow_type": "soil", "grow_size": "5x5"})
+    result = await flow.async_step_init({
+        "grow_type": "soil",
+        "grow_size": "5x5",
+        "temperature": "sensor.new",
+        CONF_TUYA_ENABLED: True,
+        CONF_TUYA_ACCESS_ID: "abc123",
+        CONF_TUYA_REGION: "us",
+        CONF_TUYA_DEVICE_IDS: "dev-1,dev-2",
+        CONF_TUYA_SCAN_INTERVAL: 120,
+    })
     assert result["type"] == "create_entry"
     assert result["data"]["grow_type"] == "soil"
+    assert result["data"][CONF_SENSOR_MAPPINGS]["temperature"] == "sensor.new"
+    assert result["data"][CONF_TUYA_ENABLED] is True
+    assert result["data"][CONF_TUYA_DEVICE_IDS] == ["dev-1", "dev-2"]
 
 
 @pytest.mark.asyncio
@@ -152,6 +170,9 @@ async def test_entity_mapping_form_includes_water_quality_roles() -> None:
     assert SENSOR_ROLE_CF in schema_keys
     assert SENSOR_ROLE_ORP in schema_keys
     assert SENSOR_ROLE_TDS in schema_keys
+    assert CONF_TUYA_ENABLED in schema_keys
+    assert CONF_TUYA_ACCESS_ID in schema_keys
+    assert CONF_TUYA_REGION in schema_keys
 
 
 @pytest.mark.asyncio

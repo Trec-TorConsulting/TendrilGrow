@@ -25,7 +25,14 @@
           "camera": "Camera entity",
           "lights": "Lights control",
           "fans": "Fans control",
-          "inline_fans": "Inline fans control"
+          "inline_fans": "Inline fans control",
+          "tuya_enabled": "Enable Tuya cloud polling",
+          "tuya_access_id": "Tuya access ID",
+          "tuya_access_secret": "Tuya access secret",
+          "tuya_region": "Tuya region",
+          "tuya_uid": "Tuya user UID (optional)",
+          "tuya_device_ids": "Tuya device IDs (comma-separated)",
+          "tuya_scan_interval": "Tuya poll interval (seconds)"
         }
       },
       "ai_provider": {
@@ -68,7 +75,14 @@
           "camera": "Camera entity",
           "lights": "Lights control",
           "fans": "Fans control",
-          "inline_fans": "Inline fans control"
+          "inline_fans": "Inline fans control",
+          "tuya_enabled": "Enable Tuya cloud polling",
+          "tuya_access_id": "Tuya access ID",
+          "tuya_access_secret": "Tuya access secret",
+          "tuya_region": "Tuya region",
+          "tuya_uid": "Tuya user UID (optional)",
+          "tuya_device_ids": "Tuya device IDs (comma-separated)",
+          "tuya_scan_interval": "Tuya poll interval (seconds)"
         }
       }
     }

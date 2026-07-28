@@ -19,6 +19,14 @@ CONF_AI_MODEL = "ai_model"
 CONF_API_KEY = "api_key"
 CONF_BASE_URL = "base_url"
 
+CONF_TUYA_ENABLED = "tuya_enabled"
+CONF_TUYA_ACCESS_ID = "tuya_access_id"
+CONF_TUYA_ACCESS_SECRET = "tuya_access_secret"
+CONF_TUYA_REGION = "tuya_region"
+CONF_TUYA_UID = "tuya_uid"
+CONF_TUYA_DEVICE_IDS = "tuya_device_ids"
+CONF_TUYA_SCAN_INTERVAL = "tuya_scan_interval"
+
 PROVIDER_NONE = "none"
 PROVIDER_GEMINI = "gemini"
 PROVIDER_OPENAI = "openai"
@@ -74,4 +82,5 @@ CONTROL_ROLES: tuple[str, ...] = (
 
 SENSITIVE_KEYS: tuple[str, ...] = (
     CONF_API_KEY,
+    CONF_TUYA_ACCESS_SECRET,
 )
