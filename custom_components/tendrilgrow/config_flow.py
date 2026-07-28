@@ -137,23 +137,15 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             fields[vol.Optional(role)] = _entity_selector()
         for role in CONTROL_ROLES:
             fields[vol.Optional(role)] = _entity_selector()
-        fields[vol.Optional(CONF_TUYA_ENABLED, default=False)] = selector.BooleanSelector()
+        fields[vol.Optional(CONF_TUYA_ENABLED, default=False)] = bool
         fields[vol.Optional(CONF_TUYA_ACCESS_ID)] = str
-        fields[vol.Optional(CONF_TUYA_ACCESS_SECRET)] = selector.TextSelector(
-            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
-        )
-        fields[vol.Optional(CONF_TUYA_REGION, default="us")] = selector.SelectSelector(
-            selector.SelectSelectorConfig(options=list(TUYA_REGIONS), mode=selector.SelectSelectorMode.DROPDOWN)
-        )
+        fields[vol.Optional(CONF_TUYA_ACCESS_SECRET)] = str
+        fields[vol.Optional(CONF_TUYA_REGION, default="us")] = vol.In(TUYA_REGIONS)
         fields[vol.Optional(CONF_TUYA_UID)] = str
         fields[vol.Optional(CONF_TUYA_DEVICE_IDS)] = str
-        fields[vol.Optional(CONF_TUYA_SCAN_INTERVAL, default=60)] = selector.NumberSelector(
-            selector.NumberSelectorConfig(
-                min=30,
-                max=3600,
-                step=10,
-                mode=selector.NumberSelectorMode.BOX,
-            )
+        fields[vol.Optional(CONF_TUYA_SCAN_INTERVAL, default=60)] = vol.All(
+            vol.Coerce(int),
+            vol.Range(min=30, max=3600),
         )
         schema = vol.Schema(fields)
         return self.async_show_form(step_id="entity_mapping", data_schema=schema, errors={})
@@ -337,29 +329,16 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
 
         tuya_enabled = bool(current.get(CONF_TUYA_ENABLED, False))
         tuya_device_ids = current.get(CONF_TUYA_DEVICE_IDS, [])
-        fields[vol.Optional(CONF_TUYA_ENABLED, default=tuya_enabled)] = selector.BooleanSelector()
+        fields[vol.Optional(CONF_TUYA_ENABLED, default=tuya_enabled)] = bool
         fields[vol.Optional(CONF_TUYA_ACCESS_ID, default=current.get(CONF_TUYA_ACCESS_ID, ""))] = str
-        fields[vol.Optional(CONF_TUYA_ACCESS_SECRET)] = selector.TextSelector(
-            selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
-        )
-        fields[vol.Optional(CONF_TUYA_REGION, default=current.get(CONF_TUYA_REGION, "us"))] = (
-            selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=list(TUYA_REGIONS), mode=selector.SelectSelectorMode.DROPDOWN
-                )
-            )
+        fields[vol.Optional(CONF_TUYA_ACCESS_SECRET)] = str
+        fields[vol.Optional(CONF_TUYA_REGION, default=current.get(CONF_TUYA_REGION, "us"))] = vol.In(
+            TUYA_REGIONS
         )
         fields[vol.Optional(CONF_TUYA_UID, default=current.get(CONF_TUYA_UID, ""))] = str
         fields[vol.Optional(CONF_TUYA_DEVICE_IDS, default=",".join(tuya_device_ids))] = str
         fields[vol.Optional(CONF_TUYA_SCAN_INTERVAL, default=current.get(CONF_TUYA_SCAN_INTERVAL, 60))] = (
-            selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=30,
-                    max=3600,
-                    step=10,
-                    mode=selector.NumberSelectorMode.BOX,
-                )
-            )
+            vol.All(vol.Coerce(int), vol.Range(min=30, max=3600))
         )
 
         return self.async_show_form(step_id="init", data_schema=vol.Schema(fields), errors={})
