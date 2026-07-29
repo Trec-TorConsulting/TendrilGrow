@@ -7,13 +7,22 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from homeassistant.util import dt as dt_util
 
 from custom_components.tendrilgrow import _EphemeralStore
 from custom_components.tendrilgrow.binary_sensor import FlushDueBinarySensor
 from custom_components.tendrilgrow.button import FlushNowButton
-from custom_components.tendrilgrow.const import DOMAIN
+from custom_components.tendrilgrow.const import (
+    CTX_FLUSH_INTERVAL_DAYS,
+    DOMAIN,
+    FLUSH_DAYS_SINCE_SUFFIX,
+    FLUSH_DUE_SUFFIX,
+    FLUSH_NEXT_DUE_SUFFIX,
+    GROW_CONTEXT_LABELS,
+)
 from custom_components.tendrilgrow.flush import (
     FlushState,
+    async_check_flush_due,
     async_record_flush,
     flush_dispatcher_signal,
     flush_notification_id,
@@ -313,3 +322,130 @@ def test_flush_due_binary_sensor_never_flushed() -> None:
     attrs = binary.extra_state_attributes
     assert attrs["last_flush"] is None
     assert attrs["days_since"] is None
+
+
+def _create_calls(mock: AsyncMock) -> list:
+    return [
+        call
+        for call in mock.await_args_list
+        if call.args[:2] == ("persistent_notification", "create")
+    ]
+
+
+def _overdue_runtime() -> SimpleNamespace:
+    return SimpleNamespace(
+        flush_state=FlushState(
+            last_flush=dt_util.utcnow() - timedelta(days=9), interval_days=7
+        ),
+        flush_store=_EphemeralStore(),
+        grow_space=SimpleNamespace(name="Tent A"),
+    )
+
+
+@pytest.mark.asyncio
+async def test_check_flush_due_notifies_when_overdue() -> None:
+    """An overdue flush raises exactly one persistent notification."""
+    runtime = _overdue_runtime()
+    hass = SimpleNamespace(services=SimpleNamespace(async_call=AsyncMock()))
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A", data={}, options={})
+
+    await async_check_flush_due(hass, entry, runtime)
+
+    assert len(_create_calls(hass.services.async_call)) == 1
+    assert (
+        runtime.flush_state.notified_overdue_for
+        == runtime.flush_state.last_flush.isoformat()
+    )
+
+
+@pytest.mark.asyncio
+async def test_check_flush_due_deduplicates() -> None:
+    """A second check in the same cycle does not notify again."""
+    runtime = _overdue_runtime()
+    hass = SimpleNamespace(services=SimpleNamespace(async_call=AsyncMock()))
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A", data={}, options={})
+
+    await async_check_flush_due(hass, entry, runtime)
+    hass.services.async_call.reset_mock()
+    await async_check_flush_due(hass, entry, runtime)
+
+    assert len(_create_calls(hass.services.async_call)) == 0
+
+
+@pytest.mark.asyncio
+async def test_check_flush_due_not_due_no_notify() -> None:
+    """A within-interval flush does not notify."""
+    runtime = SimpleNamespace(
+        flush_state=FlushState(
+            last_flush=dt_util.utcnow() - timedelta(days=1), interval_days=7
+        ),
+        flush_store=_EphemeralStore(),
+        grow_space=SimpleNamespace(name="Tent A"),
+    )
+    hass = SimpleNamespace(services=SimpleNamespace(async_call=AsyncMock()))
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A", data={}, options={})
+
+    await async_check_flush_due(hass, entry, runtime)
+
+    assert len(_create_calls(hass.services.async_call)) == 0
+
+
+@pytest.mark.asyncio
+async def test_check_flush_due_rearms_after_flush() -> None:
+    """Recording a flush re-arms the reminder for the next overdue cycle."""
+    runtime = _overdue_runtime()
+    hass = SimpleNamespace(
+        data={DOMAIN: {"entry-1": runtime}},
+        verify_event_loop_thread=Mock(),
+        services=SimpleNamespace(async_call=AsyncMock()),
+    )
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A", data={}, options={})
+
+    await async_check_flush_due(hass, entry, runtime)
+    assert len(_create_calls(hass.services.async_call)) == 1
+
+    # Operator records a flush (clears the de-dupe flag).
+    await async_record_flush(hass, entry, runtime)
+    assert runtime.flush_state.notified_overdue_for is None
+
+    # A new overdue cycle notifies again.
+    runtime.flush_state.last_flush = dt_util.utcnow() - timedelta(days=9)
+    hass.services.async_call.reset_mock()
+    await async_check_flush_due(hass, entry, runtime)
+    assert len(_create_calls(hass.services.async_call)) == 1
+
+
+@pytest.mark.asyncio
+async def test_check_flush_due_uses_notify_service() -> None:
+    """A configured notify service is called in addition to the notification."""
+    runtime = _overdue_runtime()
+    hass = SimpleNamespace(services=SimpleNamespace(async_call=AsyncMock()))
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        title="Tent A",
+        data={"ai_notify_service": "notify.mobile_app"},
+        options={},
+    )
+
+    await async_check_flush_due(hass, entry, runtime)
+
+    notify_calls = [
+        call
+        for call in hass.services.async_call.await_args_list
+        if call.args[:2] == ("notify", "mobile_app")
+    ]
+    assert len(notify_calls) == 1
+
+
+def test_flush_labels_present_for_ai_context() -> None:
+    """Flush status labels are exposed to the AI cultivation context."""
+    assert FLUSH_DAYS_SINCE_SUFFIX in GROW_CONTEXT_LABELS
+    assert CTX_FLUSH_INTERVAL_DAYS in GROW_CONTEXT_LABELS
+
+
+def test_flush_context_labels_are_collision_safe() -> None:
+    """No context label key mislabels the next_flush_due entity via endswith."""
+    # flush_due is intentionally excluded because next_flush_due ends with it.
+    assert FLUSH_DUE_SUFFIX not in GROW_CONTEXT_LABELS
+    for key in GROW_CONTEXT_LABELS:
+        assert not FLUSH_NEXT_DUE_SUFFIX.endswith(key)
