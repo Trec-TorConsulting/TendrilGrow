@@ -46,6 +46,16 @@ CONTROL_ROLES = ("lights", "fans", "inline_fans")
 PUMP_ROLES = ("rdwc_pump", "chiller_pump", "air_pump")
 PUMP_POWER_ROLES = ("rdwc_pump_power", "chiller_pump_power", "air_pump_power")
 
+# Reservoir flush tracking entity suffixes (change: add-flush-tracking).
+# Ordered longest-first so "next_flush_due" is matched before "flush_due".
+FLUSH_REPORT = (
+    ("last_flush", "last flush"),
+    ("days_since_flush", "days since"),
+    ("days_until_flush", "days until"),
+    ("next_flush_due", "next due"),
+    ("flush_due", "due"),
+)
+
 # Plausible ranges for sanity-checking live readings.
 PLAUSIBLE: dict[str, tuple[float, float]] = {
     "ph": (3.5, 8.5),
@@ -324,6 +334,26 @@ def validate_space(
                 f"total pump power sensor {total_power_entity} not found "
                 "(expected when pumps have power sensors mapped)"
             )
+
+    # Reservoir flush tracking (add-flush-tracking): resolve entities from the
+    # registry by unique-id suffix and report their current states.
+    flush_by_suffix: dict[str, str] = {}
+    for ent in ents:
+        uid = str(ent.get("unique_id", ""))
+        for suffix, _label in FLUSH_REPORT:
+            if uid.endswith(f"_{suffix}"):
+                flush_by_suffix[suffix] = ent.get("entity_id")
+                break
+    if flush_by_suffix:
+        for suffix, label in FLUSH_REPORT:
+            entity_id = flush_by_suffix.get(suffix)
+            if not entity_id:
+                continue
+            st = states.get(entity_id)
+            val = st.get("state") if st else "no state"
+            r.ok(f"flush {label} -> {entity_id} = {val}")
+    else:
+        r.warn("flush tracking entities not found in registry for this space")
 
     reg_suffixes = {
         suffix
