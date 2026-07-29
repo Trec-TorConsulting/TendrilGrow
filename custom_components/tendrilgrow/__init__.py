@@ -10,16 +10,15 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.helpers.event import async_call_later
-from homeassistant.helpers.storage import Store
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.event import async_call_later, async_track_time_interval
+from homeassistant.helpers.storage import Store
 
 from .ai.health_checks import AIHealthState, load_history, run_ai_health_check
-from .const import DOMAIN
 from .const import (
     CONF_AI_HEALTH_INTERVAL_HOURS,
     DEFAULT_AI_HEALTH_INTERVAL_HOURS,
+    DOMAIN,
 )
 from .models.grow import GrowSpace
 
@@ -81,10 +80,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception:  # noqa: BLE001
         ai_store = _EphemeralStore()
         ai_history = []
-    ai_state = AIHealthState(latest=ai_history[-1] if ai_history else None, history=ai_history)
+    ai_state = AIHealthState(
+        latest=ai_history[-1] if ai_history else None, history=ai_history
+    )
 
     interval_hours = int(
-        merged_config.get(CONF_AI_HEALTH_INTERVAL_HOURS, DEFAULT_AI_HEALTH_INTERVAL_HOURS)
+        merged_config.get(
+            CONF_AI_HEALTH_INTERVAL_HOURS, DEFAULT_AI_HEALTH_INTERVAL_HOURS
+        )
         or DEFAULT_AI_HEALTH_INTERVAL_HOURS
     )
 
@@ -133,7 +136,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     runtime = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if runtime and runtime.unsubscribe_update_listener:
         runtime.unsubscribe_update_listener()
-    unsubscribe_ai_scheduler = getattr(runtime, "unsubscribe_ai_scheduler", None) if runtime else None
+    unsubscribe_ai_scheduler = (
+        getattr(runtime, "unsubscribe_ai_scheduler", None) if runtime else None
+    )
     if unsubscribe_ai_scheduler:
         unsubscribe_ai_scheduler()
     await _async_maybe_unregister_services(hass)
@@ -163,7 +168,9 @@ async def _async_register_services(hass: HomeAssistant) -> None:
 
         if requested_entry_id:
             if requested_entry_id not in loaded_entries:
-                raise HomeAssistantError(f"TendrilGrow entry not loaded: {requested_entry_id}")
+                raise HomeAssistantError(
+                    f"TendrilGrow entry not loaded: {requested_entry_id}"
+                )
             target_entries = [requested_entry_id]
         else:
             target_entries = loaded_entries
@@ -188,7 +195,9 @@ async def _async_register_services(hass: HomeAssistant) -> None:
 
         if requested_entry_id:
             if requested_entry_id not in loaded_entries:
-                raise HomeAssistantError(f"TendrilGrow entry not loaded: {requested_entry_id}")
+                raise HomeAssistantError(
+                    f"TendrilGrow entry not loaded: {requested_entry_id}"
+                )
             target_entries = [requested_entry_id]
         else:
             target_entries = loaded_entries
@@ -201,7 +210,9 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                 entry = next(
                     (
                         loaded
-                        for loaded in getattr(hass.config_entries, "async_entries", lambda _domain: [])(DOMAIN)
+                        for loaded in getattr(
+                            hass.config_entries, "async_entries", lambda _domain: []
+                        )(DOMAIN)
                         if loaded.entry_id == entry_id
                     ),
                     None,
@@ -216,7 +227,9 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             "y" if len(target_entries) == 1 else "ies",
         )
 
-    hass.services.async_register(DOMAIN, SERVICE_REBUILD_AUTOMAP, _async_handle_rebuild_automap)
+    hass.services.async_register(
+        DOMAIN, SERVICE_REBUILD_AUTOMAP, _async_handle_rebuild_automap
+    )
     hass.services.async_register(
         DOMAIN,
         SERVICE_RUN_AI_HEALTH_CHECK,

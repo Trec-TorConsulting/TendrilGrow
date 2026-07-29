@@ -32,7 +32,11 @@
           "tuya_region": "Tuya region",
           "tuya_uid": "Tuya user UID (optional)",
           "tuya_device_ids": "Tuya device IDs (comma-separated)",
-          "tuya_scan_interval": "Tuya poll interval (seconds)"
+          "tuya_scan_interval": "Tuya poll interval (seconds)",
+          "ai_health_interval_hours": "AI health check interval (hours)",
+          "ai_severe_threshold": "Critical score threshold (0-100)",
+          "ai_notify_service": "Notify service for critical alerts (optional)",
+          "ai_result_retention_days": "AI result retention (days)"
         }
       },
       "ai_provider": {
@@ -82,7 +86,11 @@
           "tuya_region": "Tuya region",
           "tuya_uid": "Tuya user UID (optional)",
           "tuya_device_ids": "Tuya device IDs (comma-separated)",
-          "tuya_scan_interval": "Tuya poll interval (seconds)"
+          "tuya_scan_interval": "Tuya poll interval (seconds)",
+          "ai_health_interval_hours": "AI health check interval (hours)",
+          "ai_severe_threshold": "Critical score threshold (0-100)",
+          "ai_notify_service": "Notify service for critical alerts (optional)",
+          "ai_result_retention_days": "AI result retention (days)"
         }
       }
     }

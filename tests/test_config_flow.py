@@ -15,9 +15,9 @@ from custom_components.tendrilgrow.config_flow import (
 )
 from custom_components.tendrilgrow.const import (
     CONF_AI_HEALTH_INTERVAL_HOURS,
+    CONF_AI_PROVIDER,
     CONF_AI_RESULT_RETENTION_DAYS,
     CONF_AI_SEVERE_THRESHOLD,
-    CONF_AI_PROVIDER,
     CONF_BASE_URL,
     CONF_GROW_SIZE,
     CONF_GROW_SPACE_NAME,
@@ -143,20 +143,22 @@ async def test_options_flow_edit_creates_options_payload() -> None:
     form = await flow.async_step_init()
     assert form["type"] == "form"
 
-    result = await flow.async_step_init({
-        "grow_type": "soil",
-        "grow_size": "5x5",
-        "temperature": "sensor.new",
-        SENSOR_ROLE_CAMERA: "camera.tent_a",
-        CONF_TUYA_ENABLED: True,
-        CONF_TUYA_ACCESS_ID: "abc123",
-        CONF_TUYA_REGION: "us",
-        CONF_TUYA_DEVICE_IDS: "dev-1,dev-2",
-        CONF_TUYA_SCAN_INTERVAL: 120,
-        CONF_AI_HEALTH_INTERVAL_HOURS: 12,
-        CONF_AI_SEVERE_THRESHOLD: 20,
-        CONF_AI_RESULT_RETENTION_DAYS: 30,
-    })
+    result = await flow.async_step_init(
+        {
+            "grow_type": "soil",
+            "grow_size": "5x5",
+            "temperature": "sensor.new",
+            SENSOR_ROLE_CAMERA: "camera.tent_a",
+            CONF_TUYA_ENABLED: True,
+            CONF_TUYA_ACCESS_ID: "abc123",
+            CONF_TUYA_REGION: "us",
+            CONF_TUYA_DEVICE_IDS: "dev-1,dev-2",
+            CONF_TUYA_SCAN_INTERVAL: 120,
+            CONF_AI_HEALTH_INTERVAL_HOURS: 12,
+            CONF_AI_SEVERE_THRESHOLD: 20,
+            CONF_AI_RESULT_RETENTION_DAYS: 30,
+        }
+    )
     assert result["type"] == "create_entry"
     assert result["data"]["grow_type"] == "soil"
     assert result["data"][CONF_SENSOR_MAPPINGS] == {SENSOR_ROLE_CAMERA: "camera.tent_a"}
@@ -239,7 +241,9 @@ async def test_unload_entry_keeps_other_entries_intact() -> None:
                 "entry-2": SimpleNamespace(unsubscribe_update_listener=unsub_two),
             }
         },
-        config_entries=SimpleNamespace(async_unload_platforms=AsyncMock(return_value=True)),
+        config_entries=SimpleNamespace(
+            async_unload_platforms=AsyncMock(return_value=True)
+        ),
     )
 
     entry = SimpleNamespace(entry_id="entry-1", title="Tent A")

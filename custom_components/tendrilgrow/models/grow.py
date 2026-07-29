@@ -7,7 +7,12 @@ from math import exp
 from typing import Any
 from uuid import uuid4
 
-from ..const import CONTROL_ROLES, SENSOR_ROLE_EC_TDS_LEGACY, SENSOR_ROLE_TDS, SENSOR_ROLES
+from ..const import (
+    CONTROL_ROLES,
+    SENSOR_ROLE_EC_TDS_LEGACY,
+    SENSOR_ROLE_TDS,
+    SENSOR_ROLES,
+)
 
 
 @dataclass(slots=True)
@@ -41,7 +46,7 @@ class GrowSpace:
         descriptor: str = "",
         *,
         sites: list[GrowSite] | None = None,
-    ) -> "GrowSpace":
+    ) -> GrowSpace:
         """Build a new grow space with a stable generated id."""
         return cls(
             space_id=str(uuid4()),
@@ -67,12 +72,17 @@ class GrowSpace:
         }
 
     @classmethod
-    def from_dict(cls, value: dict[str, Any]) -> "GrowSpace":
+    def from_dict(cls, value: dict[str, Any]) -> GrowSpace:
         """Deserialize a grow space from config-entry data."""
         sensor_mappings = dict(value.get("sensor_mappings", {}))
         # Migrate legacy combined EC/TDS role to a dedicated TDS role.
-        if SENSOR_ROLE_EC_TDS_LEGACY in sensor_mappings and SENSOR_ROLE_TDS not in sensor_mappings:
-            sensor_mappings[SENSOR_ROLE_TDS] = sensor_mappings[SENSOR_ROLE_EC_TDS_LEGACY]
+        if (
+            SENSOR_ROLE_EC_TDS_LEGACY in sensor_mappings
+            and SENSOR_ROLE_TDS not in sensor_mappings
+        ):
+            sensor_mappings[SENSOR_ROLE_TDS] = sensor_mappings[
+                SENSOR_ROLE_EC_TDS_LEGACY
+            ]
 
         return cls(
             space_id=value["space_id"],
@@ -99,7 +109,9 @@ class GrowSpace:
         self.control_mappings[role] = entity_id
 
     @staticmethod
-    def compute_vpd_c_kpa(temperature_c: float | None, humidity_pct: float | None) -> float | None:
+    def compute_vpd_c_kpa(
+        temperature_c: float | None, humidity_pct: float | None
+    ) -> float | None:
         """Compute vapor pressure deficit in kPa from C and relative humidity.
 
         Returns None when inputs are missing or out of reasonable range.
@@ -109,5 +121,7 @@ class GrowSpace:
         if humidity_pct <= 0 or humidity_pct > 100:
             return None
 
-        sat_vapor_pressure = 0.6108 * exp((17.27 * temperature_c) / (temperature_c + 237.3))
+        sat_vapor_pressure = 0.6108 * exp(
+            (17.27 * temperature_c) / (temperature_c + 237.3)
+        )
         return sat_vapor_pressure * (1 - (humidity_pct / 100.0))

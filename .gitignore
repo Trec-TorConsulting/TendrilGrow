@@ -5,3 +5,8 @@ __pycache__/
 .DS_Store
 .venv/
 
+# Local secrets for live validation — never commit
+.env
+.env.local
+.ha_validation.env
+

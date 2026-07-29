@@ -79,7 +79,8 @@ class TendrilGrowTuyaCoordinator(DataUpdateCoordinator[dict[str, dict[str, float
         )
         self._uid = str(cfg.get(CONF_TUYA_UID, "")).strip()
         LOGGER.info(
-            "Configured TendrilGrow Tuya polling for %s: region=%s, uid_set=%s, device_count=%d",
+            "Configured TendrilGrow Tuya polling for %s: region=%s, "
+            "uid_set=%s, device_count=%d",
             entry.entry_id,
             region,
             bool(self._uid),
@@ -118,7 +119,11 @@ class TendrilGrowTuyaCoordinator(DataUpdateCoordinator[dict[str, dict[str, float
             raise UpdateFailed("; ".join(failures))
 
         if failures:
-            LOGGER.warning("Partial Tuya poll failure for %s: %s", self._entry.entry_id, "; ".join(failures))
+            LOGGER.warning(
+                "Partial Tuya poll failure for %s: %s",
+                self._entry.entry_id,
+                "; ".join(failures),
+            )
 
         populated_devices = sum(1 for metrics in readings.values() if metrics)
         LOGGER.info(

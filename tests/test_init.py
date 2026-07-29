@@ -57,7 +57,9 @@ async def test_setup_and_unload_entry_lifecycle() -> None:
     assert "entry-1" not in hass.data["tendrilgrow"]
     unsub.assert_called_once()
     hass.services.async_remove.assert_any_call("tendrilgrow", SERVICE_REBUILD_AUTOMAP)
-    hass.services.async_remove.assert_any_call("tendrilgrow", SERVICE_RUN_AI_HEALTH_CHECK)
+    hass.services.async_remove.assert_any_call(
+        "tendrilgrow", SERVICE_RUN_AI_HEALTH_CHECK
+    )
 
 
 @pytest.mark.asyncio
@@ -94,7 +96,9 @@ async def test_rebuild_automap_service_reloads_entries() -> None:
 
     assert await async_setup_entry(hass, entry)
 
-    handlers_by_service = {call.args[1]: call.args[2] for call in services.async_register.call_args_list}
+    handlers_by_service = {
+        call.args[1]: call.args[2] for call in services.async_register.call_args_list
+    }
     handler = handlers_by_service[SERVICE_REBUILD_AUTOMAP]
     await handler(SimpleNamespace(data={}))
     hass.config_entries.async_reload.assert_called_with("entry-1")

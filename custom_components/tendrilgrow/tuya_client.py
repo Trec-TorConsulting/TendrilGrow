@@ -83,11 +83,23 @@ def normalize_tuya_statuses(statuses: list[dict[str, Any]]) -> dict[str, float]:
 
         key = _WATER_DP_MAP[code]
         if key in {"water_temp_c", "ambient_temp_c"}:
-            reading[key] = scaled_value if scaled_value is not None else (value / 10 if value > 60 else value)
+            reading[key] = (
+                scaled_value
+                if scaled_value is not None
+                else (value / 10 if value > 60 else value)
+            )
         elif key == "ec":
-            reading[key] = scaled_value if scaled_value is not None else (value / 1000 if value > 20 else value)
+            reading[key] = (
+                scaled_value
+                if scaled_value is not None
+                else (value / 1000 if value > 20 else value)
+            )
         elif key == "ph":
-            reading[key] = scaled_value if scaled_value is not None else (value / 100 if value > 14 else value)
+            reading[key] = (
+                scaled_value
+                if scaled_value is not None
+                else (value / 100 if value > 14 else value)
+            )
         else:
             reading[key] = scaled_value if scaled_value is not None else value
 
@@ -146,9 +158,15 @@ class TuyaCloudClient:
     def base_url(self) -> str:
         return TUYA_REGIONS[self._region]
 
-    def _sign(self, method: str, path: str, timestamp: str, token: str = "", body: str = "") -> str:
-        content_sha256 = hashlib.sha256(body.encode("utf-8")).hexdigest() if body else _EMPTY_SHA256
-        string_to_sign = f"{self._access_id}{token}{timestamp}{method}\n{content_sha256}\n\n{path}"
+    def _sign(
+        self, method: str, path: str, timestamp: str, token: str = "", body: str = ""
+    ) -> str:
+        content_sha256 = (
+            hashlib.sha256(body.encode("utf-8")).hexdigest() if body else _EMPTY_SHA256
+        )
+        string_to_sign = (
+            f"{self._access_id}{token}{timestamp}{method}\n{content_sha256}\n\n{path}"
+        )
         return (
             hmac.new(
                 self._access_secret.encode("utf-8"),
@@ -207,7 +225,9 @@ class TuyaCloudClient:
         )
 
         if not payload.get("success"):
-            raise TuyaApiError(f"{payload.get('msg', 'request failed')} (code={payload.get('code')})")
+            raise TuyaApiError(
+                f"{payload.get('msg', 'request failed')} (code={payload.get('code')})"
+            )
         return payload
 
     async def list_user_devices(self, uid: str) -> list[dict[str, Any]]:
@@ -230,7 +250,9 @@ class TuyaCloudClient:
 
     async def _fetch_shadow_properties(self, device_id: str) -> list[dict[str, Any]]:
         try:
-            payload = await self.api_get(f"/v2.0/cloud/thing/{device_id}/shadow/properties")
+            payload = await self.api_get(
+                f"/v2.0/cloud/thing/{device_id}/shadow/properties"
+            )
         except Exception as err:  # noqa: BLE001
             LOGGER.debug("Shadow property fetch failed for %s: %s", device_id, err)
             return []
@@ -251,7 +273,9 @@ class TuyaCloudClient:
             statuses.append(item)
         return statuses
 
-    async def _request_json(self, method: str, path: str, headers: dict[str, str]) -> dict[str, Any]:
+    async def _request_json(
+        self, method: str, path: str, headers: dict[str, str]
+    ) -> dict[str, Any]:
         url = f"{self.base_url}{path}"
         async with self._session.request(method, url, headers=headers) as response:
             response.raise_for_status()

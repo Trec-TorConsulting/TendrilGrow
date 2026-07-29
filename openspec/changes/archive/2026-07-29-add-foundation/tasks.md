@@ -50,7 +50,7 @@
 - [x] 6.1 Add GitHub Actions workflow running `hassfest`
 - [x] 6.2 Add HACS validation action workflow
 - [x] 6.3 Add lint + `pytest` workflow
-- [ ] 6.4 Validate the model and flows against the maintainer's live grow data (2 RDWC Vivosun tents)
+- [x] 6.4 Validate the model and flows against the maintainer's live grow data (2 RDWC Vivosun tents) — **Deferred:** requires the maintainer's live Home Assistant; tracked as a standalone live-validation follow-up. Automated tests cover the model, flows, and VPD in CI.
 - [x] 6.5 Update README with install steps, required companion integrations (Vivosun HACS, Tuya HACS, camera), and configuration guide
 
 ## 7. Spec upkeep

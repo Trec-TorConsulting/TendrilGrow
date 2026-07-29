@@ -28,7 +28,9 @@ class AIProvider(Protocol):
     def required_fields(self) -> tuple[str, ...]:
         """Return required config fields for this provider."""
 
-    async def list_models(self, hass: HomeAssistant, config: dict[str, Any]) -> list[str]:
+    async def list_models(
+        self, hass: HomeAssistant, config: dict[str, Any]
+    ) -> list[str]:
         """Return provider model ids available to the user."""
 
 
@@ -43,21 +45,30 @@ class ProviderDefinition:
     def required_fields(self) -> tuple[str, ...]:
         return self.fields
 
-    async def list_models(self, hass: HomeAssistant, config: dict[str, Any]) -> list[str]:
+    async def list_models(
+        self, hass: HomeAssistant, config: dict[str, Any]
+    ) -> list[str]:
         session = async_get_clientsession(hass)
 
         if self.key == PROVIDER_GEMINI:
             api_key = config[CONF_API_KEY]
-            url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+            url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+            )
             async with session.get(url) as resp:
                 resp.raise_for_status()
                 payload = await resp.json()
-            return [item["name"].replace("models/", "") for item in payload.get("models", [])]
+            return [
+                item["name"].replace("models/", "")
+                for item in payload.get("models", [])
+            ]
 
         if self.key == PROVIDER_OPENAI:
             api_key = config[CONF_API_KEY]
             headers = {"Authorization": f"Bearer {api_key}"}
-            async with session.get("https://api.openai.com/v1/models", headers=headers) as resp:
+            async with session.get(
+                "https://api.openai.com/v1/models", headers=headers
+            ) as resp:
                 resp.raise_for_status()
                 payload = await resp.json()
             return [item["id"] for item in payload.get("data", []) if "id" in item]
@@ -67,7 +78,9 @@ class ProviderDefinition:
             async with session.get(f"{base_url}/api/tags") as resp:
                 resp.raise_for_status()
                 payload = await resp.json()
-            return [item["name"] for item in payload.get("models", []) if "name" in item]
+            return [
+                item["name"] for item in payload.get("models", []) if "name" in item
+            ]
 
         return []
 
@@ -109,7 +122,11 @@ def validate_provider_config(provider: str, config: dict[str, Any]) -> None:
     if definition is None:
         raise ProviderValidationError("unsupported_provider")
 
-    missing = [field for field in definition.required_fields() if not str(config.get(field, "")).strip()]
+    missing = [
+        field
+        for field in definition.required_fields()
+        if not str(config.get(field, "")).strip()
+    ]
     if missing:
         raise ProviderValidationError(f"missing_required:{','.join(missing)}")
 
@@ -119,7 +136,9 @@ def validate_provider_config(provider: str, config: dict[str, Any]) -> None:
             raise ProviderValidationError("invalid_base_url")
 
 
-async def discover_models(hass: HomeAssistant, provider: str, config: dict[str, Any]) -> list[str]:
+async def discover_models(
+    hass: HomeAssistant, provider: str, config: dict[str, Any]
+) -> list[str]:
     """Fetch models from the selected provider using configured credentials."""
     definition = PROVIDERS.get(provider)
     if definition is None:
@@ -162,7 +181,9 @@ async def _read_json_or_raise(resp: Any, provider: str) -> dict[str, Any]:
     """Return parsed JSON, or raise ProviderExecutionError with the response body."""
     if resp.status >= 400:
         body = await resp.text()
-        raise ProviderExecutionError(f"{provider} HTTP {resp.status}: {body[:400].strip()}")
+        raise ProviderExecutionError(
+            f"{provider} HTTP {resp.status}: {body[:400].strip()}"
+        )
     return await resp.json(content_type=None)
 
 
@@ -223,13 +244,19 @@ async def generate_vision_health_report(
                             {"type": "text", "text": prompt},
                             {
                                 "type": "image_url",
-                                "image_url": {"url": f"data:{mime_type};base64,{encoded}"},
+                                "image_url": {
+                                    "url": f"data:{mime_type};base64,{encoded}"
+                                },
                             },
                         ],
                     }
                 ],
             }
-            async with session.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload) as resp:
+            async with session.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=payload,
+            ) as resp:
                 body = await _read_json_or_raise(resp, provider)
             return _extract_openai_text(body)
 

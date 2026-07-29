@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime, timedelta
 import json
 import logging
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -61,7 +61,7 @@ class AIHealthResult:
         return payload
 
     @classmethod
-    def from_dict(cls, value: dict[str, Any]) -> "AIHealthResult":
+    def from_dict(cls, value: dict[str, Any]) -> AIHealthResult:
         checked_at = datetime.now(UTC)
         raw_checked_at = value.get("checked_at")
         if isinstance(raw_checked_at, str):
@@ -114,7 +114,9 @@ async def load_history(store: Store[dict[str, Any]]) -> list[AIHealthResult]:
     return [AIHealthResult.from_dict(row) for row in rows if isinstance(row, dict)]
 
 
-async def persist_history(store: Store[dict[str, Any]], history: list[AIHealthResult]) -> None:
+async def persist_history(
+    store: Store[dict[str, Any]], history: list[AIHealthResult]
+) -> None:
     """Persist health-check history."""
     await store.async_save({"results": [item.to_dict() for item in history]})
 
@@ -132,8 +134,12 @@ def _build_prompt(
     *,
     retention_days: int,
 ) -> str:
-    metric_lines = "\n".join(f"- {key}: {value}" for key, value in sorted(metrics.items()))
-    context_lines = "\n".join(f"- {key}: {value}" for key, value in sorted(context.items()))
+    metric_lines = "\n".join(
+        f"- {key}: {value}" for key, value in sorted(metrics.items())
+    )
+    context_lines = "\n".join(
+        f"- {key}: {value}" for key, value in sorted(context.items())
+    )
     schedules = grow_space.schedules or {}
     targets = grow_space.targets or {}
 
@@ -146,66 +152,95 @@ def _build_prompt(
             f"VPD {stage_targets['vpd_kpa']} kPa."
         )
     else:
-        stage_target_line = "Calibration targets for current stage: not defined; infer from best practice."
+        stage_target_line = (
+            "Calibration targets for current stage: not defined; "
+            "infer from best practice."
+        )
 
     full_target_table = "\n".join(
-        f"- {name}: pH {vals['ph']}, EC {vals['ec_ms_cm']} mS/cm, VPD {vals['vpd_kpa']} kPa"
+        f"- {name}: pH {vals['ph']}, EC {vals['ec_ms_cm']} mS/cm, "
+        f"VPD {vals['vpd_kpa']} kPa"
         for name, vals in STAGE_TARGETS.items()
     )
 
     reservoir_volume = str(context.get("reservoir_volume_gal", "")).strip()
     site_count = str(context.get("site_count_plants", "")).strip()
     sites_clause = (
-        f" The system has {site_count} plant sites/buckets sharing one circulating reservoir."
+        f" The system has {site_count} plant sites/buckets sharing one "
+        "circulating reservoir."
         if site_count
         else ""
     )
     dosing_line = (
-        f"Total system volume provided: {reservoir_volume} gallons.{sites_clause} "
-        "Treat this as the TOTAL circulating RDWC water volume (all buckets + control reservoir + connecting lines combined), "
-        "NOT a single bucket. Compute TOTAL nutrient and additive amounts for this full volume "
-        f"(per-gallon rate x {reservoir_volume} gallons) and label them clearly as 'TOTAL for {reservoir_volume} gal system'. "
-        "If you recommend a fresh reservoir fill, dose for this same total volume, not a smaller assumed fill. "
-        "If this volume looks implausibly small for the stated site count, flag it and ask the operator to confirm the total system volume."
+        f"Total system volume provided: {reservoir_volume} gallons."
+        f"{sites_clause} Treat this as the TOTAL circulating RDWC water "
+        "volume (all buckets + control reservoir + connecting lines combined), "
+        "NOT a single bucket. Compute TOTAL nutrient and additive amounts for "
+        f"this full volume (per-gallon rate x {reservoir_volume} gallons) and "
+        f"label them clearly as 'TOTAL for {reservoir_volume} gal system'. If "
+        "you recommend a fresh reservoir fill, dose for this same total volume, "
+        "not a smaller assumed fill. If this volume looks implausibly small for "
+        "the stated site count, flag it and ask the operator to confirm the "
+        "total system volume."
         if reservoir_volume
-        else "Reservoir volume not provided; give per-gallon rates and note total dosing needs the full system volume (all buckets + reservoir + lines)."
+        else (
+            "Reservoir volume not provided; give per-gallon rates and note "
+            "total dosing needs the full system volume (all buckets + reservoir "
+            "+ lines)."
+        )
     )
 
     return (
-        "You are a master cannabis cultivation agronomist specializing in premium flower quality.\n"
-        "Analyze the attached grow image together with the telemetry and cultivation context.\n"
-        "Prioritize QUALITY (terpene and cannabinoid expression, plant structure, health) over raw yield.\n\n"
+        "You are a master cannabis cultivation agronomist specializing in \n"
+        "premium flower quality.\n"
+        "Analyze the attached grow image together with the telemetry and \n"
+        "cultivation context.\n"
+        "Prioritize QUALITY (terpene and cannabinoid expression, plant \n"
+        "structure, health) over raw yield.\n\n"
         "Return STRICT JSON only, no markdown, with keys:\n"
         "- score: integer 0-100 (overall plant health and quality trajectory)\n"
-        "- confidence: integer 0-100 (your confidence given image and telemetry quality)\n"
-        "- confidence_rationale: one short sentence explaining the confidence and score drivers\n"
+        "- confidence: integer 0-100 (your confidence given image and \n"
+        "  telemetry quality)\n"
+        "- confidence_rationale: one short sentence explaining the confidence \n"
+        "  and score drivers\n"
         "- severity: one of low, medium, high, critical\n"
         "- summary: one concise paragraph\n"
         "- observations: array of short visual findings from the image\n"
         "- issues: array of short problem statements\n"
         "- recommended_actions: array of short, quality-first corrective actions\n"
-        "- feeding_schedule: array of short strings; a dynamic feeding plan tuned for highest-quality yield, "
-        "each entry covering timing plus target EC, target pH, and TOTAL amounts of each nutrient/additive for the reservoir\n\n"
+        "- feeding_schedule: array of short strings; a dynamic feeding plan tuned "
+        "for highest-quality yield, each entry covering timing plus target EC, "
+        "target pH, and TOTAL amounts of each nutrient/additive for the "
+        "reservoir\n\n"
         "Scoring calibration (score against these stage target ranges):\n"
         f"{full_target_table}\n"
         f"{stage_target_line}\n\n"
-        "Deficiency diagnosis rubric (use nutrient mobility to localize symptoms):\n"
-        "- Mobile nutrients (N, P, K, Mg, Zn): deficiencies appear on OLDER/lower leaves first.\n"
-        "- Immobile nutrients (Ca, S, Fe, Mn, B, Cu): deficiencies appear on NEWER/upper leaves first.\n"
-        "- Use symptom location plus pH-driven lockout ranges to distinguish true deficiency from lockout.\n\n"
+        "- Deficiency diagnosis rubric (use nutrient mobility to localize "
+        "symptoms):\n"
+        "- Mobile nutrients (N, P, K, Mg, Zn): deficiencies appear on "
+        "OLDER/lower leaves first.\n"
+        "- Immobile nutrients (Ca, S, Fe, Mn, B, Cu): deficiencies appear on "
+        "NEWER/upper leaves first.\n"
+        "- Use symptom location plus pH-driven lockout ranges to distinguish "
+        "true deficiency from lockout.\n\n"
         "Dosing rule:\n"
         f"- {dosing_line}\n\n"
         "Grounding rules:\n"
-        "- If the image is unusable or missing, set confidence low and say so; do not fabricate.\n"
-        "- Tie recommendations to the provided targets, feed schedule, strain, and nutrient context when relevant.\n"
-        "- Prefer specific, actionable guidance (for example, raise pH to 5.9 or reduce EC to 1.4).\n\n"
+        "- If the image is unusable or missing, set confidence low and say so; "
+        "do not fabricate.\n"
+        "- Tie recommendations to the provided targets, feed schedule, "
+        "strain, "
+        "and nutrient context when relevant.\n"
+        "- Prefer specific, actionable guidance (for example, raise pH to 5.9 "
+        "or reduce EC to 1.4).\n\n"
         f"Grow Space: {grow_space.name}\n"
         f"Grow Type: {grow_space.grow_type}\n"
         f"Descriptor: {grow_space.descriptor or 'n/a'}\n"
         f"Configured Schedules: {json.dumps(schedules, sort_keys=True)}\n"
         f"Configured Targets: {json.dumps(targets, sort_keys=True)}\n"
         f"History Retention Window: {retention_days} days\n"
-        "Cultivation context (operator-provided; includes strain, week-in-stage, reservoir volume, feed and nutrient plan):\n"
+        "Cultivation context (operator-provided; includes strain, week-in-stage, "
+        "reservoir volume, feed and nutrient plan):\n"
         f"{context_lines if context_lines else '- none provided'}\n"
         "Current telemetry metrics:\n"
         f"{metric_lines if metric_lines else '- no telemetry available'}"
@@ -229,7 +264,9 @@ def _extract_json_payload(text: str) -> dict[str, Any]:
     return json.loads(body[start : end + 1])
 
 
-def _coerce_result(raw_text: str, provider: str, model: str, reason: str) -> AIHealthResult:
+def _coerce_result(
+    raw_text: str, provider: str, model: str, reason: str
+) -> AIHealthResult:
     checked_at = datetime.now(UTC)
     try:
         payload = _extract_json_payload(raw_text)
@@ -273,7 +310,11 @@ def _coerce_result(raw_text: str, provider: str, model: str, reason: str) -> AIH
     summary = str(payload.get("summary", "")).strip() or "No summary returned"
     confidence_rationale = str(payload.get("confidence_rationale", "")).strip()
 
-    issues = [str(item).strip() for item in payload.get("issues", []) if str(item).strip()]
+    issues = [
+        str(item).strip()
+        for item in payload.get("issues", [])
+        if str(item).strip()
+    ]
     actions = [
         str(item).strip()
         for item in payload.get("recommended_actions", [])
@@ -308,7 +349,9 @@ def _coerce_result(raw_text: str, provider: str, model: str, reason: str) -> AIH
     )
 
 
-def _collect_metric_state_values(hass: HomeAssistant, grow_space: GrowSpace) -> dict[str, Any]:
+def _collect_metric_state_values(
+    hass: HomeAssistant, grow_space: GrowSpace
+) -> dict[str, Any]:
     values: dict[str, Any] = {}
     for role, entity_id in grow_space.sensor_mappings.items():
         if not entity_id or role == SENSOR_ROLE_CAMERA:
@@ -360,13 +403,19 @@ async def run_ai_health_check(
     cfg = _entry_merged_config(entry)
     provider = str(cfg.get(CONF_AI_PROVIDER, PROVIDER_NONE)).strip().lower()
     model = str(cfg.get(CONF_AI_MODEL, "")).strip()
-    retention_days = int(cfg.get(CONF_AI_RESULT_RETENTION_DAYS, DEFAULT_AI_RESULT_RETENTION_DAYS) or 30)
-    threshold = int(cfg.get(CONF_AI_SEVERE_THRESHOLD, DEFAULT_AI_SEVERE_THRESHOLD) or 20)
+    retention_days = int(
+        cfg.get(CONF_AI_RESULT_RETENTION_DAYS, DEFAULT_AI_RESULT_RETENTION_DAYS) or 30
+    )
+    threshold = int(
+        cfg.get(CONF_AI_SEVERE_THRESHOLD, DEFAULT_AI_SEVERE_THRESHOLD) or 20
+    )
 
     if provider == PROVIDER_NONE or not model:
         raise ProviderExecutionError("ai_provider_not_configured")
 
-    camera_entity_id = str(grow_space.sensor_mappings.get(SENSOR_ROLE_CAMERA, "")).strip()
+    camera_entity_id = str(
+        grow_space.sensor_mappings.get(SENSOR_ROLE_CAMERA, "")
+    ).strip()
     if not camera_entity_id:
         raise ProviderExecutionError("camera_entity_not_configured")
 
@@ -377,7 +426,9 @@ async def run_ai_health_check(
     state.running = True
     async_dispatcher_send(hass, ai_dispatcher_signal(entry.entry_id))
     try:
-        image_bytes, mime_type = await _async_get_camera_snapshot(hass, camera_entity_id)
+        image_bytes, mime_type = await _async_get_camera_snapshot(
+            hass, camera_entity_id
+        )
         raw_text = await generate_vision_health_report(
             hass,
             provider,
@@ -430,16 +481,20 @@ async def run_ai_health_check(
 
 
 def has_critical_alert(entry: ConfigEntry, state: AIHealthState) -> bool:
-    """Return True when the latest score is at/under the configured critical threshold."""
+    """Return True when latest score is at/under the configured critical threshold."""
     if state.latest is None or state.latest.score is None:
         return False
     cfg = _entry_merged_config(entry)
-    threshold = int(cfg.get(CONF_AI_SEVERE_THRESHOLD, DEFAULT_AI_SEVERE_THRESHOLD) or 20)
+    threshold = int(
+        cfg.get(CONF_AI_SEVERE_THRESHOLD, DEFAULT_AI_SEVERE_THRESHOLD) or 20
+    )
     return state.latest.score <= threshold
 
 
-async def _async_get_camera_snapshot(hass: HomeAssistant, camera_entity_id: str) -> tuple[bytes, str]:
-    """Capture a camera snapshot; fall back to camera proxy if entity lookup races at startup."""
+async def _async_get_camera_snapshot(
+    hass: HomeAssistant, camera_entity_id: str
+) -> tuple[bytes, str]:
+    """Capture a camera snapshot; fall back to proxy if lookup races at startup."""
     try:
         from homeassistant.components.camera import async_get_image
 

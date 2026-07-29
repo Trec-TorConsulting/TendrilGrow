@@ -37,23 +37,71 @@ class GrowNumberDescription:
 
 
 NUMBERS: tuple[GrowNumberDescription, ...] = (
-    GrowNumberDescription(CTX_WEEK_IN_STAGE, "Week In Stage", 0.0, 20.0, 1.0, "wk", 1.0, "mdi:calendar-week"),
     GrowNumberDescription(
-        CTX_SITE_COUNT, "Sites / Plants", 0.0, 64.0, 1.0, "sites", 4.0, "mdi:sprout-outline"
+        CTX_WEEK_IN_STAGE,
+        "Week In Stage",
+        0.0,
+        20.0,
+        1.0,
+        "wk",
+        1.0,
+        "mdi:calendar-week",
     ),
     GrowNumberDescription(
-        CTX_RESERVOIR_VOLUME, "Total System Volume", 0.0, 500.0, 0.5, "gal", 13.0, "mdi:cup-water"
+        CTX_SITE_COUNT,
+        "Sites / Plants",
+        0.0,
+        64.0,
+        1.0,
+        "sites",
+        4.0,
+        "mdi:sprout-outline",
     ),
-    GrowNumberDescription(CTX_TARGET_PH, "Target pH", 4.0, 8.0, 0.1, "pH", 5.9, "mdi:ph"),
-    GrowNumberDescription(CTX_TARGET_EC, "Target EC", 0.0, 5.0, 0.1, "mS/cm", 1.6, "mdi:flash"),
     GrowNumberDescription(
-        CTX_FEED_INTERVAL_DAYS, "Feed Interval", 0.0, 14.0, 1.0, "d", 1.0, "mdi:calendar-clock"
+        CTX_RESERVOIR_VOLUME,
+        "Total System Volume",
+        0.0,
+        500.0,
+        0.5,
+        "gal",
+        13.0,
+        "mdi:cup-water",
     ),
     GrowNumberDescription(
-        CTX_LIGHTS_ON_HOURS, "Lights On", 0.0, 24.0, 0.5, "h", 18.0, "mdi:lightbulb-on-outline"
+        CTX_TARGET_PH, "Target pH", 4.0, 8.0, 0.1, "pH", 5.9, "mdi:ph"
     ),
     GrowNumberDescription(
-        CTX_RUNOFF_TARGET_PCT, "Runoff Target", 0.0, 50.0, 1.0, "%", 15.0, "mdi:water-percent"
+        CTX_TARGET_EC, "Target EC", 0.0, 5.0, 0.1, "mS/cm", 1.6, "mdi:flash"
+    ),
+    GrowNumberDescription(
+        CTX_FEED_INTERVAL_DAYS,
+        "Feed Interval",
+        0.0,
+        14.0,
+        1.0,
+        "d",
+        1.0,
+        "mdi:calendar-clock",
+    ),
+    GrowNumberDescription(
+        CTX_LIGHTS_ON_HOURS,
+        "Lights On",
+        0.0,
+        24.0,
+        0.5,
+        "h",
+        18.0,
+        "mdi:lightbulb-on-outline",
+    ),
+    GrowNumberDescription(
+        CTX_RUNOFF_TARGET_PCT,
+        "Runoff Target",
+        0.0,
+        50.0,
+        1.0,
+        "%",
+        15.0,
+        "mdi:water-percent",
     ),
 )
 
@@ -64,7 +112,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up cultivation number entities."""
-    async_add_entities([GrowContextNumber(entry, description) for description in NUMBERS])
+    async_add_entities(
+        [GrowContextNumber(entry, description) for description in NUMBERS]
+    )
 
 
 class GrowContextNumber(RestoreNumber):

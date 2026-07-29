@@ -32,7 +32,9 @@ async def async_get_config_entry_diagnostics(
     if runtime is not None:
         auto_mapped = dict(getattr(runtime, "auto_mapped_sensor_roles", {}) or {})
         grow_space = getattr(runtime, "grow_space", None)
-        effective_sensor_mappings = dict(getattr(grow_space, "sensor_mappings", {}) or {})
+        effective_sensor_mappings = dict(
+            getattr(grow_space, "sensor_mappings", {}) or {}
+        )
         ai_state = getattr(runtime, "ai_health_state", None)
         if ai_state is not None:
             latest = ai_state.latest.to_dict() if ai_state.latest else None

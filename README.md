@@ -19,6 +19,17 @@ AI-provider model selection into a single HACS-installable package.
 - Extensible role mappings (temperature, humidity/VPD, light, pH, EC, CF,
 	ORP, TDS, cameras, lights, fans, inline fans)
 - Derived metric support (VPD)
+- Optional Tuya cloud water-monitoring: signed OpenAPI polling, datapoint
+	normalization, per-device sensors, and automatic sensor-role mapping
+- Camera-based AI health checks: quality-first agronomy scoring, observations,
+	issues, recommended actions, and a dynamic feeding schedule
+- Scheduled and on-demand checks with persistent history and retention
+- Critical-score notifications (persistent notification plus optional notify service)
+- Editable cultivation-context helpers (growth stage, strain, targets,
+	reservoir volume, nutrients) that ground AI advice
+- AI health entities (score, summary, feeding schedule, last check, critical
+	alert) and a run button
+- Services: `run_ai_health_check` and `rebuild_automap`
 - Pluggable AI provider selection:
 	- Google Gemini
 	- OpenAI
@@ -31,12 +42,14 @@ AI-provider model selection into a single HACS-installable package.
 Included now:
 - Integration foundation, config flow, options flow, model abstraction,
 	governance and CI
+- Tuya cloud water-monitoring with normalized water-quality sensors
+- Camera-based AI grow-health checks, scoring, and dynamic feeding schedules
+- Cultivation-context helper entities and AI health entities/services
 
 Planned in future changes:
-- Live grow-advice execution
-- Vision/image review workflows
-- Rich Lovelace dashboard cards
-- Automation orchestration engine
+- Bundled Lovelace dashboard cards
+- Automation orchestration engine (safety-first, opt-in control actuation)
+- Additional AI providers (Anthropic, Azure OpenAI, OpenAI-compatible)
 
 ## Architecture overview
 
@@ -50,8 +63,16 @@ Main runtime modules:
 	- Entity mapping, provider selection, credential handling, model selection
 - `custom_components/tendrilgrow/models/grow.py`
 	- Grow-space domain model, serialization, VPD computation
+- `custom_components/tendrilgrow/coordinator.py`
+	- Per-entry Tuya cloud polling coordinator
+- `custom_components/tendrilgrow/tuya_client.py`
+	- Signed Tuya OpenAPI client and datapoint normalization
 - `custom_components/tendrilgrow/ai/providers.py`
-	- Provider abstraction and model discovery endpoints
+	- Provider abstraction, model discovery, and vision report generation
+- `custom_components/tendrilgrow/ai/health_checks.py`
+	- Camera-based health-check runtime, prompt, scoring, persistence, notifications
+- `custom_components/tendrilgrow/{sensor,binary_sensor,button,number,select,text}.py`
+	- Tuya metric sensors, AI health entities, and cultivation-context helpers
 - `custom_components/tendrilgrow/diagnostics.py`
 	- Redacted diagnostics payloads for supportability
 
@@ -63,7 +84,7 @@ Main runtime modules:
 - Companion integrations already configured if you use them:
 	- Vivosun HACS integration (controllers)
 	- Tuya HACS integration (water monitors)
-	- Camera integration (for future vision features)
+	- Camera integration (required for AI vision health checks)
 
 ### Install steps
 
@@ -90,10 +111,18 @@ Changes in `custom_components` are not applied until restart.
 For each grow space (one entry per space):
 
 1. Enter grow-space name and type.
-2. Map sensor and control entities (optional mappings supported).
-3. Pick AI provider (`None`, `Gemini`, `OpenAI`, or `Ollama`).
-4. Enter provider credentials/endpoint.
-5. Select discovered model or use manual model fallback if discovery fails.
+2. Map sensor and control entities (optional mappings supported). Optionally
+	enable Tuya cloud polling and enter Tuya credentials and device IDs; when
+	enabled, water-quality sensors are provided and mapped automatically.
+3. Set AI health options (check interval, critical-score threshold, optional
+	notify service, result retention).
+4. Pick AI provider (`None`, `Gemini`, `OpenAI`, or `Ollama`).
+5. Enter provider credentials/endpoint.
+6. Select discovered model or use manual model fallback if discovery fails.
+
+To run AI health checks, map a `camera` entity and select a vision-capable
+provider and model. Checks run on a schedule, on demand via the run button, or
+through the `tendrilgrow.run_ai_health_check` service.
 
 ## Configuration model
 

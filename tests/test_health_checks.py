@@ -52,9 +52,11 @@ def test_build_prompt_handles_empty_context_and_metrics() -> None:
 
 def test_coerce_result_parses_rich_json() -> None:
     raw = (
-        '{"score": 82, "confidence": 74, "confidence_rationale": "clear image, on-target pH", '
-        '"severity": "Low", "summary": "Healthy canopy", "observations": ["even canopy"], '
-        '"issues": ["minor tip burn"], "recommended_actions": ["reduce EC to 1.4"], '
+        '{"score": 82, "confidence": 74, '
+        '"confidence_rationale": "clear image, on-target pH", '
+        '"severity": "Low", "summary": "Healthy canopy", '
+        '"observations": ["even canopy"], "issues": ["minor tip burn"], '
+        '"recommended_actions": ["reduce EC to 1.4"], '
         '"feeding_schedule": ["Days 1-3: EC 1.4, pH 5.9, total 49ml Cal-Mag"]}'
     )
 
@@ -81,8 +83,9 @@ def test_coerce_result_falls_back_on_non_json() -> None:
 
 def test_result_roundtrip_preserves_new_fields() -> None:
     raw = (
-        '{"score": 50, "confidence": 60, "confidence_rationale": "ok", "severity": "medium", '
-        '"summary": "ok", "observations": ["a"], "feeding_schedule": ["step1"]}'
+        '{"score": 50, "confidence": 60, "confidence_rationale": "ok", '
+        '"severity": "medium", "summary": "ok", "observations": ["a"], '
+        '"feeding_schedule": ["step1"]}'
     )
     result = _coerce_result(raw, "gemini", "model-x", "manual")
 

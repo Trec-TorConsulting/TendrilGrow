@@ -2,20 +2,22 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTemperature
-from homeassistant.core import callback
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .ai.health_checks import ai_dispatcher_signal
-from .coordinator import TendrilGrowTuyaCoordinator, has_tuya_credentials, tuya_device_ids, tuya_enabled
 from .const import (
     DOMAIN,
     SENSOR_ROLE_CF,
@@ -25,6 +27,12 @@ from .const import (
     SENSOR_ROLE_PH,
     SENSOR_ROLE_TDS,
     SENSOR_ROLE_TEMPERATURE,
+)
+from .coordinator import (
+    TendrilGrowTuyaCoordinator,
+    has_tuya_credentials,
+    tuya_device_ids,
+    tuya_enabled,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -148,9 +156,13 @@ class TuyaMetricSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEnti
 
     @property
     def device_info(self):
-        name = self.coordinator.device_names.get(self._device_id, f"Tuya {self._device_id[-6:]}")
+        name = self.coordinator.device_names.get(
+            self._device_id, f"Tuya {self._device_id[-6:]}"
+        )
         return {
-            "identifiers": {("tendrilgrow", f"{self._entry.entry_id}_{self._device_id}")},
+            "identifiers": {
+                ("tendrilgrow", f"{self._entry.entry_id}_{self._device_id}")
+            },
             "name": f"{self._entry.title} {name}",
             "manufacturer": "Tuya",
             "model": "Water Monitor",
@@ -205,7 +217,9 @@ class TuyaMetricSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEnti
         )
 
 
-class TuyaLastUpdatedSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEntity):
+class TuyaLastUpdatedSensor(
+    CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEntity
+):
     """Timestamp sensor showing when a device was last refreshed successfully."""
 
     _attr_has_entity_name = True
@@ -228,9 +242,13 @@ class TuyaLastUpdatedSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], Senso
 
     @property
     def device_info(self):
-        name = self.coordinator.device_names.get(self._device_id, f"Tuya {self._device_id[-6:]}")
+        name = self.coordinator.device_names.get(
+            self._device_id, f"Tuya {self._device_id[-6:]}"
+        )
         return {
-            "identifiers": {("tendrilgrow", f"{self._entry.entry_id}_{self._device_id}")},
+            "identifiers": {
+                ("tendrilgrow", f"{self._entry.entry_id}_{self._device_id}")
+            },
             "name": f"{self._entry.title} {name}",
             "manufacturer": "Tuya",
             "model": "Water Monitor",
@@ -253,19 +271,31 @@ _STATE_MAX_LENGTH = 255
 def _compose_report(latest) -> str:
     """Build a human-readable markdown report from an AI health result."""
     score = latest.score if latest.score is not None else "n/a"
-    confidence = f", confidence {latest.confidence}%" if latest.confidence is not None else ""
-    lines: list[str] = [f"**Score {score}/100** — severity: {latest.severity}{confidence}"]
+    confidence = (
+        f", confidence {latest.confidence}%" if latest.confidence is not None else ""
+    )
+    lines: list[str] = [
+        f"**Score {score}/100** — severity: {latest.severity}{confidence}"
+    ]
 
     if getattr(latest, "confidence_rationale", ""):
         lines += ["", f"_{latest.confidence_rationale}_"]
     if latest.summary:
         lines += ["", latest.summary]
     if latest.observations:
-        lines += ["", "**Observations**", *[f"- {item}" for item in latest.observations]]
+        lines += [
+            "",
+            "**Observations**",
+            *[f"- {item}" for item in latest.observations],
+        ]
     if latest.issues:
         lines += ["", "**Issues**", *[f"- {item}" for item in latest.issues]]
     if latest.recommended_actions:
-        lines += ["", "**Recommended actions**", *[f"- {item}" for item in latest.recommended_actions]]
+        lines += [
+            "",
+            "**Recommended actions**",
+            *[f"- {item}" for item in latest.recommended_actions],
+        ]
 
     return "\n".join(lines)
 
@@ -284,7 +314,10 @@ class AIHealthBaseSensor(SensorEntity):
     _attr_should_poll = False
     _attr_has_entity_name = True
     _unsub_dispatcher = None
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, suffix: str, name: str) -> None:
+
+    def __init__(
+        self, hass: HomeAssistant, entry: ConfigEntry, suffix: str, name: str
+    ) -> None:
         self.hass = hass
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_{suffix}"
