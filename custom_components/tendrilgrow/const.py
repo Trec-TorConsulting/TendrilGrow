@@ -54,6 +54,14 @@ SENSOR_ROLE_CAMERA = "camera"
 CONTROL_ROLE_LIGHTS = "lights"
 CONTROL_ROLE_FANS = "fans"
 CONTROL_ROLE_INLINE_FANS = "inline_fans"
+CONTROL_ROLE_RDWC_PUMP = "rdwc_pump"
+CONTROL_ROLE_CHILLER_PUMP = "chiller_pump"
+CONTROL_ROLE_AIR_PUMP = "air_pump"
+
+# Power sensor roles for pump monitoring.
+SENSOR_ROLE_RDWC_PUMP_POWER = "rdwc_pump_power"
+SENSOR_ROLE_CHILLER_PUMP_POWER = "chiller_pump_power"
+SENSOR_ROLE_AIR_PUMP_POWER = "air_pump_power"
 
 SENSOR_ROLES: tuple[str, ...] = (
     SENSOR_ROLE_TEMPERATURE,
@@ -67,6 +75,9 @@ SENSOR_ROLES: tuple[str, ...] = (
     SENSOR_ROLE_WATER_TEMPERATURE,
     SENSOR_ROLE_EC_TDS_LEGACY,
     SENSOR_ROLE_CAMERA,
+    SENSOR_ROLE_RDWC_PUMP_POWER,
+    SENSOR_ROLE_CHILLER_PUMP_POWER,
+    SENSOR_ROLE_AIR_PUMP_POWER,
 )
 
 # Sensor roles shown in config and options forms.
@@ -81,6 +92,9 @@ SENSOR_ROLES_CONFIGURABLE: tuple[str, ...] = (
     SENSOR_ROLE_TDS,
     SENSOR_ROLE_WATER_TEMPERATURE,
     SENSOR_ROLE_CAMERA,
+    SENSOR_ROLE_RDWC_PUMP_POWER,
+    SENSOR_ROLE_CHILLER_PUMP_POWER,
+    SENSOR_ROLE_AIR_PUMP_POWER,
 )
 
 # Under Tuya, water metrics come from the cloud; the operator still maps canopy
@@ -150,7 +164,31 @@ CONTROL_ROLES: tuple[str, ...] = (
     CONTROL_ROLE_LIGHTS,
     CONTROL_ROLE_FANS,
     CONTROL_ROLE_INLINE_FANS,
+    CONTROL_ROLE_RDWC_PUMP,
+    CONTROL_ROLE_CHILLER_PUMP,
+    CONTROL_ROLE_AIR_PUMP,
 )
+
+# Pump-specific control roles used for power monitoring and service routing.
+PUMP_CONTROL_ROLES: tuple[str, ...] = (
+    CONTROL_ROLE_RDWC_PUMP,
+    CONTROL_ROLE_CHILLER_PUMP,
+    CONTROL_ROLE_AIR_PUMP,
+)
+
+# Maps a pump control role to its optional power sensor role.
+PUMP_POWER_ROLE_FOR: dict[str, str] = {
+    CONTROL_ROLE_RDWC_PUMP: SENSOR_ROLE_RDWC_PUMP_POWER,
+    CONTROL_ROLE_CHILLER_PUMP: SENSOR_ROLE_CHILLER_PUMP_POWER,
+    CONTROL_ROLE_AIR_PUMP: SENSOR_ROLE_AIR_PUMP_POWER,
+}
+
+# Human-friendly labels for pump roles.
+PUMP_LABELS: dict[str, str] = {
+    CONTROL_ROLE_RDWC_PUMP: "RDWC Pump",
+    CONTROL_ROLE_CHILLER_PUMP: "Chiller Pump",
+    CONTROL_ROLE_AIR_PUMP: "Air Pump",
+}
 
 SENSITIVE_KEYS: tuple[str, ...] = (
     CONF_API_KEY,

@@ -1,6 +1,9 @@
 """Tests for grow-space model and derived metrics."""
 
 from custom_components.tendrilgrow.const import (
+    CONTROL_ROLE_AIR_PUMP,
+    CONTROL_ROLE_CHILLER_PUMP,
+    CONTROL_ROLE_RDWC_PUMP,
     SENSOR_ROLE_EC_TDS_LEGACY,
     SENSOR_ROLE_HUMIDITY,
     SENSOR_ROLE_TDS,
@@ -72,3 +75,21 @@ def test_legacy_ec_tds_mapping_is_migrated_to_tds() -> None:
     )
 
     assert restored.sensor_mappings[SENSOR_ROLE_TDS] == "sensor.bucket_ec_tds"
+
+
+def test_pump_control_roles_bind_and_round_trip() -> None:
+    """Verify pump control roles work with bind_control and from_dict."""
+    space = GrowSpace.new(name="Tent A", grow_type="rdwc", descriptor="3x3")
+    space.bind_control(CONTROL_ROLE_RDWC_PUMP, "switch.rdwc_pump")
+    space.bind_control(CONTROL_ROLE_CHILLER_PUMP, "switch.chiller_pump")
+    space.bind_control(CONTROL_ROLE_AIR_PUMP, "switch.air_pump")
+
+    assert space.control_mappings[CONTROL_ROLE_RDWC_PUMP] == "switch.rdwc_pump"
+    assert space.control_mappings[CONTROL_ROLE_CHILLER_PUMP] == "switch.chiller_pump"
+    assert space.control_mappings[CONTROL_ROLE_AIR_PUMP] == "switch.air_pump"
+
+    # Verify round-trip via from_dict.
+    restored = GrowSpace.from_dict(space.to_dict())
+    assert restored.control_mappings[CONTROL_ROLE_RDWC_PUMP] == "switch.rdwc_pump"
+    assert restored.control_mappings[CONTROL_ROLE_CHILLER_PUMP] == "switch.chiller_pump"
+    assert restored.control_mappings[CONTROL_ROLE_AIR_PUMP] == "switch.air_pump"
