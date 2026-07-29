@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .const import CTX_STAGE, STAGE_OPTIONS
+from .const import CTX_STAGE, DEFAULT_STAGE, STAGE_OPTIONS
 from .entity import grow_device_info
 
 
@@ -26,14 +26,14 @@ class GrowStageSelect(SelectEntity, RestoreEntity):
 
     _attr_has_entity_name = True
     _attr_should_poll = False
-    _attr_name = "Growth Stage"
+    _attr_translation_key = "growth_stage"
     _attr_icon = "mdi:sprout"
     _attr_options = list(STAGE_OPTIONS)
 
     def __init__(self, entry: ConfigEntry) -> None:
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_{CTX_STAGE}"
-        self._attr_current_option = STAGE_OPTIONS[1]
+        self._attr_current_option = DEFAULT_STAGE
 
     @property
     def device_info(self):

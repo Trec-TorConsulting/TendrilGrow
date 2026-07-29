@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -34,6 +34,8 @@ from homeassistant.util import dt as dt_util
 
 from .ai.health_checks import ai_dispatcher_signal
 from .const import (
+    CTX_STAGE,
+    CTX_WEEK_IN_STAGE,
     DOMAIN,
     FLUSH_DAYS_SINCE_SUFFIX,
     FLUSH_DAYS_UNTIL_SUFFIX,
@@ -50,6 +52,8 @@ from .const import (
     SENSOR_ROLE_TDS,
     SENSOR_ROLE_TEMPERATURE,
     SENSOR_ROLE_WATER_TEMPERATURE,
+    STAGE_DURATIONS_DAYS,
+    STAGE_PIPELINE,
 )
 from .coordinator import (
     TendrilGrowTuyaCoordinator,
@@ -148,13 +152,15 @@ async def async_setup_entry(
     # Tuya-dependent sensors (only if Tuya enabled and has credentials).
     if tuya_enabled(entry) and has_tuya_credentials(entry):
         device_ids = tuya_device_ids(entry)
-        entities.extend([
-            AIHealthScoreSensor(hass, entry),
-            AIHealthSummarySensor(hass, entry),
-            AIFeedingScheduleSensor(hass, entry),
-            AIHealthLastCheckSensor(hass, entry),
-            TendrilGrowVpdSensor(hass, entry),
-        ])
+        entities.extend(
+            [
+                AIHealthScoreSensor(hass, entry),
+                AIHealthSummarySensor(hass, entry),
+                AIFeedingScheduleSensor(hass, entry),
+                AIHealthLastCheckSensor(hass, entry),
+                TendrilGrowVpdSensor(hass, entry),
+            ]
+        )
 
         if device_ids:
             coordinator = TendrilGrowTuyaCoordinator(hass, entry)
@@ -198,6 +204,9 @@ async def async_setup_entry(
             FlushNextDueSensor(hass, entry),
         ]
     )
+
+    # Lifecycle stage projection (independent of Tuya).
+    entities.append(TendrilGrowStageProjectionSensor(hass, entry))
 
     if entities:
         async_add_entities(entities)
@@ -631,29 +640,29 @@ async def _resolve_pump_power_source(
     pump_role: str,
 ) -> str | None:
     """Resolve power source for a pump: explicit mapping or auto-discovery.
-    
+
     Returns entity_id of power sensor or None if not found.
     """
     data = entry.data
     sensor_mappings = data.get("sensor_mappings", {})
     control_mappings = data.get("control_mappings", {})
-    
+
     # Check explicit power mapping first.
     power_role = PUMP_POWER_ROLE_FOR.get(pump_role)
     if power_role and power_role in sensor_mappings:
         return sensor_mappings[power_role]
-    
+
     # Try auto-discovery from the pump switch's device.
     if pump_role not in control_mappings:
         return None
-    
+
     pump_entity_id = control_mappings[pump_role]
     entity_registry = get_entity_registry(hass)
     pump_entity = entity_registry.async_get(pump_entity_id)
-    
+
     if pump_entity is None or pump_entity.device_id is None:
         return None
-    
+
     # Find power sensors on the same device.
     for entity in entity_registry.entities.values():
         if (
@@ -662,7 +671,7 @@ async def _resolve_pump_power_source(
             and entity.device_class == SensorDeviceClass.POWER
         ):
             return entity.entity_id
-    
+
     return None
 
 
@@ -794,7 +803,7 @@ class TendrilGrowTotalPumpPowerSensor(SensorEntity):
         """Return sum of all available pump power values."""
         total = 0.0
         has_value = False
-        
+
         for sensor_id in self._pump_power_sensors:
             state = self.hass.states.get(sensor_id)
             if state is not None and state.state not in ("unavailable", "unknown"):
@@ -803,7 +812,7 @@ class TendrilGrowTotalPumpPowerSensor(SensorEntity):
                     has_value = True
                 except (ValueError, TypeError):
                     continue
-        
+
         return total if has_value else None
 
     @callback
@@ -925,3 +934,149 @@ class FlushDaysUntilSensor(FlushBaseSensor):
         status = self._status()
         return status["days_until"] if status else None
 
+
+def compute_stage_projection(
+    stage: str | None, week_in_stage: object, now: datetime
+) -> dict[str, object | None]:
+    """Project remaining days and milestone dates from stage + week-in-stage.
+
+    `days_in_stage` comes from the operator-entered week-in-stage. Indefinite
+    (`mother`) and terminal (`ready`) stages return no remaining days or dates.
+    """
+    stage = (stage or "").strip().lower()
+    result: dict[str, object | None] = {
+        "stage": stage or None,
+        "days_in_stage": None,
+        "days_remaining": None,
+        "projected_stage_end": None,
+        "projected_harvest_date": None,
+        "projected_ready_date": None,
+        "pipeline_position": None,
+    }
+    try:
+        weeks = float(week_in_stage)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        weeks = 0.0
+    days_in = max(0, int(round(weeks * 7)))
+    result["days_in_stage"] = days_in
+    if stage in STAGE_PIPELINE:
+        result["pipeline_position"] = STAGE_PIPELINE.index(stage) + 1
+
+    duration = STAGE_DURATIONS_DAYS.get(stage)
+    if duration is None:
+        return result
+
+    days_remaining = max(0, duration - days_in)
+    result["days_remaining"] = days_remaining
+    result["projected_stage_end"] = (
+        (now + timedelta(days=days_remaining)).date().isoformat()
+    )
+
+    def _project_to(target: str) -> str | None:
+        if stage not in STAGE_PIPELINE or target not in STAGE_PIPELINE:
+            return None
+        start = STAGE_PIPELINE.index(stage)
+        end = STAGE_PIPELINE.index(target)
+        if end < start:
+            return None
+        total = days_remaining
+        for name in STAGE_PIPELINE[start + 1 : end + 1]:
+            step = STAGE_DURATIONS_DAYS.get(name)
+            if step:
+                total += step
+        return (now + timedelta(days=total)).date().isoformat()
+
+    result["projected_harvest_date"] = _project_to("harvest")
+    result["projected_ready_date"] = _project_to("ready")
+    return result
+
+
+class TendrilGrowStageProjectionSensor(SensorEntity):
+    """Projected days remaining and milestone dates for the current stage."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_name = "Stage Projection"
+    _attr_icon = "mdi:calendar-clock"
+    _attr_native_unit_of_measurement = UnitOfTime.DAYS
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_stage_projection"
+        self._unsub_state: object | None = None
+        self._unsub_timer: object | None = None
+
+    @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    def _source_entity_ids(self) -> list[str]:
+        registry = get_entity_registry(self.hass)
+        stage_id = registry.async_get_entity_id(
+            "select", DOMAIN, f"{self._entry.entry_id}_{CTX_STAGE}"
+        )
+        week_id = registry.async_get_entity_id(
+            "number", DOMAIN, f"{self._entry.entry_id}_{CTX_WEEK_IN_STAGE}"
+        )
+        return [eid for eid in (stage_id, week_id) if eid]
+
+    def _projection(self) -> dict[str, object | None]:
+        registry = get_entity_registry(self.hass)
+        stage_id = registry.async_get_entity_id(
+            "select", DOMAIN, f"{self._entry.entry_id}_{CTX_STAGE}"
+        )
+        week_id = registry.async_get_entity_id(
+            "number", DOMAIN, f"{self._entry.entry_id}_{CTX_WEEK_IN_STAGE}"
+        )
+        stage_state = self.hass.states.get(stage_id) if stage_id else None
+        week_state = self.hass.states.get(week_id) if week_id else None
+        stage = stage_state.state if stage_state else None
+        week = week_state.state if week_state else None
+        return compute_stage_projection(stage, week, dt_util.now())
+
+    @property
+    def native_value(self):
+        return self._projection().get("days_remaining")
+
+    @property
+    def extra_state_attributes(self):
+        projection = self._projection()
+        return {
+            key: value for key, value in projection.items() if key != "days_remaining"
+        }
+
+    @callback
+    def _subscribe(self) -> None:
+        if self._unsub_state is not None:
+            return
+        source_ids = self._source_entity_ids()
+        if source_ids:
+            self._unsub_state = async_track_state_change_event(
+                self.hass, source_ids, self._async_source_changed
+            )
+
+    @callback
+    def _async_source_changed(self, _event) -> None:
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        @callback
+        def _refresh(*_args) -> None:
+            self._subscribe()
+            self.async_write_ha_state()
+
+        self._subscribe()
+        self._unsub_timer = async_track_time_interval(
+            self.hass, _refresh, timedelta(minutes=30)
+        )
+        # The sensor platform loads before select/number; retry once they exist.
+        async_call_later(self.hass, 15, _refresh)
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_state is not None:
+            self._unsub_state()
+            self._unsub_state = None
+        if self._unsub_timer is not None:
+            self._unsub_timer()
+            self._unsub_timer = None

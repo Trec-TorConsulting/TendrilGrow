@@ -213,6 +213,18 @@ views:
     - text.3x3_mothers_tent_nutrient_line
     - text.3x3_mothers_tent_base_nutrients
     - text.3x3_mothers_tent_additives
+  - type: markdown
+    title: Grow Timeline
+    content: |
+      **Stage:** {{ states('select.3x3_mothers_tent_growth_stage') }} (week {{ states('number.3x3_mothers_tent_week_in_stage') }})
+
+      **Days left in stage:** {{ states('sensor.3x3_mothers_tent_stage_projection') }} d
+
+      **Projected stage end:** {{ state_attr('sensor.3x3_mothers_tent_stage_projection','projected_stage_end') }}
+
+      **Projected harvest:** {{ state_attr('sensor.3x3_mothers_tent_stage_projection','projected_harvest_date') }}
+
+      **Projected ready:** {{ state_attr('sensor.3x3_mothers_tent_stage_projection','projected_ready_date') }}
 - path: zone-4x4
   title: 4x4 Full Cycle Tent
   icon: mdi:sprout
@@ -304,3 +316,15 @@ views:
     - text.4x4_full_cycle_tent_nutrient_line
     - text.4x4_full_cycle_tent_base_nutrients
     - text.4x4_full_cycle_tent_additives
+  - type: markdown
+    title: Grow Timeline
+    content: |
+      **Stage:** {{ states('select.4x4_full_cycle_tent_growth_stage') }} (week {{ states('number.4x4_full_cycle_tent_week_in_stage') }})
+
+      **Days left in stage:** {{ states('sensor.4x4_full_cycle_tent_stage_projection') }} d
+
+      **Projected stage end:** {{ state_attr('sensor.4x4_full_cycle_tent_stage_projection','projected_stage_end') }}
+
+      **Projected harvest:** {{ state_attr('sensor.4x4_full_cycle_tent_stage_projection','projected_harvest_date') }}
+
+      **Projected ready:** {{ state_attr('sensor.4x4_full_cycle_tent_stage_projection','projected_ready_date') }}

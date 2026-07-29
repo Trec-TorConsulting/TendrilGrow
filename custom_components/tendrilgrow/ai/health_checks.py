@@ -24,12 +24,14 @@ from ..const import (
     CONF_BASE_URL,
     DEFAULT_AI_RESULT_RETENTION_DAYS,
     DEFAULT_AI_SEVERE_THRESHOLD,
+    DEFAULT_OBJECTIVE,
     DOMAIN,
     GROW_CONTEXT_LABELS,
     PROVIDER_NONE,
     SENSOR_ROLE_CAMERA,
     SENSOR_ROLE_HUMIDITY,
     SENSOR_ROLE_TEMPERATURE,
+    STAGE_OBJECTIVES,
     STAGE_TARGETS,
 )
 from ..models.grow import GrowSpace
@@ -171,8 +173,7 @@ def _build_prompt(
         )
         if vpd is not None:
             metric_entries.append(
-                "- Derived VPD (air temperature + air humidity): "
-                f"{round(vpd, 2)} kPa"
+                f"- Derived VPD (air temperature + air humidity): {round(vpd, 2)} kPa"
             )
     metric_lines = "\n".join(metric_entries)
     context_lines = "\n".join(
@@ -182,6 +183,7 @@ def _build_prompt(
     targets = grow_space.targets or {}
 
     stage = str(context.get("growth_stage", "")).strip().lower()
+    objective = STAGE_OBJECTIVES.get(stage, DEFAULT_OBJECTIVE)
     stage_targets = STAGE_TARGETS.get(stage)
     if stage_targets:
         stage_target_line = (
@@ -229,12 +231,11 @@ def _build_prompt(
     )
 
     return (
-        "You are a master cannabis cultivation agronomist specializing in \n"
-        "premium flower quality.\n"
+        "You are a master cannabis cultivation agronomist.\n"
         "Analyze the attached grow image together with the telemetry and \n"
         "cultivation context.\n"
-        "Prioritize QUALITY (terpene and cannabinoid expression, plant \n"
-        "structure, health) over raw yield.\n\n"
+        f"Primary objective for the '{stage or 'unspecified'}' stage: "
+        f"{objective}\n\n"
         "Return STRICT JSON only, no markdown, with keys:\n"
         "- score: integer 0-100 (overall plant health and quality trajectory)\n"
         "- confidence: integer 0-100 (your confidence given image and \n"
@@ -349,9 +350,7 @@ def _coerce_result(
     confidence_rationale = str(payload.get("confidence_rationale", "")).strip()
 
     issues = [
-        str(item).strip()
-        for item in payload.get("issues", [])
-        if str(item).strip()
+        str(item).strip() for item in payload.get("issues", []) if str(item).strip()
     ]
     actions = [
         str(item).strip()

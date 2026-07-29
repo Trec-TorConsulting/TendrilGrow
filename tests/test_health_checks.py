@@ -34,7 +34,9 @@ def test_build_prompt_includes_context_and_metrics() -> None:
         retention_days=30,
     )
 
-    assert "premium flower quality" in prompt
+    assert "master cannabis cultivation agronomist" in prompt
+    assert "Primary objective for the 'mid_flower' stage" in prompt
+    assert "Prioritize QUALITY" in prompt
     assert "growth_stage: mid_flower" in prompt
     assert "nutrient_line: Brand X" in prompt
     assert "strain_genetics: OG Kush" in prompt

@@ -136,9 +136,7 @@ def _migrate_ai_entity_ids(hass: HomeAssistant, entry: ConfigEntry) -> None:
                 entry.entry_id,
             )
         except (ValueError, KeyError):
-            LOGGER.debug(
-                "Could not migrate %s -> %s", current, desired, exc_info=True
-            )
+            LOGGER.debug("Could not migrate %s -> %s", current, desired, exc_info=True)
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:

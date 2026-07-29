@@ -39,6 +39,11 @@ AI-provider model selection into a single HACS-installable package.
 - Critical-score notifications (persistent notification plus optional notify service)
 - Editable cultivation-context helpers (growth stage, strain, targets,
 	reservoir volume, nutrients) that ground AI advice
+- Full lifecycle growth stages (seedling, mother, clone, vegetative,
+	early/mid/late flower, flush, harvest, dry, cure, ready) with stage-aware AI
+	objectives (mothers judged on health/structure, clones on rooting, flowering
+	on quality, dry/cure on drying) plus a per-space stage-projection sensor
+	(days remaining and projected stage-end/harvest/ready dates)
 - AI health entities (score, summary, feeding schedule, last check, critical
 	alert) and a run button
 - Services: `run_ai_health_check` and `rebuild_automap`
@@ -158,6 +163,10 @@ spaces.
 - Re-export a live dashboard into the repo:
 	`./.venv/bin/python scripts/export_dashboard.py <url_path>` — reads read-only
 	`HA_URL`/`HA_TOKEN` from `.env`; the token is never printed or logged.
+- Push a repo dashboard back to the live server:
+	`./.venv/bin/python scripts/import_dashboard.py <url_path>` — dry-run by
+	default (add `--apply` to save). It backs up the live config first, warns on
+	any referenced entity ids that don't exist, and never prints the token.
 
 ## Configuration model
 

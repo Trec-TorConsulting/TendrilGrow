@@ -22,11 +22,7 @@ from custom_components.tendrilgrow.switch import (
 async def test_pump_switch_mirrors_mapped_entity_state() -> None:
     """Verify pump switch mirrors the state of the mapped entity."""
     hass = SimpleNamespace(
-        states=SimpleNamespace(
-            get=MagicMock(
-                return_value=SimpleNamespace(state="on")
-            )
-        ),
+        states=SimpleNamespace(get=MagicMock(return_value=SimpleNamespace(state="on"))),
     )
 
     entry = SimpleNamespace(entry_id="test-entry", title="Tent A")
@@ -39,23 +35,17 @@ async def test_pump_switch_mirrors_mapped_entity_state() -> None:
     )
 
     # When mapped entity is on.
-    hass.states.get = MagicMock(
-        return_value=SimpleNamespace(state="on")
-    )
+    hass.states.get = MagicMock(return_value=SimpleNamespace(state="on"))
     assert switch.is_on is True
     assert switch.available is True
 
     # When mapped entity is off.
-    hass.states.get = MagicMock(
-        return_value=SimpleNamespace(state="off")
-    )
+    hass.states.get = MagicMock(return_value=SimpleNamespace(state="off"))
     assert switch.is_on is False
     assert switch.available is True
 
     # When mapped entity is unavailable.
-    hass.states.get = MagicMock(
-        return_value=SimpleNamespace(state="unavailable")
-    )
+    hass.states.get = MagicMock(return_value=SimpleNamespace(state="unavailable"))
     assert switch.is_on is False
     assert switch.available is False
 
@@ -70,9 +60,7 @@ async def test_pump_switch_routes_turn_on_to_switch_domain() -> None:
     """Verify turn_on routes to switch service for switch entities."""
     hass = MagicMock()
     hass.services.async_call = AsyncMock()
-    hass.states.get = MagicMock(
-        return_value=SimpleNamespace(state="off")
-    )
+    hass.states.get = MagicMock(return_value=SimpleNamespace(state="off"))
 
     entry = SimpleNamespace(entry_id="test-entry", title="Tent A")
 
@@ -98,9 +86,7 @@ async def test_pump_switch_routes_turn_on_to_input_boolean_domain() -> None:
     """Verify turn_on routes to input_boolean service for input_boolean entities."""
     hass = MagicMock()
     hass.services.async_call = AsyncMock()
-    hass.states.get = MagicMock(
-        return_value=SimpleNamespace(state="off")
-    )
+    hass.states.get = MagicMock(return_value=SimpleNamespace(state="off"))
 
     entry = SimpleNamespace(entry_id="test-entry", title="Tent A")
 
@@ -128,9 +114,7 @@ async def test_pump_switch_toggle() -> None:
     """Verify toggle action works correctly."""
     hass = MagicMock()
     hass.services.async_call = AsyncMock()
-    hass.states.get = MagicMock(
-        return_value=SimpleNamespace(state="on")
-    )
+    hass.states.get = MagicMock(return_value=SimpleNamespace(state="on"))
 
     entry = SimpleNamespace(entry_id="test-entry", title="Tent A")
 
@@ -173,9 +157,7 @@ async def test_async_setup_entry_creates_switches_for_mapped_pumps() -> None:
     )
 
     hass = MagicMock()
-    hass.states.get = MagicMock(
-        return_value=SimpleNamespace(state="off")
-    )
+    hass.states.get = MagicMock(return_value=SimpleNamespace(state="off"))
 
     async_add_entities = AsyncMock()
 

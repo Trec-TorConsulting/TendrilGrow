@@ -31,9 +31,10 @@ A dedicated helper module mirrors the AI-health pattern:
 ```python
 @dataclass(slots=True)
 class FlushState:
-    last_flush: datetime | None = None      # UTC; None => never recorded
-    interval_days: int = DEFAULT_FLUSH_INTERVAL_DAYS   # 7
+    last_flush: datetime | None = None  # UTC; None => never recorded
+    interval_days: int = DEFAULT_FLUSH_INTERVAL_DAYS  # 7
     notified_overdue_for: str | None = None  # ISO of last_flush a reminder fired for
+
 
 def flush_dispatcher_signal(entry_id: str) -> str: ...
 async def load_flush_state(store) -> FlushState: ...

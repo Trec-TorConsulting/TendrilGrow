@@ -135,9 +135,9 @@ async def main() -> int:
                 # Include the default dashboard too.
                 targets.append({"url_path": None, "title": "Overview (default)"})
             elif explicit:
-                targets = [
-                    d for d in dashboards if d.get("url_path") == explicit
-                ] or [{"url_path": explicit, "title": explicit}]
+                targets = [d for d in dashboards if d.get("url_path") == explicit] or [
+                    {"url_path": explicit, "title": explicit}
+                ]
             else:
                 match = next(
                     (
@@ -180,8 +180,7 @@ async def main() -> int:
         print("Nothing exported.")
         return 1
     print(
-        f"\nExported {len(written)} dashboard file(s) to "
-        f"{OUT_DIR.relative_to(ROOT)}/"
+        f"\nExported {len(written)} dashboard file(s) to {OUT_DIR.relative_to(ROOT)}/"
     )
     return 0
 

@@ -138,24 +138,108 @@ FLUSH_DAYS_UNTIL_SUFFIX = "days_until_flush"
 FLUSH_NEXT_DUE_SUFFIX = "next_flush_due"
 FLUSH_DUE_SUFFIX = "flush_due"
 
+# Default growth stage, pinned by name so option ordering can change freely.
+DEFAULT_STAGE = "vegetative"
 STAGE_OPTIONS: tuple[str, ...] = (
     "seedling",
+    "mother",
+    "clone",
     "vegetative",
     "early_flower",
     "mid_flower",
     "late_flower",
     "flush",
+    "harvest",
+    "dry",
+    "cure",
+    "ready",
 )
 
-# Per-stage target ranges used to calibrate AI scoring. Operator can tune these.
+# Per-stage reservoir target ranges used to calibrate AI scoring. Operator can
+# tune these. Post-harvest stages (harvest/dry/cure/ready) have no reservoir
+# targets; the prompt falls back to best-practice guidance for them.
 STAGE_TARGETS: dict[str, dict[str, str]] = {
+    "clone": {"ph": "5.5-6.0", "ec_ms_cm": "0.0-0.4", "vpd_kpa": "0.4-0.8"},
     "seedling": {"ph": "5.8-6.2", "ec_ms_cm": "0.4-0.8", "vpd_kpa": "0.4-0.8"},
+    "mother": {"ph": "5.8-6.2", "ec_ms_cm": "1.0-1.6", "vpd_kpa": "0.8-1.1"},
     "vegetative": {"ph": "5.6-6.0", "ec_ms_cm": "1.2-1.8", "vpd_kpa": "0.8-1.1"},
     "early_flower": {"ph": "5.8-6.1", "ec_ms_cm": "1.6-2.2", "vpd_kpa": "1.0-1.3"},
     "mid_flower": {"ph": "5.8-6.2", "ec_ms_cm": "1.8-2.4", "vpd_kpa": "1.2-1.5"},
     "late_flower": {"ph": "6.0-6.3", "ec_ms_cm": "1.4-2.0", "vpd_kpa": "1.3-1.6"},
     "flush": {"ph": "5.8-6.2", "ec_ms_cm": "0.0-0.4", "vpd_kpa": "1.3-1.6"},
 }
+
+# Quality-first objective for standard flowering-line stages; STAGE_OBJECTIVES
+# overrides it for stages whose goal is not flower yield/quality.
+DEFAULT_OBJECTIVE = (
+    "Prioritize QUALITY (terpene and cannabinoid expression, plant structure, "
+    "health) over raw yield for this flowering-line plant."
+)
+STAGE_OBJECTIVES: dict[str, str] = {
+    "clone": (
+        "These are unrooted cuttings in a propagation cloner. The goal is "
+        "successful rooting: keep humidity very high (low VPD), nutrients "
+        "minimal, and pH/media stable. Watch for wilting, damping-off, and rot. "
+        "Do NOT assess flowering, yield, or heavy feeding."
+    ),
+    "mother": (
+        "This is a mother/stock plant kept in permanent vegetative growth to "
+        "supply cuttings; it will NEVER be flowered. Prioritize long-term "
+        "health, a compact bushy structure with many healthy shoots for "
+        "cloning, and steady moderate feeding. Avoid stretch, nutrient burn, "
+        "and stress; do NOT recommend flowering or yield-maximizing actions."
+    ),
+    "harvest": (
+        "The plant is at harvest. Assess ripeness (trichome color, pistil "
+        "recession) and readiness to cut; do not assess reservoir chemistry."
+    ),
+    "dry": (
+        "Buds are drying, not on a reservoir. Assess the drying environment "
+        "(target 60-70 F, 55-65% RH, dark, gentle airflow) and watch for mold "
+        "or over-drying; aim for a slow 7-14 day dry. Ignore pH/EC."
+    ),
+    "cure": (
+        "Buds are curing in sealed jars. Assess jar humidity (target 55-65% "
+        "RH), burping cadence, and mold/ammonia risk; ignore pH/EC/VPD."
+    ),
+    "ready": (
+        "The harvest is cured and ready for storage/use. Assess storage quality "
+        "(cool, dark, 55-65% RH) for long-term preservation; ignore pH/EC/VPD."
+    ),
+}
+
+# Typical stage durations in days, confirmed against Leafly (2025). Operator-
+# tunable later. None = indefinite (mother) or terminal (ready).
+STAGE_DURATIONS_DAYS: dict[str, int | None] = {
+    "clone": 10,
+    "seedling": 14,
+    "mother": None,
+    "vegetative": 28,
+    "early_flower": 21,
+    "mid_flower": 14,
+    "late_flower": 21,
+    "flush": 10,
+    "harvest": 1,
+    "dry": 10,
+    "cure": 21,
+    "ready": None,
+}
+
+# Biological progression used to project timings, distinct from the select's
+# display order. `mother` is intentionally off-pipeline (indefinite).
+STAGE_PIPELINE: tuple[str, ...] = (
+    "clone",
+    "seedling",
+    "vegetative",
+    "early_flower",
+    "mid_flower",
+    "late_flower",
+    "flush",
+    "harvest",
+    "dry",
+    "cure",
+    "ready",
+)
 
 # Maps grow-context unique-id suffixes to prompt labels.
 GROW_CONTEXT_LABELS: dict[str, str] = {

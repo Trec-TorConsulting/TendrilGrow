@@ -59,9 +59,7 @@ async def test_resolve_pump_power_source_missing_when_unmapped() -> None:
 def test_pump_power_sensor_state_mirroring() -> None:
     """Verify pump power sensor mirrors resolved power entity state."""
     hass = MagicMock()
-    hass.states.get = MagicMock(
-        return_value=SimpleNamespace(state="42.5")
-    )
+    hass.states.get = MagicMock(return_value=SimpleNamespace(state="42.5"))
 
     entry = SimpleNamespace(entry_id="test-entry", title="Tent A")
 
@@ -77,9 +75,7 @@ def test_pump_power_sensor_state_mirroring() -> None:
     assert sensor.available is True
 
     # When power entity is unavailable.
-    hass.states.get = MagicMock(
-        return_value=SimpleNamespace(state="unavailable")
-    )
+    hass.states.get = MagicMock(return_value=SimpleNamespace(state="unavailable"))
     assert sensor.native_value is None
     assert sensor.available is False
 

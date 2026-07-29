@@ -138,5 +138,26 @@
         }
       }
     }
+  },
+  "entity": {
+    "select": {
+      "growth_stage": {
+        "name": "Growth Stage",
+        "state": {
+          "seedling": "Seedling",
+          "mother": "Mother",
+          "clone": "Clone",
+          "vegetative": "Vegetative",
+          "early_flower": "Early flower",
+          "mid_flower": "Mid flower",
+          "late_flower": "Late flower",
+          "flush": "Flush",
+          "harvest": "Harvest",
+          "dry": "Dry",
+          "cure": "Cure",
+          "ready": "Ready"
+        }
+      }
+    }
   }
 }

@@ -318,13 +318,9 @@ async def test_options_flow_pump_control_and_power_mappings() -> None:
 
     # Verify power sensors are in sensor_mappings.
     sensor_mappings = result["data"][CONF_SENSOR_MAPPINGS]
+    assert sensor_mappings[SENSOR_ROLE_RDWC_PUMP_POWER] == "sensor.rdwc_pump_power"
     assert (
-        sensor_mappings[SENSOR_ROLE_RDWC_PUMP_POWER]
-        == "sensor.rdwc_pump_power"
-    )
-    assert (
-        sensor_mappings[SENSOR_ROLE_CHILLER_PUMP_POWER]
-        == "sensor.chiller_pump_power"
+        sensor_mappings[SENSOR_ROLE_CHILLER_PUMP_POWER] == "sensor.chiller_pump_power"
     )
     # Air pump power not submitted, should not be in mappings.
     assert SENSOR_ROLE_AIR_PUMP_POWER not in sensor_mappings

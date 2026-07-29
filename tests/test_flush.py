@@ -91,9 +91,7 @@ def test_flush_status_custom_interval() -> None:
 
 def test_flush_status_naive_last_flush_treated_as_utc() -> None:
     """A naive stored datetime is treated as UTC without raising."""
-    state = FlushState(
-        last_flush=datetime(2026, 7, 27, 12, 0, 0), interval_days=7
-    )
+    state = FlushState(last_flush=datetime(2026, 7, 27, 12, 0, 0), interval_days=7)
     status = flush_status(state, _now())
     assert status["days_since"] == 2
 
@@ -195,9 +193,7 @@ async def test_flush_now_button_unavailable_without_runtime() -> None:
 async def test_flush_interval_number_updates_runtime_and_due() -> None:
     """Changing the interval updates runtime state and flips due status."""
     runtime = SimpleNamespace(
-        flush_state=FlushState(
-            last_flush=_now() - timedelta(days=8), interval_days=7
-        ),
+        flush_state=FlushState(last_flush=_now() - timedelta(days=8), interval_days=7),
         flush_store=_EphemeralStore(),
         grow_space=SimpleNamespace(name="Tent A"),
     )
@@ -263,9 +259,7 @@ def test_flush_sensors_never_flushed() -> None:
 def test_flush_sensors_after_flush() -> None:
     """Status sensors reflect a recorded flush within the interval."""
     runtime = SimpleNamespace(
-        flush_state=FlushState(
-            last_flush=_now() - timedelta(days=2), interval_days=7
-        )
+        flush_state=FlushState(last_flush=_now() - timedelta(days=2), interval_days=7)
     )
     hass = _sensor_hass(runtime)
     entry = SimpleNamespace(entry_id="entry-1", title="Tent A")
@@ -288,9 +282,7 @@ def test_flush_sensors_unavailable_without_runtime() -> None:
 def test_flush_due_binary_sensor_states() -> None:
     """The binary sensor is on only when overdue and exposes attributes."""
     overdue = SimpleNamespace(
-        flush_state=FlushState(
-            last_flush=_now() - timedelta(days=9), interval_days=7
-        )
+        flush_state=FlushState(last_flush=_now() - timedelta(days=9), interval_days=7)
     )
     hass = _sensor_hass(overdue)
     entry = SimpleNamespace(entry_id="entry-1", title="Tent A")
@@ -304,9 +296,7 @@ def test_flush_due_binary_sensor_states() -> None:
     assert attrs["next_due"] is not None
 
     within = SimpleNamespace(
-        flush_state=FlushState(
-            last_flush=_now() - timedelta(days=1), interval_days=7
-        )
+        flush_state=FlushState(last_flush=_now() - timedelta(days=1), interval_days=7)
     )
     binary_ok = FlushDueBinarySensor(_sensor_hass(within), entry)
     assert binary_ok.is_on is False
@@ -315,9 +305,9 @@ def test_flush_due_binary_sensor_states() -> None:
 def test_flush_due_binary_sensor_never_flushed() -> None:
     """A never-flushed space is not due and reports null timestamps."""
     runtime = SimpleNamespace(flush_state=FlushState())
-    binary = FlushDueBinarySensor(_sensor_hass(runtime), SimpleNamespace(
-        entry_id="entry-1", title="Tent A"
-    ))
+    binary = FlushDueBinarySensor(
+        _sensor_hass(runtime), SimpleNamespace(entry_id="entry-1", title="Tent A")
+    )
     assert binary.is_on is False
     attrs = binary.extra_state_attributes
     assert attrs["last_flush"] is None

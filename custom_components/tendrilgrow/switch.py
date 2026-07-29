@@ -37,9 +37,7 @@ async def async_setup_entry(
     for pump_role in PUMP_CONTROL_ROLES:
         if pump_role in control_mappings:
             entity_id = control_mappings[pump_role]
-            entities.append(
-                TendrilGrowPumpSwitch(hass, entry, pump_role, entity_id)
-            )
+            entities.append(TendrilGrowPumpSwitch(hass, entry, pump_role, entity_id))
 
     if entities:
         async_add_entities(entities)

@@ -567,9 +567,7 @@ def test_migrate_ai_entity_ids_renames_generic_to_per_tent() -> None:
     """Legacy generic AI ids migrate to per-grow-space ids (incl. _2 dedup)."""
     current_ids = {
         ("sensor", "tendrilgrow", "e1_ai_health_score"): "sensor.ai_health_score",
-        ("sensor", "tendrilgrow", "e1_ai_health_summary"): (
-            "sensor.ai_health_summary"
-        ),
+        ("sensor", "tendrilgrow", "e1_ai_health_summary"): ("sensor.ai_health_summary"),
         ("sensor", "tendrilgrow", "e1_ai_health_last_check"): (
             "sensor.ai_last_health_check_2"
         ),
@@ -613,9 +611,7 @@ def test_migrate_ai_entity_ids_skips_customized_and_taken() -> None:
         ("sensor", "tendrilgrow", "e1_ai_health_score"): "sensor.my_custom_score",
     }
     registry = Mock()
-    registry.async_get_entity_id.side_effect = lambda d, p, u: customized.get(
-        (d, p, u)
-    )
+    registry.async_get_entity_id.side_effect = lambda d, p, u: customized.get((d, p, u))
     registry.async_get.return_value = None
     registry.async_update_entity = Mock()
 

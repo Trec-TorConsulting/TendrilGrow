@@ -305,7 +305,7 @@ def validate_space(
         st = states.get(entity_id)
         state_val = st.get("state") if st else "no state"
         r.ok(f"pump '{role}' -> {entity_id} = {state_val}")
-    
+
     # Report per-pump power sensors
     pump_power_mapped = []
     for role in PUMP_POWER_ROLES:
@@ -317,7 +317,7 @@ def validate_space(
         state_val = st.get("state") if st else "no state"
         unit = st.get("attributes", {}).get("unit_of_measurement", "") if st else ""
         r.ok(f"power '{role}' -> {entity_id} = {state_val} {unit}".rstrip())
-    
+
     # Report total pump power sensor (derived from per-pump sensors)
     grow_name = data.get("name", "")
     total_power_entity = (
@@ -354,6 +354,38 @@ def validate_space(
             r.ok(f"flush {label} -> {entity_id} = {val}")
     else:
         r.warn("flush tracking entities not found in registry for this space")
+
+    # Lifecycle stage + projection (change: add-grow-lifecycle-stages).
+    stage_id = next(
+        (
+            e.get("entity_id")
+            for e in ents
+            if str(e.get("unique_id", "")).endswith("_ctx_stage")
+        ),
+        None,
+    )
+    if stage_id:
+        st = states.get(stage_id)
+        r.ok(f"growth stage -> {stage_id} = {st.get('state') if st else 'no state'}")
+    projection_id = next(
+        (
+            e.get("entity_id")
+            for e in ents
+            if str(e.get("unique_id", "")).endswith("_stage_projection")
+        ),
+        None,
+    )
+    if projection_id:
+        st = states.get(projection_id)
+        attrs = st.get("attributes", {}) if st else {}
+        r.ok(
+            f"stage projection -> {projection_id} = "
+            f"{st.get('state') if st else 'no state'} d "
+            f"(harvest {attrs.get('projected_harvest_date')}, "
+            f"ready {attrs.get('projected_ready_date')})"
+        )
+    else:
+        r.warn("stage-projection sensor not found in registry for this space")
 
     reg_suffixes = {
         suffix
