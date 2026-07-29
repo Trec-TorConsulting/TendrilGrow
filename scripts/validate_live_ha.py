@@ -42,6 +42,10 @@ AI_SUFFIXES = {
 
 CONTROL_ROLES = ("lights", "fans", "inline_fans")
 
+# Planned pump/power roles (change: add-pump-power-control). Reported when mapped.
+PUMP_ROLES = ("rdwc_pump", "chiller_pump", "air_pump")
+PUMP_POWER_ROLES = ("rdwc_pump_power", "chiller_pump_power", "air_pump_power")
+
 # Plausible ranges for sanity-checking live readings.
 PLAUSIBLE: dict[str, tuple[float, float]] = {
     "ph": (3.5, 8.5),
@@ -183,14 +187,27 @@ def validate_space(
     ents: list[dict[str, Any]],
     states: dict[str, dict[str, Any]],
 ) -> None:
-    data = diag.get("data", {}) if diag else {}
-    runtime = diag.get("runtime", {}) if diag else {}
+    # HA wraps the integration's diagnostics under a top-level "data" envelope
+    # (alongside home_assistant/custom_components/etc.). Unwrap it first.
+    payload = diag.get("data", diag) if diag else {}
+    data = payload.get("data", {}) or {}
+    options = payload.get("options", {}) or {}
+    runtime = payload.get("runtime", {}) or {}
     mappings = (
-        runtime.get("effective_sensor_mappings") or data.get("sensor_mappings") or {}
+        runtime.get("effective_sensor_mappings")
+        or {**data.get("sensor_mappings", {}), **options.get("sensor_mappings", {})}
+        or {}
     )
-    controls = data.get("control_mappings") or {}
+    controls = (
+        runtime.get("effective_control_mappings")
+        or {
+            **data.get("control_mappings", {}),
+            **options.get("control_mappings", {}),
+        }
+        or {}
+    )
 
-    if diag:
+    if payload:
         r.ok(
             f"grow_type={data.get('grow_type')} "
             f"tuya_enabled={data.get('tuya_enabled')} "
@@ -231,6 +248,12 @@ def validate_space(
         good = 0.4 <= vpd <= 2.0
         msg = f"Derived VPD = {vpd} kPa"
         (r.ok if good else r.warn)(msg if good else f"{msg} (unusual; check units)")
+        temp_entity = str(mappings.get("temperature", ""))
+        if "water" in temp_entity.lower():
+            r.warn(
+                "VPD uses the mapped 'temperature' role, which looks like WATER "
+                "temperature; canopy/air VPD needs an air-temp probe"
+            )
     else:
         r.warn("VPD not computable (temperature/humidity unmapped or invalid)")
 
@@ -247,6 +270,22 @@ def validate_space(
     mapped_controls = [role for role in CONTROL_ROLES if controls.get(role)]
     if mapped_controls:
         r.ok(f"control roles mapped: {', '.join(mapped_controls)}")
+
+    # Pump/power roles are a planned capability; report only when mapped.
+    for role in PUMP_ROLES:
+        entity_id = controls.get(role)
+        if not entity_id:
+            continue
+        st = states.get(entity_id)
+        state_val = st.get("state") if st else "no state"
+        r.ok(f"pump '{role}' -> {entity_id} = {state_val}")
+    for role in PUMP_POWER_ROLES:
+        entity_id = mappings.get(role) or controls.get(role)
+        if not entity_id:
+            continue
+        st = states.get(entity_id)
+        state_val = st.get("state") if st else "no state"
+        r.ok(f"power '{role}' -> {entity_id} = {state_val}")
 
     reg_suffixes = {
         suffix
