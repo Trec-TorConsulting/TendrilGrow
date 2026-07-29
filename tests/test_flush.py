@@ -18,6 +18,7 @@ from custom_components.tendrilgrow.flush import (
     flush_notification_id,
     flush_status,
 )
+from custom_components.tendrilgrow.number import FlushIntervalNumber
 
 
 def _now() -> datetime:
@@ -172,3 +173,55 @@ async def test_flush_now_button_unavailable_without_runtime() -> None:
     assert button.available is False
     # Should not raise even with no runtime present.
     await button.async_press()
+
+
+@pytest.mark.asyncio
+async def test_flush_interval_number_updates_runtime_and_due() -> None:
+    """Changing the interval updates runtime state and flips due status."""
+    runtime = SimpleNamespace(
+        flush_state=FlushState(
+            last_flush=_now() - timedelta(days=8), interval_days=7
+        ),
+        flush_store=_EphemeralStore(),
+        grow_space=SimpleNamespace(name="Tent A"),
+    )
+    hass = _record_hass(runtime)
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A", data={}, options={})
+
+    number = FlushIntervalNumber(hass, entry)
+    number.async_write_ha_state = Mock()
+
+    assert number.native_value == 7.0
+    # 8 days elapsed against a 7-day interval => due
+    assert flush_status(runtime.flush_state, _now())["due"] is True
+
+    await number.async_set_native_value(10)
+
+    assert runtime.flush_state.interval_days == 10
+    assert number.native_value == 10.0
+    # 8 days elapsed against a 10-day interval => no longer due
+    assert flush_status(runtime.flush_state, _now())["due"] is False
+    saved = await runtime.flush_store.async_load()
+    assert saved["interval_days"] == 10
+
+
+@pytest.mark.asyncio
+async def test_flush_interval_number_clamps_and_defaults() -> None:
+    """Out-of-range values clamp; missing runtime yields the default value."""
+    runtime = SimpleNamespace(
+        flush_state=FlushState(),
+        flush_store=_EphemeralStore(),
+        grow_space=SimpleNamespace(name="Tent A"),
+    )
+    hass = _record_hass(runtime)
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A", data={}, options={})
+
+    number = FlushIntervalNumber(hass, entry)
+    number.async_write_ha_state = Mock()
+    await number.async_set_native_value(99)
+    assert runtime.flush_state.interval_days == 21
+
+    empty = SimpleNamespace(data={DOMAIN: {}})
+    number_no_runtime = FlushIntervalNumber(empty, entry)
+    assert number_no_runtime.native_value == 7.0
+    assert number_no_runtime.available is False

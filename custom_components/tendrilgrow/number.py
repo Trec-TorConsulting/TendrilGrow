@@ -4,13 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from homeassistant.components.number import NumberMode, RestoreNumber
+from homeassistant.components.number import (
+    NumberEntity,
+    NumberMode,
+    RestoreNumber,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CTX_FEED_INTERVAL_DAYS,
+    CTX_FLUSH_INTERVAL_DAYS,
     CTX_LIGHTS_ON_HOURS,
     CTX_RESERVOIR_VOLUME,
     CTX_RUNOFF_TARGET_PCT,
@@ -18,8 +24,11 @@ from .const import (
     CTX_TARGET_EC,
     CTX_TARGET_PH,
     CTX_WEEK_IN_STAGE,
+    DEFAULT_FLUSH_INTERVAL_DAYS,
+    DOMAIN,
 )
 from .entity import grow_device_info
+from .flush import async_save_flush_state, flush_dispatcher_signal
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,9 +121,11 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up cultivation number entities."""
-    async_add_entities(
-        [GrowContextNumber(entry, description) for description in NUMBERS]
-    )
+    entities: list[NumberEntity] = [
+        GrowContextNumber(entry, description) for description in NUMBERS
+    ]
+    entities.append(FlushIntervalNumber(hass, entry))
+    async_add_entities(entities)
 
 
 class GrowContextNumber(RestoreNumber):
@@ -148,4 +159,48 @@ class GrowContextNumber(RestoreNumber):
 
     async def async_set_native_value(self, value: float) -> None:
         self._attr_native_value = value
+        self.async_write_ha_state()
+
+
+class FlushIntervalNumber(NumberEntity):
+    """Editable full-flush cadence (days) backed by the entry's flush state."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_mode = NumberMode.BOX
+    _attr_name = "Flush Interval"
+    _attr_icon = "mdi:calendar-refresh"
+    _attr_native_min_value = 1
+    _attr_native_max_value = 21
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = "d"
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_{CTX_FLUSH_INTERVAL_DAYS}"
+
+    @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    @property
+    def available(self) -> bool:
+        return self._entry.entry_id in self.hass.data.get(DOMAIN, {})
+
+    @property
+    def native_value(self) -> float | None:
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        if runtime is None:
+            return float(DEFAULT_FLUSH_INTERVAL_DAYS)
+        return float(runtime.flush_state.interval_days)
+
+    async def async_set_native_value(self, value: float) -> None:
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        if runtime is None:
+            return
+        interval = max(1, min(21, int(value)))
+        runtime.flush_state.interval_days = interval
+        await async_save_flush_state(runtime.flush_store, runtime.flush_state)
+        async_dispatcher_send(self.hass, flush_dispatcher_signal(self._entry.entry_id))
         self.async_write_ha_state()
