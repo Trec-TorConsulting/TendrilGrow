@@ -124,6 +124,20 @@ CTX_NUTRIENT_LINE = "ctx_nutrient_line"
 CTX_BASE_NUTRIENTS = "ctx_base_nutrients"
 CTX_ADDITIVES = "ctx_additives"
 
+# Reservoir full-flush tracking. Suffixes are appended to the entry id to form
+# entity unique ids. Suffixes MUST NOT be a suffix of one another so the AI
+# context collector's endswith() matching stays unambiguous (note that
+# "next_flush_due" ends with "flush_due", so "flush_due" is intentionally kept
+# out of GROW_CONTEXT_LABELS below).
+DEFAULT_FLUSH_INTERVAL_DAYS = 7
+CTX_FLUSH_INTERVAL_DAYS = "flush_interval_days"
+FLUSH_NOW_SUFFIX = "flush_now"
+FLUSH_LAST_SUFFIX = "last_flush"
+FLUSH_DAYS_SINCE_SUFFIX = "days_since_flush"
+FLUSH_DAYS_UNTIL_SUFFIX = "days_until_flush"
+FLUSH_NEXT_DUE_SUFFIX = "next_flush_due"
+FLUSH_DUE_SUFFIX = "flush_due"
+
 STAGE_OPTIONS: tuple[str, ...] = (
     "seedling",
     "vegetative",
@@ -158,6 +172,9 @@ GROW_CONTEXT_LABELS: dict[str, str] = {
     CTX_NUTRIENT_LINE: "nutrient_line",
     CTX_BASE_NUTRIENTS: "base_nutrients",
     CTX_ADDITIVES: "additives",
+    # Flush cadence context (collision-safe suffixes only; see note above).
+    CTX_FLUSH_INTERVAL_DAYS: "flush_interval_days",
+    FLUSH_DAYS_SINCE_SUFFIX: "days_since_last_flush",
 }
 
 CONTROL_ROLES: tuple[str, ...] = (
