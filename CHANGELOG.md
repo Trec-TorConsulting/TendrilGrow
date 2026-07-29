@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-29
+
 ### Added
 - Initial Home Assistant integration foundation
 - Config/Options flow for one config entry per grow space
