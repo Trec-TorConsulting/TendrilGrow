@@ -22,6 +22,11 @@ from .const import (
     DOMAIN,
     PUMP_CONTROL_ROLES,
 )
+from .flush import (
+    FlushState,
+    async_check_flush_due,
+    load_flush_state,
+)
 from .models.grow import GrowSpace
 
 LOGGER = logging.getLogger(__name__)
@@ -55,6 +60,9 @@ class RuntimeData:
     ai_history_store: Store[dict[str, Any]]
     unsubscribe_ai_scheduler: Any
     unsubscribe_update_listener: Any
+    flush_state: FlushState
+    flush_store: Any
+    unsubscribe_flush_ticker: Any
 
 
 class _EphemeralStore:
@@ -97,6 +105,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         latest=ai_history[-1] if ai_history else None, history=ai_history
     )
 
+    try:
+        flush_store: Any = Store(hass, 1, f"{DOMAIN}_flush_{entry.entry_id}")
+        flush_state = await load_flush_state(flush_store)
+    except Exception:  # noqa: BLE001
+        flush_store = _EphemeralStore()
+        flush_state = FlushState()
+
     interval_hours = int(
         merged_config.get(
             CONF_AI_HEALTH_INTERVAL_HOURS, DEFAULT_AI_HEALTH_INTERVAL_HOURS
@@ -120,6 +135,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception:  # noqa: BLE001
         unsubscribe_ai_scheduler = None
 
+    async def _async_flush_tick(_now) -> None:
+        rt = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+        if rt is not None:
+            await async_check_flush_due(hass, entry, rt)
+
+    unsubscribe_flush_ticker = None
+    try:
+        unsubscribe_flush_ticker = async_track_time_interval(
+            hass, _async_flush_tick, timedelta(hours=1)
+        )
+    except Exception:  # noqa: BLE001
+        unsubscribe_flush_ticker = None
+
     runtime = RuntimeData(
         grow_space=grow_space,
         auto_mapped_sensor_roles={},
@@ -127,6 +155,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ai_history_store=ai_store,
         unsubscribe_ai_scheduler=unsubscribe_ai_scheduler,
         unsubscribe_update_listener=unsubscribe,
+        flush_state=flush_state,
+        flush_store=flush_store,
+        unsubscribe_flush_ticker=unsubscribe_flush_ticker,
     )
     hass.data[DOMAIN][entry.entry_id] = runtime
     entry.runtime_data = runtime
@@ -139,6 +170,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_call_later(hass, 120, _async_startup_ai_check)
     except Exception:  # noqa: BLE001
         LOGGER.debug("Unable to schedule delayed startup AI check", exc_info=True)
+    try:
+        async_call_later(hass, 150, _async_flush_tick)
+    except Exception:  # noqa: BLE001
+        LOGGER.debug("Unable to schedule delayed flush check", exc_info=True)
     LOGGER.info("Configured grow space entry '%s' (%s)", entry.title, entry.entry_id)
     return True
 
@@ -154,6 +189,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     if unsubscribe_ai_scheduler:
         unsubscribe_ai_scheduler()
+    unsubscribe_flush_ticker = (
+        getattr(runtime, "unsubscribe_flush_ticker", None) if runtime else None
+    )
+    if unsubscribe_flush_ticker:
+        unsubscribe_flush_ticker()
     await _async_maybe_unregister_services(hass)
     LOGGER.info("Unloaded grow space entry '%s' (%s)", entry.title, entry.entry_id)
     return unload_ok
