@@ -12,10 +12,16 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTemperature
+from homeassistant.const import (
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfPower,
+    UnitOfTemperature,
+)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_registry import async_get as get_entity_registry
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_state_change_event,
@@ -25,6 +31,9 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .ai.health_checks import ai_dispatcher_signal
 from .const import (
     DOMAIN,
+    PUMP_CONTROL_ROLES,
+    PUMP_LABELS,
+    PUMP_POWER_ROLE_FOR,
     SENSOR_ROLE_CF,
     SENSOR_ROLE_EC,
     SENSOR_ROLE_HUMIDITY,
@@ -125,27 +134,54 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up TendrilGrow sensors for one config entry."""
-    if not tuya_enabled(entry) or not has_tuya_credentials(entry):
-        return
+    entities: list[SensorEntity] = []
 
-    device_ids = tuya_device_ids(entry)
-    entities: list[SensorEntity] = [
-        AIHealthScoreSensor(hass, entry),
-        AIHealthSummarySensor(hass, entry),
-        AIFeedingScheduleSensor(hass, entry),
-        AIHealthLastCheckSensor(hass, entry),
-        TendrilGrowVpdSensor(hass, entry),
-    ]
+    # Tuya-dependent sensors (only if Tuya enabled and has credentials).
+    if tuya_enabled(entry) and has_tuya_credentials(entry):
+        device_ids = tuya_device_ids(entry)
+        entities.extend([
+            AIHealthScoreSensor(hass, entry),
+            AIHealthSummarySensor(hass, entry),
+            AIFeedingScheduleSensor(hass, entry),
+            AIHealthLastCheckSensor(hass, entry),
+            TendrilGrowVpdSensor(hass, entry),
+        ])
 
-    if device_ids:
-        coordinator = TendrilGrowTuyaCoordinator(hass, entry)
-        await coordinator.async_refresh()
+        if device_ids:
+            coordinator = TendrilGrowTuyaCoordinator(hass, entry)
+            await coordinator.async_refresh()
 
-        for device_id in device_ids:
-            for metric in METRICS:
-                entities.append(TuyaMetricSensor(coordinator, entry, device_id, metric))
-            entities.append(TuyaLastUpdatedSensor(coordinator, entry, device_id))
-    async_add_entities(entities)
+            for device_id in device_ids:
+                for metric in METRICS:
+                    entities.append(
+                        TuyaMetricSensor(coordinator, entry, device_id, metric)
+                    )
+                entities.append(TuyaLastUpdatedSensor(coordinator, entry, device_id))
+
+    # Pump power sensors (independent of Tuya configuration).
+    data = entry.data
+    control_mappings = data.get("control_mappings", {})
+    pump_power_sensors: list[str] = []
+
+    for pump_role in PUMP_CONTROL_ROLES:
+        if pump_role in control_mappings:
+            power_source = await _resolve_pump_power_source(hass, entry, pump_role)
+            entities.append(
+                TendrilGrowPumpPowerSensor(hass, entry, pump_role, power_source)
+            )
+            # Track pump power sensor IDs for total power calculation.
+            if power_source:
+                pump_power_sensor_id = f"sensor.{entry.entry_id}_{pump_role}_power"
+                pump_power_sensors.append(pump_power_sensor_id)
+
+    # Add total pump power sensor if any pump powers are mapped.
+    if pump_power_sensors:
+        entities.append(
+            TendrilGrowTotalPumpPowerSensor(hass, entry, pump_power_sensors)
+        )
+
+    if entities:
+        async_add_entities(entities)
 
 
 class TuyaMetricSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEntity):
@@ -564,3 +600,190 @@ class AIHealthLastCheckSensor(AIHealthBaseSensor):
         if runtime is None or runtime.ai_health_state.latest is None:
             return None
         return runtime.ai_health_state.latest.checked_at
+
+
+async def _resolve_pump_power_source(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    pump_role: str,
+) -> str | None:
+    """Resolve power source for a pump: explicit mapping or auto-discovery.
+    
+    Returns entity_id of power sensor or None if not found.
+    """
+    data = entry.data
+    sensor_mappings = data.get("sensor_mappings", {})
+    control_mappings = data.get("control_mappings", {})
+    
+    # Check explicit power mapping first.
+    power_role = PUMP_POWER_ROLE_FOR.get(pump_role)
+    if power_role and power_role in sensor_mappings:
+        return sensor_mappings[power_role]
+    
+    # Try auto-discovery from the pump switch's device.
+    if pump_role not in control_mappings:
+        return None
+    
+    pump_entity_id = control_mappings[pump_role]
+    entity_registry = get_entity_registry(hass)
+    pump_entity = entity_registry.async_get(pump_entity_id)
+    
+    if pump_entity is None or pump_entity.device_id is None:
+        return None
+    
+    # Find power sensors on the same device.
+    for entity in entity_registry.entities.values():
+        if (
+            entity.device_id == pump_entity.device_id
+            and entity.domain == "sensor"
+            and entity.device_class == SensorDeviceClass.POWER
+        ):
+            return entity.entity_id
+    
+    return None
+
+
+class TendrilGrowPumpPowerSensor(SensorEntity):
+    """Power sensor for a pump control entity."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_should_poll = False
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        pump_role: str,
+        power_entity_id: str | None,
+    ) -> None:
+        """Initialize pump power sensor."""
+        self.hass = hass
+        self._entry = entry
+        self._pump_role = pump_role
+        self._power_entity_id = power_entity_id
+        self._unsub_state_change: object = None
+
+        # Use pump label for display name.
+        pump_label = PUMP_LABELS.get(pump_role, pump_role)
+        self._attr_unique_id = f"{entry.entry_id}_{pump_role}_power"
+        self._attr_name = f"{pump_label} Power"
+        self._attr_device_info = grow_device_info(entry)
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to power entity state changes."""
+        if self._power_entity_id:
+            self._unsub_state_change = async_track_state_change_event(
+                self.hass,
+                self._power_entity_id,
+                self._on_power_state_change,
+            )
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Unsubscribe from state changes."""
+        if self._unsub_state_change:
+            self._unsub_state_change()
+
+    @property
+    def available(self) -> bool:
+        """Return availability based on power source state."""
+        if not self._power_entity_id:
+            return False
+        state = self.hass.states.get(self._power_entity_id)
+        return state is not None and state.state not in (
+            "unavailable",
+            "unknown",
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        """Return power value from source entity."""
+        if not self._power_entity_id:
+            return None
+        state = self.hass.states.get(self._power_entity_id)
+        if state is None or state.state in ("unavailable", "unknown"):
+            return None
+        try:
+            return float(state.state)
+        except (ValueError, TypeError):
+            return None
+
+    @callback
+    def _on_power_state_change(self, event):
+        """Handle state change in power entity."""
+        self.async_write_ha_state()
+
+
+class TendrilGrowTotalPumpPowerSensor(SensorEntity):
+    """Total power sensor summing all mapped pump powers."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_should_poll = False
+    _attr_name = "Total Pump Power"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        pump_power_sensors: list[str],
+    ) -> None:
+        """Initialize total pump power sensor."""
+        self.hass = hass
+        self._entry = entry
+        self._pump_power_sensors = pump_power_sensors
+        self._unsub_state_changes: list[object] = []
+
+        self._attr_unique_id = f"{entry.entry_id}_total_pump_power"
+        self._attr_device_info = grow_device_info(entry)
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to all pump power sensor state changes."""
+        for sensor_id in self._pump_power_sensors:
+            unsub = async_track_state_change_event(
+                self.hass,
+                sensor_id,
+                self._on_power_state_change,
+            )
+            self._unsub_state_changes.append(unsub)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Unsubscribe from all state changes."""
+        for unsub in self._unsub_state_changes:
+            if unsub:
+                unsub()
+
+    @property
+    def available(self) -> bool:
+        """Return True if at least one pump power sensor is available."""
+        for sensor_id in self._pump_power_sensors:
+            state = self.hass.states.get(sensor_id)
+            if state is not None and state.state not in ("unavailable", "unknown"):
+                return True
+        return False
+
+    @property
+    def native_value(self) -> float | None:
+        """Return sum of all available pump power values."""
+        total = 0.0
+        has_value = False
+        
+        for sensor_id in self._pump_power_sensors:
+            state = self.hass.states.get(sensor_id)
+            if state is not None and state.state not in ("unavailable", "unknown"):
+                try:
+                    total += float(state.state)
+                    has_value = True
+                except (ValueError, TypeError):
+                    continue
+        
+        return total if has_value else None
+
+    @callback
+    def _on_power_state_change(self, event):
+        """Handle state change in any power entity."""
+        self.async_write_ha_state()
