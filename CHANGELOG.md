@@ -16,6 +16,12 @@ The format is inspired by Keep a Changelog and semantic versioning.
   polling coordinator, per-device sensors, and automatic sensor-role mapping
 - Distinct water-quality sensor roles (pH, EC, CF, ORP, TDS) with legacy
   `ec_tds` migration to `tds`
+- Distinct **air** (canopy) `temperature`/`humidity` roles and a separate
+  `water_temperature` role; Tuya water temperature now maps to
+  `water_temperature` instead of the air role
+- Unit-aware VPD (°F→°C) computed from air temperature + air humidity and
+  exposed as a per-grow-space VPD sensor; air temp/humidity are mappable even
+  when Tuya is enabled
 - Camera-based AI grow-health checks: quality-first agronomy prompt, scoring,
   observations, issues, recommended actions, and a dynamic feeding schedule
 - Vision report generation for Gemini, OpenAI, and Ollama

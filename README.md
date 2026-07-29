@@ -16,9 +16,11 @@ AI-provider model selection into a single HACS-installable package.
 - One grow-space config entry per tent/room/zone
 - Flexible grow-space model: sites, mapped sensors, mapped controls, targets,
 	schedules
-- Extensible role mappings (temperature, humidity/VPD, light, pH, EC, CF,
-	ORP, TDS, cameras, lights, fans, inline fans)
-- Derived metric support (VPD)
+- Extensible role mappings: **air** temperature/humidity (canopy, for VPD), a
+	distinct water/reservoir temperature, light, pH, EC, CF, ORP, TDS, cameras,
+	lights, fans, inline fans
+- Unit-aware derived VPD (°F→°C) exposed as a per-grow-space VPD sensor,
+	computed from the mapped air temperature and air humidity
 - Optional Tuya cloud water-monitoring: signed OpenAPI polling, datapoint
 	normalization, per-device sensors, and automatic sensor-role mapping
 - Camera-based AI health checks: quality-first agronomy scoring, observations,

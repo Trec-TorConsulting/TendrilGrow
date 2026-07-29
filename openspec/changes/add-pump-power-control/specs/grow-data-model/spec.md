@@ -1,15 +1,18 @@
 ## MODIFIED Requirements
 
 ### Requirement: Sensor and control roles
-The model SHALL define an extensible set of sensor roles — including temperature,
-humidity/VPD, light PPFD/lux, camera, and the distinct water-quality roles `ph`,
-`ec`, `cf`, `orp`, and `tds` — and control roles — including lights, fans, inline
-fans, and the pump roles `rdwc_pump`, `chiller_pump`, and `air_pump` — each bound to
-a user-mapped entity id. The model SHALL migrate the legacy combined `ec_tds` role to
-the `tds` role when loading older config data.
+The model SHALL define an extensible set of sensor roles — including the **air
+(canopy)** roles `temperature` and `humidity` (used for VPD), a distinct
+`water_temperature` role for the reservoir/water probe, light PPFD/lux, camera, and
+the distinct water-quality roles `ph`, `ec`, `cf`, `orp`, and `tds` — and control
+roles — including lights, fans, inline fans, and the pump roles `rdwc_pump`,
+`chiller_pump`, and `air_pump` — each bound to a user-mapped entity id.
+Water/reservoir temperature MUST NOT be bound to the air `temperature` role. The
+model SHALL migrate the legacy combined `ec_tds` role to the `tds` role when loading
+older config data.
 
 #### Scenario: Bind a sensor role to an entity
-- **WHEN** a temperature role is mapped to a user's temperature sensor entity
+- **WHEN** an air temperature role is mapped to a user's canopy temperature sensor
 - **THEN** the model resolves that role to the mapped entity's state
 
 #### Scenario: Distinct water-quality roles
