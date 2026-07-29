@@ -27,6 +27,12 @@
           "lights": "Lights control",
           "fans": "Fans control",
           "inline_fans": "Inline fans control",
+          "rdwc_pump": "RDWC circulation pump (REQUIRED for header bucket dosing workflow; always run before dosing)",
+          "rdwc_pump_power": "RDWC pump power sensor (optional)",
+          "chiller_pump": "Chiller pump (optional)",
+          "chiller_pump_power": "Chiller pump power sensor (optional)",
+          "air_pump": "Air pump (optional)",
+          "air_pump_power": "Air pump power sensor (optional)",
           "tuya_enabled": "Enable Tuya cloud polling",
           "tuya_access_id": "Tuya access ID",
           "tuya_access_secret": "Tuya access secret",
@@ -82,6 +88,12 @@
           "lights": "Lights control",
           "fans": "Fans control",
           "inline_fans": "Inline fans control",
+          "rdwc_pump": "RDWC circulation pump (REQUIRED for header bucket dosing workflow; always run before dosing)",
+          "rdwc_pump_power": "RDWC pump power sensor (optional)",
+          "chiller_pump": "Chiller pump (optional)",
+          "chiller_pump_power": "Chiller pump power sensor (optional)",
+          "air_pump": "Air pump (optional)",
+          "air_pump_power": "Air pump power sensor (optional)",
           "tuya_enabled": "Enable Tuya cloud polling",
           "tuya_access_id": "Tuya access ID",
           "tuya_access_secret": "Tuya access secret",
@@ -93,6 +105,26 @@
           "ai_severe_threshold": "Critical score threshold (0-100)",
           "ai_notify_service": "Notify service for critical alerts (optional)",
           "ai_result_retention_days": "AI result retention (days)"
+        }
+      }
+    }
+  },
+  "services": {
+    "set_pump": {
+      "name": "Set pump",
+      "description": "Control a mapped pump (on, off, or toggle).",
+      "fields": {
+        "entry_id": {
+          "name": "Config entry ID",
+          "description": "The TendrilGrow config entry ID containing the pump mapping."
+        },
+        "pump": {
+          "name": "Pump",
+          "description": "The pump role (rdwc_pump, chiller_pump, or air_pump)."
+        },
+        "action": {
+          "name": "Action",
+          "description": "The action to perform (on, off, or toggle)."
         }
       }
     }

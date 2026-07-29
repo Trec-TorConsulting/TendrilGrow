@@ -19,6 +19,11 @@ AI-provider model selection into a single HACS-installable package.
 - Extensible role mappings: **air** temperature/humidity (canopy, for VPD), a
 	distinct water/reservoir temperature, light, pH, EC, CF, ORP, TDS, cameras,
 	lights, fans, inline fans
+- **Pump control and monitoring** (RDWC, chiller, air pumps):
+	- Toggle pumps on/off via dashboard switches or automation services
+	- Real-time power consumption monitoring per pump and total
+	- RDWC pump integration for safe header-bucket dosing workflow
+	- Optional explicit power sensor mapping or automatic sensor discovery
 - Unit-aware derived VPD (°F→°C) exposed as a per-grow-space VPD sensor,
 	computed from the mapped air temperature and air humidity
 - Optional Tuya cloud water-monitoring: signed OpenAPI polling, datapoint
@@ -47,6 +52,8 @@ Included now:
 - Tuya cloud water-monitoring with normalized water-quality sensors
 - Camera-based AI grow-health checks, scoring, and dynamic feeding schedules
 - Cultivation-context helper entities and AI health entities/services
+- Pump control and monitoring: RDWC, chiller, and air pump switches with
+	dashboard control and real-time power consumption tracking
 
 Planned in future changes:
 - Bundled Lovelace dashboard cards

@@ -28,6 +28,11 @@ The format is inspired by Keep a Changelog and semantic versioning.
 - Scheduled and on-demand health checks with persistent history and retention
 - Critical-score notifications (persistent notification plus optional notify
   service)
+- Pump control and monitoring: map and toggle RDWC, chiller, and air pumps via
+  dashboard switches or automation services; real-time per-pump and total power
+  consumption tracking; RDWC pump integration for safe header-bucket dosing
+  workflow; optional explicit power sensor mapping or automatic discovery via
+  device registry
 - Cultivation-context helper entities (growth stage, strain, targets, reservoir
   volume, nutrients) that ground AI advice
 - AI health entities (score, summary, feeding schedule, last check, critical
