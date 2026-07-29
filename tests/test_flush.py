@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from custom_components.tendrilgrow import _EphemeralStore
+from custom_components.tendrilgrow.binary_sensor import FlushDueBinarySensor
 from custom_components.tendrilgrow.button import FlushNowButton
 from custom_components.tendrilgrow.const import DOMAIN
 from custom_components.tendrilgrow.flush import (
@@ -19,6 +20,12 @@ from custom_components.tendrilgrow.flush import (
     flush_status,
 )
 from custom_components.tendrilgrow.number import FlushIntervalNumber
+from custom_components.tendrilgrow.sensor import (
+    FlushDaysSinceSensor,
+    FlushDaysUntilSensor,
+    FlushLastSensor,
+    FlushNextDueSensor,
+)
 
 
 def _now() -> datetime:
@@ -225,3 +232,84 @@ async def test_flush_interval_number_clamps_and_defaults() -> None:
     number_no_runtime = FlushIntervalNumber(empty, entry)
     assert number_no_runtime.native_value == 7.0
     assert number_no_runtime.available is False
+
+
+def _sensor_hass(runtime: SimpleNamespace | None) -> SimpleNamespace:
+    data = {DOMAIN: {"entry-1": runtime}} if runtime is not None else {DOMAIN: {}}
+    return SimpleNamespace(data=data)
+
+
+def test_flush_sensors_never_flushed() -> None:
+    """Status sensors report None before any flush is recorded."""
+    runtime = SimpleNamespace(flush_state=FlushState())
+    hass = _sensor_hass(runtime)
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A")
+
+    assert FlushLastSensor(hass, entry).native_value is None
+    assert FlushNextDueSensor(hass, entry).native_value is None
+    assert FlushDaysSinceSensor(hass, entry).native_value is None
+    assert FlushDaysUntilSensor(hass, entry).native_value is None
+
+
+def test_flush_sensors_after_flush() -> None:
+    """Status sensors reflect a recorded flush within the interval."""
+    runtime = SimpleNamespace(
+        flush_state=FlushState(
+            last_flush=_now() - timedelta(days=2), interval_days=7
+        )
+    )
+    hass = _sensor_hass(runtime)
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A")
+
+    assert FlushDaysSinceSensor(hass, entry).native_value == 2
+    assert FlushDaysUntilSensor(hass, entry).native_value == 5
+    next_due = FlushNextDueSensor(hass, entry).native_value
+    assert next_due == runtime.flush_state.last_flush + timedelta(days=7)
+
+
+def test_flush_sensors_unavailable_without_runtime() -> None:
+    """Sensors are unavailable and return None when the entry is not loaded."""
+    hass = _sensor_hass(None)
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A")
+    sensor = FlushDaysSinceSensor(hass, entry)
+    assert sensor.available is False
+    assert sensor.native_value is None
+
+
+def test_flush_due_binary_sensor_states() -> None:
+    """The binary sensor is on only when overdue and exposes attributes."""
+    overdue = SimpleNamespace(
+        flush_state=FlushState(
+            last_flush=_now() - timedelta(days=9), interval_days=7
+        )
+    )
+    hass = _sensor_hass(overdue)
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A")
+    binary = FlushDueBinarySensor(hass, entry)
+    assert binary.is_on is True
+    attrs = binary.extra_state_attributes
+    assert attrs["days_since"] == 9
+    assert attrs["days_until"] == -2
+    assert attrs["interval_days"] == 7
+    assert attrs["last_flush"] is not None
+    assert attrs["next_due"] is not None
+
+    within = SimpleNamespace(
+        flush_state=FlushState(
+            last_flush=_now() - timedelta(days=1), interval_days=7
+        )
+    )
+    binary_ok = FlushDueBinarySensor(_sensor_hass(within), entry)
+    assert binary_ok.is_on is False
+
+
+def test_flush_due_binary_sensor_never_flushed() -> None:
+    """A never-flushed space is not due and reports null timestamps."""
+    runtime = SimpleNamespace(flush_state=FlushState())
+    binary = FlushDueBinarySensor(_sensor_hass(runtime), SimpleNamespace(
+        entry_id="entry-1", title="Tent A"
+    ))
+    assert binary.is_on is False
+    attrs = binary.extra_state_attributes
+    assert attrs["last_flush"] is None
+    assert attrs["days_since"] is None
