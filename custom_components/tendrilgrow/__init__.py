@@ -23,7 +23,15 @@ from .const import (
 from .models.grow import GrowSpace
 
 LOGGER = logging.getLogger(__name__)
-PLATFORMS: list[str] = ["sensor", "button", "binary_sensor", "number", "select", "text"]
+PLATFORMS: list[str] = [
+    "sensor",
+    "button",
+    "binary_sensor",
+    "number",
+    "select",
+    "text",
+    "switch",
+]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 SERVICE_REBUILD_AUTOMAP = "rebuild_automap"
 SERVICE_RUN_AI_HEALTH_CHECK = "run_ai_health_check"
