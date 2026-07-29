@@ -3,9 +3,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 
+import pytest
+
+from custom_components.tendrilgrow import _EphemeralStore
+from custom_components.tendrilgrow.button import FlushNowButton
+from custom_components.tendrilgrow.const import DOMAIN
 from custom_components.tendrilgrow.flush import (
     FlushState,
+    async_record_flush,
     flush_dispatcher_signal,
     flush_notification_id,
     flush_status,
@@ -102,3 +110,65 @@ def test_flush_dispatcher_signal_is_entry_scoped() -> None:
     """Dispatcher signals and notification ids are per-entry."""
     assert flush_dispatcher_signal("a") != flush_dispatcher_signal("b")
     assert "a" in flush_notification_id("a")
+
+
+def _record_hass(runtime: SimpleNamespace) -> SimpleNamespace:
+    """A minimal hass that supports async_record_flush's dispatch + dismiss."""
+    return SimpleNamespace(
+        data={DOMAIN: {"entry-1": runtime}},
+        verify_event_loop_thread=Mock(),
+        services=SimpleNamespace(async_call=AsyncMock()),
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_record_flush_sets_state_and_persists() -> None:
+    """Recording a flush sets last_flush, clears the reminder flag, and saves."""
+    runtime = SimpleNamespace(
+        flush_state=FlushState(notified_overdue_for="old"),
+        flush_store=_EphemeralStore(),
+        grow_space=SimpleNamespace(name="Tent A"),
+    )
+    hass = _record_hass(runtime)
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A", data={}, options={})
+
+    await async_record_flush(hass, entry, runtime)
+
+    assert runtime.flush_state.last_flush is not None
+    assert runtime.flush_state.notified_overdue_for is None
+    saved = await runtime.flush_store.async_load()
+    assert saved["last_flush"] is not None
+    # Dismisses any outstanding overdue notification.
+    hass.services.async_call.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_flush_now_button_records() -> None:
+    """The Flush Now button records a flush via the runtime."""
+    runtime = SimpleNamespace(
+        flush_state=FlushState(),
+        flush_store=_EphemeralStore(),
+        grow_space=SimpleNamespace(name="Tent A"),
+    )
+    hass = _record_hass(runtime)
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A", data={}, options={})
+
+    button = FlushNowButton(hass, entry)
+    assert button.available is True
+    assert runtime.flush_state.last_flush is None
+
+    await button.async_press()
+
+    assert runtime.flush_state.last_flush is not None
+
+
+@pytest.mark.asyncio
+async def test_flush_now_button_unavailable_without_runtime() -> None:
+    """The button is unavailable and a no-op when the entry is not loaded."""
+    hass = SimpleNamespace(data={DOMAIN: {}})
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A", data={}, options={})
+
+    button = FlushNowButton(hass, entry)
+    assert button.available is False
+    # Should not raise even with no runtime present.
+    await button.async_press()

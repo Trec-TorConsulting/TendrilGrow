@@ -25,6 +25,7 @@ from .const import (
 from .flush import (
     FlushState,
     async_check_flush_due,
+    async_record_flush,
     load_flush_state,
 )
 from .models.grow import GrowSpace
@@ -43,6 +44,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 SERVICE_REBUILD_AUTOMAP = "rebuild_automap"
 SERVICE_RUN_AI_HEALTH_CHECK = "run_ai_health_check"
 SERVICE_SET_PUMP = "set_pump"
+SERVICE_MARK_FLUSH = "mark_flush"
 ATTR_ENTRY_ID = "entry_id"
 ATTR_REASON = "reason"
 ATTR_PUMP = "pump"
@@ -382,6 +384,35 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                 f"Failed to set pump {pump} ({mapped_entity_id}) to {action}: {err}"
             ) from err
 
+    async def _async_handle_mark_flush(call: ServiceCall) -> None:
+        entry_id = str(call.data.get(ATTR_ENTRY_ID, "")).strip()
+        if not entry_id:
+            raise HomeAssistantError("entry_id is required")
+
+        runtime = hass.data.get(DOMAIN, {}).get(entry_id)
+        if runtime is None or str(entry_id).startswith("_"):
+            raise HomeAssistantError(f"TendrilGrow entry not loaded: {entry_id}")
+
+        entry = None
+        if hasattr(hass.config_entries, "async_get_entry"):
+            entry = hass.config_entries.async_get_entry(entry_id)
+        if entry is None:
+            entry = next(
+                (
+                    loaded
+                    for loaded in getattr(
+                        hass.config_entries, "async_entries", lambda _domain: []
+                    )(DOMAIN)
+                    if loaded.entry_id == entry_id
+                ),
+                None,
+            )
+        if entry is None:
+            raise HomeAssistantError(f"TendrilGrow entry not found: {entry_id}")
+
+        await async_record_flush(hass, entry, runtime)
+        LOGGER.info("Recorded reservoir flush via service for entry %s", entry_id)
+
     hass.services.async_register(
         DOMAIN, SERVICE_REBUILD_AUTOMAP, _async_handle_rebuild_automap
     )
@@ -394,6 +425,11 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         DOMAIN,
         SERVICE_SET_PUMP,
         _async_handle_set_pump,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_MARK_FLUSH,
+        _async_handle_mark_flush,
     )
     domain_data[_SERVICES_REGISTERED_KEY] = True
 
@@ -413,6 +449,7 @@ async def _async_maybe_unregister_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_REBUILD_AUTOMAP)
     hass.services.async_remove(DOMAIN, SERVICE_RUN_AI_HEALTH_CHECK)
     hass.services.async_remove(DOMAIN, SERVICE_SET_PUMP)
+    hass.services.async_remove(DOMAIN, SERVICE_MARK_FLUSH)
     domain_data[_SERVICES_REGISTERED_KEY] = False
 
 

@@ -54,3 +54,15 @@ set_pump:
             - "off"
             - toggle
 
+mark_flush:
+  name: Mark reservoir flush
+  description: Record that a full reservoir flush and refill was just completed for a grow space.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: The TendrilGrow config entry ID whose reservoir was flushed.
+      required: true
+      selector:
+        text:
+
+

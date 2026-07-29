@@ -7,6 +7,7 @@ import pytest
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.tendrilgrow import (
+    SERVICE_MARK_FLUSH,
     SERVICE_REBUILD_AUTOMAP,
     SERVICE_RUN_AI_HEALTH_CHECK,
     SERVICE_SET_PUMP,
@@ -52,7 +53,7 @@ async def test_setup_and_unload_entry_lifecycle() -> None:
 
     assert await async_setup_entry(hass, entry)
     assert "entry-1" in hass.data["tendrilgrow"]
-    assert hass.services.async_register.call_count == 3
+    assert hass.services.async_register.call_count == 4
 
     assert await async_unload_entry(hass, entry)
     assert "entry-1" not in hass.data["tendrilgrow"]
@@ -62,6 +63,7 @@ async def test_setup_and_unload_entry_lifecycle() -> None:
         "tendrilgrow", SERVICE_RUN_AI_HEALTH_CHECK
     )
     hass.services.async_remove.assert_any_call("tendrilgrow", SERVICE_SET_PUMP)
+    hass.services.async_remove.assert_any_call("tendrilgrow", SERVICE_MARK_FLUSH)
 
 
 @pytest.mark.asyncio
@@ -449,3 +451,111 @@ async def test_set_pump_service_validation() -> None:
                 }
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_mark_flush_service_records() -> None:
+    unsub = Mock()
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        title="Tent A",
+        data={
+            "space_id": "space-1",
+            "name": "Tent A",
+            "grow_type": "rdwc",
+            "descriptor": "3x3",
+            "sites": [],
+            "sensor_mappings": {},
+            "control_mappings": {},
+            "targets": {},
+            "schedules": {},
+        },
+        options={},
+        add_update_listener=Mock(return_value=unsub),
+    )
+
+    services = SimpleNamespace(async_register=Mock(), async_remove=Mock())
+    hass = SimpleNamespace(
+        data={},
+        verify_event_loop_thread=Mock(),
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+            async_reload=AsyncMock(return_value=True),
+            async_get_entry=Mock(return_value=entry),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(
+            async_call=AsyncMock(),
+            async_register=services.async_register,
+            async_remove=services.async_remove,
+        ),
+    )
+
+    assert await async_setup_entry(hass, entry)
+
+    runtime = hass.data["tendrilgrow"]["entry-1"]
+    assert runtime.flush_state.last_flush is None
+
+    handlers_by_service = {
+        call.args[1]: call.args[2] for call in services.async_register.call_args_list
+    }
+    handler = handlers_by_service[SERVICE_MARK_FLUSH]
+    await handler(SimpleNamespace(data={"entry_id": "entry-1"}))
+
+    assert runtime.flush_state.last_flush is not None
+
+
+@pytest.mark.asyncio
+async def test_mark_flush_service_validation() -> None:
+    unsub = Mock()
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        title="Tent A",
+        data={
+            "space_id": "space-1",
+            "name": "Tent A",
+            "grow_type": "rdwc",
+            "descriptor": "3x3",
+            "sites": [],
+            "sensor_mappings": {},
+            "control_mappings": {},
+            "targets": {},
+            "schedules": {},
+        },
+        options={},
+        add_update_listener=Mock(return_value=unsub),
+    )
+
+    services = SimpleNamespace(async_register=Mock(), async_remove=Mock())
+    hass = SimpleNamespace(
+        data={},
+        verify_event_loop_thread=Mock(),
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+            async_reload=AsyncMock(return_value=True),
+            async_get_entry=Mock(return_value=None),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(
+            async_call=AsyncMock(),
+            async_register=services.async_register,
+            async_remove=services.async_remove,
+        ),
+    )
+
+    assert await async_setup_entry(hass, entry)
+
+    handlers_by_service = {
+        call.args[1]: call.args[2] for call in services.async_register.call_args_list
+    }
+    handler = handlers_by_service[SERVICE_MARK_FLUSH]
+
+    # Missing entry_id
+    with pytest.raises(HomeAssistantError):
+        await handler(SimpleNamespace(data={}))
+
+    # Unknown/unloaded entry
+    with pytest.raises(HomeAssistantError):
+        await handler(SimpleNamespace(data={"entry_id": "missing"}))
