@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
@@ -12,8 +13,10 @@ from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 from homeassistant.helpers.storage import Store
+from homeassistant.util import slugify
 
 from .ai.health_checks import AIHealthState, load_history, run_ai_health_check
 from .const import (
@@ -51,6 +54,18 @@ ATTR_PUMP = "pump"
 ATTR_ACTION = "action"
 _SERVICES_REGISTERED_KEY = "_services_registered"
 
+# Legacy AI health entities were created without a device, so Home Assistant
+# generated global ids (e.g. sensor.ai_health_score, and _2 for a second entry).
+# (domain, unique_id suffix, per-device object-id suffix == entity name slug).
+_AI_ENTITY_IDS: tuple[tuple[str, str, str], ...] = (
+    ("sensor", "ai_health_score", "ai_health_score"),
+    ("sensor", "ai_health_summary", "ai_health_summary"),
+    ("sensor", "ai_feeding_schedule", "ai_feeding_schedule"),
+    ("sensor", "ai_health_last_check", "ai_last_health_check"),
+    ("binary_sensor", "ai_health_critical_alert", "ai_health_critical_alert"),
+    ("button", "run_ai_health_check", "run_ai_health_check"),
+)
+
 
 @dataclass(slots=True)
 class RuntimeData:
@@ -78,6 +93,52 @@ class _EphemeralStore:
 
     async def async_save(self, payload: dict[str, Any]) -> None:
         self._payload = dict(payload)
+
+
+def _migrate_ai_entity_ids(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Rename legacy generic AI entity ids to per-grow-space ids.
+
+    Now that the AI health entities are attached to the grow-space device, an
+    auto-generated global id such as ``sensor.ai_health_score`` (or ``_2`` for a
+    second entry) is migrated to ``<domain>.<grow_slug>_<name>``. Ids the user
+    has customized are left untouched, and an already-migrated id is a no-op.
+    """
+    slug = slugify(getattr(entry, "title", "") or "")
+    if not slug:
+        return
+    try:
+        registry = er.async_get(hass)
+    except Exception:  # noqa: BLE001
+        return
+
+    for domain, uid_suffix, obj_suffix in _AI_ENTITY_IDS:
+        unique_id = f"{entry.entry_id}_{uid_suffix}"
+        current = registry.async_get_entity_id(domain, DOMAIN, unique_id)
+        if not current:
+            continue
+        desired = f"{domain}.{slug}_{obj_suffix}"
+        if current == desired:
+            continue
+        current_object = current.split(".", 1)[1]
+        # Only migrate auto-generated ids ("<name>" or "<name>_<n>").
+        if current_object != obj_suffix and not re.fullmatch(
+            rf"{re.escape(obj_suffix)}_\d+", current_object
+        ):
+            continue
+        if registry.async_get(desired) is not None:
+            continue
+        try:
+            registry.async_update_entity(current, new_entity_id=desired)
+            LOGGER.info(
+                "Migrated AI entity %s -> %s for %s",
+                current,
+                desired,
+                entry.entry_id,
+            )
+        except (ValueError, KeyError):
+            LOGGER.debug(
+                "Could not migrate %s -> %s", current, desired, exc_info=True
+            )
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -164,6 +225,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id] = runtime
     entry.runtime_data = runtime
 
+    _migrate_ai_entity_ids(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     # Schedule the initial check as a proper coroutine job so HA runs it on the
     # event loop (a plain lambda is treated as an executor job where

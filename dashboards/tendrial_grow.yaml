@@ -109,7 +109,7 @@ views:
     square: false
     cards:
     - type: gauge
-      entity: sensor.ai_health_score
+      entity: sensor.3x3_mothers_tent_ai_health_score
       name: 3x3 AI Health
       min: 0
       max: 100
@@ -118,7 +118,7 @@ views:
         yellow: 50
         green: 75
     - type: gauge
-      entity: sensor.ai_health_score_2
+      entity: sensor.4x4_full_cycle_tent_ai_health_score
       name: 4x4 AI Health
       min: 0
       max: 100
@@ -184,17 +184,19 @@ views:
     title: AI Health
     state_color: true
     entities:
-    - sensor.ai_health_score
-    - sensor.ai_health_summary
-    - sensor.ai_last_health_check
-    - binary_sensor.ai_health_critical_alert
-    - button.run_ai_health_check
+    - sensor.3x3_mothers_tent_ai_health_score
+    - sensor.3x3_mothers_tent_ai_health_summary
+    - sensor.3x3_mothers_tent_ai_last_health_check
+    - binary_sensor.3x3_mothers_tent_ai_health_critical_alert
+    - button.3x3_mothers_tent_run_ai_health_check
   - type: markdown
     title: AI Health Report
-    content: '{{ state_attr(''sensor.ai_health_score'',''report'') }}'
+    content: '{{ state_attr(''sensor.3x3_mothers_tent_ai_health_score'',''report'')
+      }}'
   - type: markdown
     title: AI Feeding Schedule
-    content: '{{ state_attr(''sensor.ai_health_score'',''feeding_schedule_md'') }}'
+    content: '{{ state_attr(''sensor.3x3_mothers_tent_ai_health_score'',''feeding_schedule_md'')
+      }}'
   - type: entities
     title: Cultivation Plan
     entities:
@@ -273,17 +275,18 @@ views:
     title: AI Health
     state_color: true
     entities:
-    - sensor.ai_health_score_2
-    - sensor.ai_health_summary_2
-    - sensor.ai_last_health_check_2
-    - binary_sensor.ai_health_critical_alert_2
-    - button.run_ai_health_check_2
+    - sensor.4x4_full_cycle_tent_ai_health_score
+    - sensor.4x4_full_cycle_tent_ai_health_summary
+    - sensor.4x4_full_cycle_tent_ai_last_health_check
+    - binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
+    - button.4x4_full_cycle_tent_run_ai_health_check
   - type: markdown
     title: AI Health Report
-    content: '{{ state_attr(''sensor.ai_health_score_2'',''report'') }}'
+    content: '{{ state_attr(''sensor.4x4_full_cycle_tent_ai_health_score'',''report'')
+      }}'
   - type: markdown
     title: AI Feeding Schedule
-    content: '{{ state_attr(''sensor.ai_health_score_2'',''feeding_schedule_md'')
+    content: '{{ state_attr(''sensor.4x4_full_cycle_tent_ai_health_score'',''feeding_schedule_md'')
       }}'
   - type: entities
     title: Cultivation Plan

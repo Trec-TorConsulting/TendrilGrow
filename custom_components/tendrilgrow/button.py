@@ -40,6 +40,10 @@ class RunAIHealthCheckButton(ButtonEntity):
         self._attr_unique_id = f"{entry.entry_id}_run_ai_health_check"
 
     @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    @property
     def available(self) -> bool:
         return self._entry.entry_id in self.hass.data.get(DOMAIN, {})
 

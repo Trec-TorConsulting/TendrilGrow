@@ -71,6 +71,10 @@ class AIHealthAlertBinarySensor(BinarySensorEntity):
         return self._entry.entry_id in self.hass.data.get(DOMAIN, {})
 
     @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    @property
     def is_on(self) -> bool:
         runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
         if runtime is None:

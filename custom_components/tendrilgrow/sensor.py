@@ -497,6 +497,10 @@ class AIHealthBaseSensor(SensorEntity):
     def available(self) -> bool:
         return self._entry.entry_id in self.hass.data.get(DOMAIN, {})
 
+    @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
     async def async_added_to_hass(self) -> None:
         """Subscribe to AI health state updates."""
 

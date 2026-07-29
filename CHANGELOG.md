@@ -6,6 +6,17 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-29
+
+### Changed
+- AI health entities (score, summary, feeding schedule, last check, critical
+  alert, and the run button) are now attached to each grow-space device and
+  named per grow space. Existing installs auto-migrate the legacy global ids
+  (e.g. `sensor.ai_health_score` and `..._2`) to per-space ids
+  (e.g. `sensor.<grow>_ai_health_score`) on setup; user-customized ids are
+  left untouched. Update dashboards/automations that referenced the old ids
+  (the bundled `dashboards/tendrial_grow.yaml` example is already updated).
+
 ## [0.1.1] - 2026-07-29
 
 ### Added

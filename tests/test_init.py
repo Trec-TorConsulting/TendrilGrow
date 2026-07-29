@@ -1,16 +1,18 @@
 """Smoke tests for config-entry lifecycle."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from homeassistant.exceptions import HomeAssistantError
 
+import custom_components.tendrilgrow as tg
 from custom_components.tendrilgrow import (
     SERVICE_MARK_FLUSH,
     SERVICE_REBUILD_AUTOMAP,
     SERVICE_RUN_AI_HEALTH_CHECK,
     SERVICE_SET_PUMP,
+    _migrate_ai_entity_ids,
     async_setup_entry,
     async_unload_entry,
 )
@@ -559,3 +561,66 @@ async def test_mark_flush_service_validation() -> None:
     # Unknown/unloaded entry
     with pytest.raises(HomeAssistantError):
         await handler(SimpleNamespace(data={"entry_id": "missing"}))
+
+
+def test_migrate_ai_entity_ids_renames_generic_to_per_tent() -> None:
+    """Legacy generic AI ids migrate to per-grow-space ids (incl. _2 dedup)."""
+    current_ids = {
+        ("sensor", "tendrilgrow", "e1_ai_health_score"): "sensor.ai_health_score",
+        ("sensor", "tendrilgrow", "e1_ai_health_summary"): (
+            "sensor.ai_health_summary"
+        ),
+        ("sensor", "tendrilgrow", "e1_ai_health_last_check"): (
+            "sensor.ai_last_health_check_2"
+        ),
+        ("binary_sensor", "tendrilgrow", "e1_ai_health_critical_alert"): (
+            "binary_sensor.ai_health_critical_alert"
+        ),
+        ("button", "tendrilgrow", "e1_run_ai_health_check"): (
+            "button.run_ai_health_check_2"
+        ),
+    }
+    registry = Mock()
+    registry.async_get_entity_id.side_effect = lambda d, p, u: current_ids.get(
+        (d, p, u)
+    )
+    registry.async_get.return_value = None
+    registry.async_update_entity = Mock()
+
+    entry = SimpleNamespace(entry_id="e1", title="3x3 Mothers Tent")
+    with patch.object(tg.er, "async_get", return_value=registry):
+        _migrate_ai_entity_ids(SimpleNamespace(), entry)
+
+    renames = {
+        call.args[0]: call.kwargs["new_entity_id"]
+        for call in registry.async_update_entity.call_args_list
+    }
+    assert renames["sensor.ai_health_score"] == (
+        "sensor.3x3_mothers_tent_ai_health_score"
+    )
+    assert renames["sensor.ai_last_health_check_2"] == (
+        "sensor.3x3_mothers_tent_ai_last_health_check"
+    )
+    assert renames["button.run_ai_health_check_2"] == (
+        "button.3x3_mothers_tent_run_ai_health_check"
+    )
+
+
+def test_migrate_ai_entity_ids_skips_customized_and_taken() -> None:
+    """Customized ids are left alone and taken targets are not overwritten."""
+    # Customized id (not the auto-generated name) must be preserved.
+    customized = {
+        ("sensor", "tendrilgrow", "e1_ai_health_score"): "sensor.my_custom_score",
+    }
+    registry = Mock()
+    registry.async_get_entity_id.side_effect = lambda d, p, u: customized.get(
+        (d, p, u)
+    )
+    registry.async_get.return_value = None
+    registry.async_update_entity = Mock()
+
+    entry = SimpleNamespace(entry_id="e1", title="Tent A")
+    with patch.object(tg.er, "async_get", return_value=registry):
+        _migrate_ai_entity_ids(SimpleNamespace(), entry)
+
+    registry.async_update_entity.assert_not_called()
