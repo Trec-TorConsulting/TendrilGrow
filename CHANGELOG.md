@@ -33,6 +33,13 @@ The format is inspired by Keep a Changelog and semantic versioning.
   consumption tracking; RDWC pump integration for safe header-bucket dosing
   workflow; optional explicit power sensor mapping or automatic discovery via
   device registry
+- Reservoir flush tracking: a per-grow-space "Flush Now" button and `mark_flush`
+  service record each full flush; an editable flush interval (default 7 days)
+  drives days-since, days-until, next-due, and last-flush sensors plus a
+  problem-class "flush due" binary sensor; a de-duplicated persistent (and
+  optional notify-service) reminder fires when a flush is overdue; flush status
+  is surfaced to the AI advisor's cultivation context. Manual recording only
+  — no actuation.
 - Cultivation-context helper entities (growth stage, strain, targets, reservoir
   volume, nutrients) that ground AI advice
 - AI health entities (score, summary, feeding schedule, last check, critical

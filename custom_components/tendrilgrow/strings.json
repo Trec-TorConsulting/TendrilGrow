@@ -127,6 +127,16 @@
           "description": "The action to perform (on, off, or toggle)."
         }
       }
+    },
+    "mark_flush": {
+      "name": "Mark reservoir flush",
+      "description": "Record that a full reservoir flush and refill was just completed. RDWC reservoirs are typically flushed every 7-10 days; press 'Flush Now' (or call this service) right after flushing so days-since, next-due, and the overdue reminder stay accurate.",
+      "fields": {
+        "entry_id": {
+          "name": "Config entry ID",
+          "description": "The TendrilGrow config entry ID whose reservoir was flushed."
+        }
+      }
     }
   }
 }

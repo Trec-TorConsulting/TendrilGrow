@@ -24,6 +24,11 @@ AI-provider model selection into a single HACS-installable package.
 	- Real-time power consumption monitoring per pump and total
 	- RDWC pump integration for safe header-bucket dosing workflow
 	- Optional explicit power sensor mapping or automatic sensor discovery
+- **Reservoir flush tracking** (7-10 day RDWC cadence):
+	- One-press "Flush Now" button records each full flush/refill
+	- Editable per-space flush interval and days-since / days-until / next-due sensors
+	- Overdue "flush due" indicator with a de-duplicated reminder notification
+	- Flush status folded into the AI advisor's cultivation context
 - Unit-aware derived VPD (°F→°C) exposed as a per-grow-space VPD sensor,
 	computed from the mapped air temperature and air humidity
 - Optional Tuya cloud water-monitoring: signed OpenAPI polling, datapoint
@@ -54,6 +59,8 @@ Included now:
 - Cultivation-context helper entities and AI health entities/services
 - Pump control and monitoring: RDWC, chiller, and air pump switches with
 	dashboard control and real-time power consumption tracking
+- Reservoir flush tracking: record button, interval, status sensors, overdue
+	reminder, and AI-context awareness for the 7-10 day RDWC flush cadence
 
 Planned in future changes:
 - Bundled Lovelace dashboard cards
