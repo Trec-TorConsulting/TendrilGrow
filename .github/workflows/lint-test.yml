@@ -16,6 +16,11 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Install build tools
+        # The self-hosted ARC runner image has no C compiler; some Home
+        # Assistant deps (e.g. lru-dict) build C extensions from source.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
