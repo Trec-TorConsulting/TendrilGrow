@@ -295,13 +295,35 @@ def validate_space(
         st = states.get(entity_id)
         state_val = st.get("state") if st else "no state"
         r.ok(f"pump '{role}' -> {entity_id} = {state_val}")
+    
+    # Report per-pump power sensors
+    pump_power_mapped = []
     for role in PUMP_POWER_ROLES:
-        entity_id = mappings.get(role) or controls.get(role)
+        entity_id = mappings.get(role)
         if not entity_id:
             continue
+        pump_power_mapped.append((role, entity_id))
         st = states.get(entity_id)
         state_val = st.get("state") if st else "no state"
-        r.ok(f"power '{role}' -> {entity_id} = {state_val}")
+        unit = st.get("attributes", {}).get("unit_of_measurement", "") if st else ""
+        r.ok(f"power '{role}' -> {entity_id} = {state_val} {unit}".rstrip())
+    
+    # Report total pump power sensor (derived from per-pump sensors)
+    grow_name = data.get("name", "")
+    total_power_entity = (
+        f"sensor.{grow_name.lower().replace(' ', '_')}_total_pump_power"
+    )
+    if pump_power_mapped:
+        total = states.get(total_power_entity)
+        if total:
+            val = total.get("state")
+            unit = total.get("attributes", {}).get("unit_of_measurement", "")
+            r.ok(f"total pump power -> {total_power_entity} = {val} {unit}".rstrip())
+        else:
+            r.warn(
+                f"total pump power sensor {total_power_entity} not found "
+                "(expected when pumps have power sensors mapped)"
+            )
 
     reg_suffixes = {
         suffix
