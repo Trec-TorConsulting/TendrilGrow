@@ -19,6 +19,7 @@ from custom_components.tendrilgrow.const import (
     CONF_AI_RESULT_RETENTION_DAYS,
     CONF_AI_SEVERE_THRESHOLD,
     CONF_BASE_URL,
+    CONF_CONTROL_MAPPINGS,
     CONF_GROW_SIZE,
     CONF_GROW_SPACE_NAME,
     CONF_GROW_TYPE,
@@ -255,3 +256,75 @@ async def test_unload_entry_keeps_other_entries_intact() -> None:
     assert "entry-2" in hass.data["tendrilgrow"]
     unsub_one.assert_called_once()
     unsub_two.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_options_flow_pump_control_and_power_mappings() -> None:
+    """Verify pump control and power sensor mappings are stored correctly."""
+    from custom_components.tendrilgrow.const import (
+        CONTROL_ROLE_AIR_PUMP,
+        CONTROL_ROLE_CHILLER_PUMP,
+        CONTROL_ROLE_RDWC_PUMP,
+        SENSOR_ROLE_AIR_PUMP_POWER,
+        SENSOR_ROLE_CHILLER_PUMP_POWER,
+        SENSOR_ROLE_RDWC_PUMP_POWER,
+    )
+
+    entry = SimpleNamespace(
+        data={
+            "grow_type": "rdwc",
+            "grow_size": "3x3",
+            "sensor_mappings": {"temperature": "sensor.old"},
+            "control_mappings": {},
+        }
+    )
+    flow = TendrilGrowOptionsFlow(entry)
+    _patch_show_form(flow)
+    _patch_create_entry(flow)
+
+    # Show the options form.
+    form = await flow.async_step_init()
+    assert form["type"] == "form"
+
+    # Submit pump control and power mappings.
+    result = await flow.async_step_init(
+        {
+            "grow_type": "rdwc",
+            "grow_size": "3x3",
+            "temperature": "sensor.old",
+            CONTROL_ROLE_RDWC_PUMP: "switch.rdwc_pump",
+            SENSOR_ROLE_RDWC_PUMP_POWER: "sensor.rdwc_pump_power",
+            CONTROL_ROLE_CHILLER_PUMP: "switch.chiller_pump",
+            SENSOR_ROLE_CHILLER_PUMP_POWER: "sensor.chiller_pump_power",
+            CONTROL_ROLE_AIR_PUMP: "switch.air_pump",
+            # Air pump has no power mapping.
+            CONF_TUYA_ENABLED: False,
+            CONF_TUYA_ACCESS_ID: "",
+            CONF_TUYA_REGION: "us",
+            CONF_TUYA_DEVICE_IDS: "",
+            CONF_TUYA_SCAN_INTERVAL: 60,
+            CONF_AI_HEALTH_INTERVAL_HOURS: 12,
+            CONF_AI_SEVERE_THRESHOLD: 20,
+            CONF_AI_RESULT_RETENTION_DAYS: 30,
+        }
+    )
+
+    assert result["type"] == "create_entry"
+    # Verify pump controls are in control_mappings.
+    control_mappings = result["data"][CONF_CONTROL_MAPPINGS]
+    assert control_mappings[CONTROL_ROLE_RDWC_PUMP] == "switch.rdwc_pump"
+    assert control_mappings[CONTROL_ROLE_CHILLER_PUMP] == "switch.chiller_pump"
+    assert control_mappings[CONTROL_ROLE_AIR_PUMP] == "switch.air_pump"
+
+    # Verify power sensors are in sensor_mappings.
+    sensor_mappings = result["data"][CONF_SENSOR_MAPPINGS]
+    assert (
+        sensor_mappings[SENSOR_ROLE_RDWC_PUMP_POWER]
+        == "sensor.rdwc_pump_power"
+    )
+    assert (
+        sensor_mappings[SENSOR_ROLE_CHILLER_PUMP_POWER]
+        == "sensor.chiller_pump_power"
+    )
+    # Air pump power not submitted, should not be in mappings.
+    assert SENSOR_ROLE_AIR_PUMP_POWER not in sensor_mappings

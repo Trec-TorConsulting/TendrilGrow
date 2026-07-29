@@ -49,6 +49,8 @@ from .const import (
     PROVIDER_NONE,
     PROVIDER_OLLAMA,
     PROVIDER_OPENAI,
+    PUMP_CONTROL_ROLES,
+    PUMP_POWER_ROLE_FOR,
     SENSOR_ROLE_EC_TDS_LEGACY,
     SENSOR_ROLE_TDS,
     SENSOR_ROLES,
@@ -70,6 +72,16 @@ def _entity_selector() -> selector.EntitySelector:
     return selector.EntitySelector(selector.EntitySelectorConfig(multiple=False))
 
 
+def _entity_selector_for_domains(*domains: str) -> selector.EntitySelector:
+    """Create an entity selector limited to specific domains."""
+    return selector.EntitySelector(
+        selector.EntitySelectorConfig(
+            multiple=False,
+            filter=selector.EntityFilterSelectorConfig(domain=list(domains)),
+        )
+    )
+
+
 def _optional_entity_field(
     fields: dict[Any, Any],
     role: str,
@@ -80,6 +92,37 @@ def _optional_entity_field(
         fields[vol.Optional(role, default=existing)] = _entity_selector()
         return
     fields[vol.Optional(role)] = _entity_selector()
+
+
+def _optional_pump_control_field(
+    fields: dict[Any, Any],
+    role: str,
+    mapping: dict[str, str],
+) -> None:
+    """Add a pump control field with switch/input_boolean domain filtering."""
+    existing = mapping.get(role, "")
+    selector_obj = _entity_selector_for_domains("switch", "input_boolean")
+    if existing:
+        fields[vol.Optional(role, default=existing)] = selector_obj
+        return
+    fields[vol.Optional(role)] = selector_obj
+
+
+def _optional_power_sensor_field(
+    fields: dict[Any, Any],
+    pump_role: str,
+    mapping: dict[str, str],
+) -> None:
+    """Add an optional power sensor field for a pump role."""
+    power_role = PUMP_POWER_ROLE_FOR.get(pump_role)
+    if not power_role:
+        return
+    existing = mapping.get(power_role, "")
+    selector_obj = _entity_selector_for_domains("sensor")
+    if existing:
+        fields[vol.Optional(power_role, default=existing)] = selector_obj
+        return
+    fields[vol.Optional(power_role)] = selector_obj
 
 
 def _normalize_sensor_mappings(sensor_mappings: dict[str, str]) -> dict[str, str]:
@@ -147,6 +190,13 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     for role, value in user_input.items()
                     if role in allowed_sensor_roles and value
                 }
+
+            # Add power sensor mappings (extracted from form fields).
+            for pump_role in PUMP_CONTROL_ROLES:
+                power_role = PUMP_POWER_ROLE_FOR.get(pump_role)
+                if power_role and power_role in user_input and user_input[power_role]:
+                    sensor_mappings[power_role] = user_input[power_role]
+
             control_mappings = {
                 role: value
                 for role, value in user_input.items()
@@ -198,8 +248,22 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
         for role in visible_sensor_roles:
             fields[vol.Optional(role)] = _entity_selector()
+
+        # Add non-pump control roles with generic selector.
         for role in CONTROL_ROLES:
-            fields[vol.Optional(role)] = _entity_selector()
+            if role not in PUMP_CONTROL_ROLES:
+                fields[vol.Optional(role)] = _entity_selector()
+
+        # Add pump control roles with switch/input_boolean domain filtering.
+        for role in PUMP_CONTROL_ROLES:
+            selector_obj = _entity_selector_for_domains("switch", "input_boolean")
+            fields[vol.Optional(role)] = selector_obj
+            # Add optional power sensor field for each pump.
+            power_role = PUMP_POWER_ROLE_FOR.get(role)
+            if power_role:
+                power_selector = _entity_selector_for_domains("sensor")
+                fields[vol.Optional(power_role)] = power_selector
+
         fields[vol.Optional(CONF_TUYA_ENABLED, default=tuya_enabled)] = bool
         fields[vol.Optional(CONF_TUYA_ACCESS_ID)] = str
         fields[vol.Optional(CONF_TUYA_ACCESS_SECRET)] = str
@@ -417,6 +481,13 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                     for role, value in user_input.items()
                     if role in allowed_sensor_roles and value
                 }
+
+            # Add power sensor mappings (extracted from form fields).
+            for pump_role in PUMP_CONTROL_ROLES:
+                power_role = PUMP_POWER_ROLE_FOR.get(pump_role)
+                if power_role and power_role in user_input and user_input[power_role]:
+                    sensor_mappings[power_role] = user_input[power_role]
+
             control_mappings = {
                 role: value
                 for role, value in user_input.items()
@@ -496,8 +567,16 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
             _optional_entity_field(fields, role, sensor_mappings)
 
         control_mappings = current.get(CONF_CONTROL_MAPPINGS, {})
+        # Add non-pump control roles (lights, fans, etc.) with generic selector.
         for role in CONTROL_ROLES:
-            _optional_entity_field(fields, role, control_mappings)
+            if role not in PUMP_CONTROL_ROLES:
+                _optional_entity_field(fields, role, control_mappings)
+
+        # Add pump control roles with switch/input_boolean domain filtering.
+        for role in PUMP_CONTROL_ROLES:
+            _optional_pump_control_field(fields, role, control_mappings)
+            # Add optional power sensor field for each pump.
+            _optional_power_sensor_field(fields, role, control_mappings)
 
         tuya_device_ids = current.get(CONF_TUYA_DEVICE_IDS, [])
         fields[vol.Optional(CONF_TUYA_ENABLED, default=tuya_enabled)] = bool
