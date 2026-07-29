@@ -14,8 +14,9 @@
         "title": "Map entities",
         "description": "Map your Home Assistant entities to grow roles.",
         "data": {
-          "temperature": "Air/water temperature sensor",
-          "humidity": "Humidity sensor",
+          "temperature": "Air temperature sensor (canopy, used for VPD)",
+          "humidity": "Air humidity sensor (canopy, used for VPD)",
+          "water_temperature": "Water/reservoir temperature sensor",
           "light_ppfd": "PPFD/light sensor",
           "ph": "pH sensor",
           "ec": "EC sensor",
@@ -68,8 +69,9 @@
         "data": {
           "grow_type": "Grow type",
           "grow_size": "Grow size/descriptor",
-          "temperature": "Air/water temperature sensor",
-          "humidity": "Humidity sensor",
+          "temperature": "Air temperature sensor (canopy, used for VPD)",
+          "humidity": "Air humidity sensor (canopy, used for VPD)",
+          "water_temperature": "Water/reservoir temperature sensor",
           "light_ppfd": "PPFD/light sensor",
           "ph": "pH sensor",
           "ec": "EC sensor",

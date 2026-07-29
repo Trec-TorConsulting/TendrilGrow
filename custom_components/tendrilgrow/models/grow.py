@@ -125,3 +125,24 @@ class GrowSpace:
             (17.27 * temperature_c) / (temperature_c + 237.3)
         )
         return sat_vapor_pressure * (1 - (humidity_pct / 100.0))
+
+    @staticmethod
+    def to_celsius(value: float | None, unit: str | None) -> float | None:
+        """Convert a temperature reading to Celsius based on its unit string."""
+        if value is None:
+            return None
+        normalized = (unit or "").strip().lower().replace("\u00b0", "")
+        if normalized in ("f", "fahrenheit"):
+            return (value - 32.0) * 5.0 / 9.0
+        return value
+
+    @staticmethod
+    def compute_vpd_kpa(
+        temperature: float | None,
+        temperature_unit: str | None,
+        humidity_pct: float | None,
+    ) -> float | None:
+        """Compute VPD (kPa) from a temperature, its unit, and relative humidity."""
+        return GrowSpace.compute_vpd_c_kpa(
+            GrowSpace.to_celsius(temperature, temperature_unit), humidity_pct
+        )

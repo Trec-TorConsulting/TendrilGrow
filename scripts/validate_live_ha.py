@@ -53,7 +53,9 @@ PLAUSIBLE: dict[str, tuple[float, float]] = {
     "tds": (0.0, 3000.0),
     "cf": (0.0, 60.0),
     "orp": (-500.0, 1000.0),
-    "temperature": (0.0, 45.0),
+    # Wide enough to accept either Celsius or Fahrenheit readings.
+    "temperature": (0.0, 120.0),
+    "water_temperature": (0.0, 120.0),
     "humidity": (0.0, 100.0),
 }
 
@@ -106,6 +108,15 @@ def compute_vpd(temp_c: float | None, humidity: float | None) -> float | None:
         return None
     svp = 0.6108 * math.exp((17.27 * temp_c) / (temp_c + 237.3))
     return round(svp * (1 - humidity / 100.0), 3)
+
+
+def fahrenheit_to_celsius(value: float | None, unit: str | None) -> float | None:
+    """Convert to Celsius when the unit is Fahrenheit; else pass through."""
+    if value is None:
+        return None
+    if str(unit or "").strip().lower().replace("\u00b0", "") in ("f", "fahrenheit"):
+        return (value - 32.0) * 5.0 / 9.0
+    return value
 
 
 def to_float(value: Any) -> float | None:
@@ -239,23 +250,28 @@ def validate_space(
 
     temp = check_mapped("temperature")
     hum = check_mapped("humidity")
-    for role in ("ph", "ec", "cf", "orp", "tds", "light_ppfd"):
+    for role in ("water_temperature", "ph", "ec", "cf", "orp", "tds", "light_ppfd"):
         if mappings.get(role):
             check_mapped(role)
 
-    vpd = compute_vpd(temp, hum)
+    temp_entity_id = mappings.get("temperature")
+    temp_unit = ""
+    if temp_entity_id and temp_entity_id in states:
+        temp_unit = (
+            states[temp_entity_id].get("attributes", {}).get("unit_of_measurement", "")
+        )
+    vpd = compute_vpd(fahrenheit_to_celsius(temp, temp_unit), hum)
     if vpd is not None:
         good = 0.4 <= vpd <= 2.0
-        msg = f"Derived VPD = {vpd} kPa"
+        msg = f"Derived VPD = {vpd} kPa (air temp {temp} {temp_unit})".rstrip()
         (r.ok if good else r.warn)(msg if good else f"{msg} (unusual; check units)")
-        temp_entity = str(mappings.get("temperature", ""))
-        if "water" in temp_entity.lower():
+        if "water" in str(temp_entity_id or "").lower():
             r.warn(
-                "VPD uses the mapped 'temperature' role, which looks like WATER "
-                "temperature; canopy/air VPD needs an air-temp probe"
+                "VPD 'temperature' role maps a WATER-temp entity; map an AIR "
+                "temperature probe to the temperature role for canopy VPD"
             )
     else:
-        r.warn("VPD not computable (temperature/humidity unmapped or invalid)")
+        r.warn("VPD not computable (air temperature/humidity unmapped or invalid)")
 
     camera = mappings.get("camera")
     if camera:

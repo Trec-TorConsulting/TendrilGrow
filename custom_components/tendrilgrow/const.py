@@ -36,8 +36,11 @@ PROVIDER_GEMINI = "gemini"
 PROVIDER_OPENAI = "openai"
 PROVIDER_OLLAMA = "ollama"
 
+# temperature/humidity are AIR (canopy) roles used for VPD; water_temperature is
+# the reservoir/water probe and is NOT used for canopy VPD.
 SENSOR_ROLE_TEMPERATURE = "temperature"
 SENSOR_ROLE_HUMIDITY = "humidity"
+SENSOR_ROLE_WATER_TEMPERATURE = "water_temperature"
 SENSOR_ROLE_LIGHT = "light_ppfd"
 SENSOR_ROLE_PH = "ph"
 SENSOR_ROLE_EC = "ec"
@@ -61,6 +64,7 @@ SENSOR_ROLES: tuple[str, ...] = (
     SENSOR_ROLE_CF,
     SENSOR_ROLE_ORP,
     SENSOR_ROLE_TDS,
+    SENSOR_ROLE_WATER_TEMPERATURE,
     SENSOR_ROLE_EC_TDS_LEGACY,
     SENSOR_ROLE_CAMERA,
 )
@@ -75,10 +79,17 @@ SENSOR_ROLES_CONFIGURABLE: tuple[str, ...] = (
     SENSOR_ROLE_CF,
     SENSOR_ROLE_ORP,
     SENSOR_ROLE_TDS,
+    SENSOR_ROLE_WATER_TEMPERATURE,
     SENSOR_ROLE_CAMERA,
 )
 
-SENSOR_ROLES_TUYA_OPTIONAL: tuple[str, ...] = (SENSOR_ROLE_CAMERA,)
+# Under Tuya, water metrics come from the cloud; the operator still maps canopy
+# AIR temperature/humidity (for VPD) and the camera here.
+SENSOR_ROLES_TUYA_OPTIONAL: tuple[str, ...] = (
+    SENSOR_ROLE_TEMPERATURE,
+    SENSOR_ROLE_HUMIDITY,
+    SENSOR_ROLE_CAMERA,
+)
 
 DEFAULT_AI_HEALTH_INTERVAL_HOURS = 12
 DEFAULT_AI_SEVERE_THRESHOLD = 20

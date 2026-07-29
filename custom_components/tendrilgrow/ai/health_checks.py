@@ -28,12 +28,33 @@ from ..const import (
     GROW_CONTEXT_LABELS,
     PROVIDER_NONE,
     SENSOR_ROLE_CAMERA,
+    SENSOR_ROLE_HUMIDITY,
+    SENSOR_ROLE_TEMPERATURE,
     STAGE_TARGETS,
 )
 from ..models.grow import GrowSpace
 from .providers import ProviderExecutionError, generate_vision_health_report
 
 LOGGER = logging.getLogger(__name__)
+
+METRIC_ROLE_LABELS: dict[str, str] = {
+    "temperature": "Air Temperature",
+    "humidity": "Air Humidity",
+    "water_temperature": "Water/Reservoir Temperature",
+    "ph": "pH",
+    "ec": "EC",
+    "cf": "CF",
+    "orp": "ORP",
+    "tds": "TDS",
+    "light_ppfd": "Light PPFD",
+}
+
+
+def _coerce_metric_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 @dataclass(slots=True)
@@ -134,9 +155,26 @@ def _build_prompt(
     *,
     retention_days: int,
 ) -> str:
-    metric_lines = "\n".join(
-        f"- {key}: {value}" for key, value in sorted(metrics.items())
-    )
+    metric_entries: list[str] = []
+    for role, payload in sorted(metrics.items()):
+        value, unit = payload if isinstance(payload, tuple) else (payload, "")
+        label = METRIC_ROLE_LABELS.get(role, role)
+        unit_suffix = f" {unit}" if unit else ""
+        metric_entries.append(f"- {label}: {value}{unit_suffix}")
+    air_temp = metrics.get(SENSOR_ROLE_TEMPERATURE)
+    air_hum = metrics.get(SENSOR_ROLE_HUMIDITY)
+    if isinstance(air_temp, tuple) and isinstance(air_hum, tuple):
+        vpd = GrowSpace.compute_vpd_kpa(
+            _coerce_metric_float(air_temp[0]),
+            air_temp[1],
+            _coerce_metric_float(air_hum[0]),
+        )
+        if vpd is not None:
+            metric_entries.append(
+                "- Derived VPD (air temperature + air humidity): "
+                f"{round(vpd, 2)} kPa"
+            )
+    metric_lines = "\n".join(metric_entries)
     context_lines = "\n".join(
         f"- {key}: {value}" for key, value in sorted(context.items())
     )
@@ -359,7 +397,8 @@ def _collect_metric_state_values(
         state = hass.states.get(entity_id)
         if state is None:
             continue
-        values[role] = state.state
+        unit = str(state.attributes.get("unit_of_measurement", "") or "")
+        values[role] = (state.state, unit)
     return values
 
 

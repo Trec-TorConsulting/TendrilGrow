@@ -161,7 +161,10 @@ async def test_options_flow_edit_creates_options_payload() -> None:
     )
     assert result["type"] == "create_entry"
     assert result["data"]["grow_type"] == "soil"
-    assert result["data"][CONF_SENSOR_MAPPINGS] == {SENSOR_ROLE_CAMERA: "camera.tent_a"}
+    assert result["data"][CONF_SENSOR_MAPPINGS] == {
+        "temperature": "sensor.new",
+        SENSOR_ROLE_CAMERA: "camera.tent_a",
+    }
     assert result["data"][CONF_TUYA_ENABLED] is True
     assert result["data"][CONF_TUYA_DEVICE_IDS] == ["dev-1", "dev-2"]
 

@@ -9,12 +9,17 @@ from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
+    SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_state_change_event,
+)
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .ai.health_checks import ai_dispatcher_signal
@@ -27,6 +32,7 @@ from .const import (
     SENSOR_ROLE_PH,
     SENSOR_ROLE_TDS,
     SENSOR_ROLE_TEMPERATURE,
+    SENSOR_ROLE_WATER_TEMPERATURE,
 )
 from .coordinator import (
     TendrilGrowTuyaCoordinator,
@@ -34,6 +40,8 @@ from .coordinator import (
     tuya_device_ids,
     tuya_enabled,
 )
+from .entity import grow_device_info
+from .models.grow import GrowSpace
 
 LOGGER = logging.getLogger(__name__)
 
@@ -43,9 +51,16 @@ _METRIC_TO_ROLE: dict[str, str] = {
     "cf": SENSOR_ROLE_CF,
     "orp": SENSOR_ROLE_ORP,
     "tds": SENSOR_ROLE_TDS,
-    "water_temp_c": SENSOR_ROLE_TEMPERATURE,
+    "water_temp_c": SENSOR_ROLE_WATER_TEMPERATURE,
     "ambient_humidity": SENSOR_ROLE_HUMIDITY,
 }
+
+
+def _to_float(value: object) -> float | None:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
 
 
 @dataclass(slots=True, frozen=True)
@@ -119,6 +134,7 @@ async def async_setup_entry(
         AIHealthSummarySensor(hass, entry),
         AIFeedingScheduleSensor(hass, entry),
         AIHealthLastCheckSensor(hass, entry),
+        TendrilGrowVpdSensor(hass, entry),
     ]
 
     if device_ids:
@@ -306,6 +322,105 @@ def _compose_feeding_schedule_md(latest) -> str:
     if not schedule:
         return "_No feeding schedule generated yet. Run an AI health check._"
     return "\n".join(f"- {item}" for item in schedule)
+
+
+class TendrilGrowVpdSensor(SensorEntity):
+    """Derived canopy VPD (kPa) from mapped AIR temperature + AIR humidity."""
+
+    _attr_should_poll = False
+    _attr_has_entity_name = True
+    _attr_name = "VPD"
+    _attr_native_unit_of_measurement = "kPa"
+    _attr_suggested_display_precision = 2
+    _attr_icon = "mdi:water-percent"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_vpd"
+        self._attr_device_info = grow_device_info(entry)
+        self._timer_unsubs: list = []
+        self._state_unsubs: list = []
+
+    def _grow_space(self):
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        return getattr(runtime, "grow_space", None)
+
+    def _air_entities(self) -> tuple[str | None, str | None]:
+        grow_space = self._grow_space()
+        if grow_space is None:
+            return None, None
+        return (
+            grow_space.sensor_mappings.get(SENSOR_ROLE_TEMPERATURE),
+            grow_space.sensor_mappings.get(SENSOR_ROLE_HUMIDITY),
+        )
+
+    @property
+    def available(self) -> bool:
+        return self._entry.entry_id in self.hass.data.get(DOMAIN, {})
+
+    @property
+    def native_value(self):
+        temp_id, hum_id = self._air_entities()
+        if not temp_id or not hum_id:
+            return None
+        temp_state = self.hass.states.get(temp_id)
+        hum_state = self.hass.states.get(hum_id)
+        if temp_state is None or hum_state is None:
+            return None
+        temp = _to_float(temp_state.state)
+        humidity = _to_float(hum_state.state)
+        if temp is None or humidity is None:
+            return None
+        unit = temp_state.attributes.get("unit_of_measurement")
+        vpd = GrowSpace.compute_vpd_kpa(temp, unit, humidity)
+        return round(vpd, 2) if vpd is not None else None
+
+    @property
+    def extra_state_attributes(self):
+        temp_id, hum_id = self._air_entities()
+        return {
+            "air_temperature_entity": temp_id,
+            "air_humidity_entity": hum_id,
+        }
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._resubscribe()
+        # Re-resolve once after the Tuya auto-map backfill window.
+        self._timer_unsubs.append(
+            async_call_later(self.hass, 20, self._handle_delayed_resolve)
+        )
+
+    @callback
+    def _handle_delayed_resolve(self, _now) -> None:
+        self._resubscribe()
+
+    @callback
+    def _resubscribe(self) -> None:
+        for unsub in self._state_unsubs:
+            unsub()
+        self._state_unsubs = []
+        temp_id, hum_id = self._air_entities()
+        tracked = [entity_id for entity_id in (temp_id, hum_id) if entity_id]
+        if tracked:
+            self._state_unsubs.append(
+                async_track_state_change_event(
+                    self.hass, tracked, self._handle_source_change
+                )
+            )
+        self.async_write_ha_state()
+
+    @callback
+    def _handle_source_change(self, _event) -> None:
+        self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        for unsub in (*self._timer_unsubs, *self._state_unsubs):
+            unsub()
+        self._timer_unsubs = []
+        self._state_unsubs = []
 
 
 class AIHealthBaseSensor(SensorEntity):

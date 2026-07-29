@@ -17,7 +17,13 @@ def _grow_space() -> GrowSpace:
 def test_build_prompt_includes_context_and_metrics() -> None:
     prompt = _build_prompt(
         _grow_space(),
-        {"ph": "5.9", "ec": "1.6"},
+        {
+            "ph": ("5.9", ""),
+            "ec": ("1.6", "mS/cm"),
+            "temperature": ("72", "\u00b0F"),
+            "humidity": ("65", "%"),
+            "water_temperature": ("65", "\u00b0F"),
+        },
         {
             "growth_stage": "mid_flower",
             "nutrient_line": "Brand X",
@@ -32,7 +38,11 @@ def test_build_prompt_includes_context_and_metrics() -> None:
     assert "growth_stage: mid_flower" in prompt
     assert "nutrient_line: Brand X" in prompt
     assert "strain_genetics: OG Kush" in prompt
-    assert "ph: 5.9" in prompt
+    assert "pH: 5.9" in prompt
+    assert "Air Temperature: 72 \u00b0F" in prompt
+    assert "Air Humidity: 65 %" in prompt
+    assert "Water/Reservoir Temperature: 65 \u00b0F" in prompt
+    assert "Derived VPD" in prompt
     assert "observations" in prompt
     # New calibration, rubric, dosing, and feeding-schedule sections.
     assert "Calibration targets for current stage 'mid_flower'" in prompt

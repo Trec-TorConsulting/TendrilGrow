@@ -34,6 +34,28 @@ def test_vpd_unavailable_on_missing_inputs() -> None:
     assert GrowSpace.compute_vpd_c_kpa(24.0, 0.0) is None
 
 
+def test_to_celsius_converts_fahrenheit() -> None:
+    assert GrowSpace.to_celsius(32.0, "\u00b0F") == 0.0
+    assert round(GrowSpace.to_celsius(71.978, "\u00b0F"), 2) == 22.21
+    assert GrowSpace.to_celsius(22.0, "\u00b0C") == 22.0
+    assert GrowSpace.to_celsius(22.0, None) == 22.0
+    assert GrowSpace.to_celsius(None, "\u00b0F") is None
+
+
+def test_compute_vpd_kpa_is_unit_aware() -> None:
+    # 71.978 F == 22.21 C at 70.4% RH -> ~0.79 kPa canopy VPD.
+    vpd_f = GrowSpace.compute_vpd_kpa(71.978, "\u00b0F", 70.4)
+    vpd_c = GrowSpace.compute_vpd_kpa(22.21, "\u00b0C", 70.4)
+    assert vpd_f is not None and vpd_c is not None
+    assert round(vpd_f, 2) == round(vpd_c, 2)
+    assert 0.7 <= vpd_f <= 0.9
+
+
+def test_compute_vpd_kpa_missing_inputs() -> None:
+    assert GrowSpace.compute_vpd_kpa(None, "\u00b0F", 50.0) is None
+    assert GrowSpace.compute_vpd_kpa(70.0, "\u00b0F", None) is None
+
+
 def test_legacy_ec_tds_mapping_is_migrated_to_tds() -> None:
     restored = GrowSpace.from_dict(
         {
