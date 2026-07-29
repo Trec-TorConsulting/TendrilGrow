@@ -1,0 +1,303 @@
+# Exported from the live Home Assistant dashboard 'Tendrial Grow' (url_path: tendrial-grow).
+# Entity ids are specific to the source install; adjust the grow-space
+# prefixes (e.g. tent_a_ / tent_b_) when reusing on another server.
+title: Tendrial Grow
+views:
+- path: overview
+  title: Executive
+  icon: mdi:view-dashboard
+  badges:
+  - sensor.basement_3x3_mothers_tent_3x3_header_bucket_last_updated_7eizfw
+  - sensor.basement_4x4_full_cycle_tent_4x4_header_bucket_last_updated_43twoh
+  cards:
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+    - type: picture-entity
+      entity: camera.grow_tent_3x3_fluent
+      name: 3x3 Tent Snapshot
+      camera_view: auto
+      show_state: false
+      tap_action:
+        action: more-info
+    - type: picture-entity
+      entity: camera.grow_tent_4k_fluent
+      name: 4x4 Tent Snapshot
+      camera_view: auto
+      show_state: false
+      tap_action:
+        action: more-info
+  - type: markdown
+    content: '## Operations Command Board
+
+
+      Enterprise telemetry view for reservoir chemistry, freshness, and power state
+      across all active grow zones.'
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+    - type: entities
+      title: 3x3 Reservoir Freshness
+      state_color: true
+      show_header_toggle: false
+      entities:
+      - entity: button.3x3_mothers_tent_flush_now
+        name: Flush now
+        icon: mdi:water-sync
+      - entity: binary_sensor.3x3_mothers_tent_flush_due
+        name: Flush due?
+      - entity: sensor.3x3_mothers_tent_days_since_flush
+        name: Days since flush
+      - entity: sensor.3x3_mothers_tent_days_until_flush
+        name: Days until next
+    - type: entities
+      title: 4x4 Reservoir Freshness
+      state_color: true
+      show_header_toggle: false
+      entities:
+      - entity: button.4x4_full_cycle_tent_flush_now
+        name: Flush now
+        icon: mdi:water-sync
+      - entity: binary_sensor.4x4_full_cycle_tent_flush_due
+        name: Flush due?
+      - entity: sensor.4x4_full_cycle_tent_days_since_flush
+        name: Days since flush
+      - entity: sensor.4x4_full_cycle_tent_days_until_flush
+        name: Days until next
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+    - type: entities
+      title: 3x3 Reservoir Snapshot
+      state_color: true
+      show_header_toggle: false
+      entities:
+      - sensor.3x3_mothers_tent_tuya_7eizfw_ph_7eizfw
+      - sensor.3x3_mothers_tent_tuya_7eizfw_ec_7eizfw
+      - sensor.3x3_mothers_tent_tuya_7eizfw_cf_7eizfw
+      - sensor.3x3_mothers_tent_tuya_7eizfw_tds_7eizfw
+      - sensor.3x3_mothers_tent_tuya_7eizfw_orp_7eizfw
+      - sensor.3x3_mothers_tent_tuya_7eizfw_water_temperature_7eizfw
+      - sensor.3x3_mothers_tent_tuya_7eizfw_humidity_7eizfw
+      - sensor.basement_3x3_mothers_tent_3x3_header_bucket_last_updated_7eizfw
+    - type: entities
+      title: 4x4 Reservoir Snapshot
+      state_color: true
+      show_header_toggle: false
+      entities:
+      - sensor.4x4_full_cycle_tent_4x4_header_bucket_ph_43twoh
+      - sensor.4x4_full_cycle_tent_4x4_header_bucket_ec_43twoh
+      - sensor.4x4_full_cycle_tent_4x4_header_bucket_cf_43twoh
+      - sensor.4x4_full_cycle_tent_4x4_header_bucket_tds_43twoh
+      - sensor.4x4_full_cycle_tent_4x4_header_bucket_orp_43twoh
+      - sensor.4x4_full_cycle_tent_4x4_header_bucket_water_temperature_43twoh
+      - sensor.4x4_full_cycle_tent_4x4_header_bucket_humidity_43twoh
+      - sensor.basement_4x4_full_cycle_tent_4x4_header_bucket_last_updated_43twoh
+  - type: history-graph
+    title: Temperature and pH Trend (24h)
+    hours_to_show: 24
+    entities:
+    - sensor.3x3_mothers_tent_tuya_7eizfw_water_temperature_7eizfw
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_water_temperature_43twoh
+    - sensor.3x3_mothers_tent_tuya_7eizfw_ph_7eizfw
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_ph_43twoh
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+    - type: gauge
+      entity: sensor.ai_health_score
+      name: 3x3 AI Health
+      min: 0
+      max: 100
+      severity:
+        red: 0
+        yellow: 50
+        green: 75
+    - type: gauge
+      entity: sensor.ai_health_score_2
+      name: 4x4 AI Health
+      min: 0
+      max: 100
+      severity:
+        red: 0
+        yellow: 50
+        green: 75
+- path: zone-3x3
+  title: 3x3 Mothers Tent
+  icon: mdi:sprout
+  cards:
+  - show_state: false
+    show_name: true
+    camera_view: auto
+    fit_mode: cover
+    type: picture-entity
+    entity: camera.grow_tent_3x3_fluent
+    name: 3x3 Tent Snapshot
+    tap_action:
+      action: more-info
+  - type: entities
+    title: 3x3 Full Telemetry
+    state_color: true
+    entities:
+    - sensor.3x3_mothers_tent_tuya_7eizfw_ph_7eizfw
+    - sensor.3x3_mothers_tent_tuya_7eizfw_ec_7eizfw
+    - sensor.3x3_mothers_tent_tuya_7eizfw_cf_7eizfw
+    - sensor.3x3_mothers_tent_tuya_7eizfw_tds_7eizfw
+    - sensor.3x3_mothers_tent_tuya_7eizfw_orp_7eizfw
+    - sensor.3x3_mothers_tent_tuya_7eizfw_water_temperature_7eizfw
+    - sensor.3x3_mothers_tent_tuya_7eizfw_humidity_7eizfw
+    - sensor.basement_3x3_mothers_tent_3x3_header_bucket_last_updated_7eizfw
+  - type: entities
+    title: Reservoir Flush
+    state_color: true
+    show_header_toggle: false
+    entities:
+    - entity: button.3x3_mothers_tent_flush_now
+      name: Flush now
+      icon: mdi:water-sync
+    - entity: number.3x3_mothers_tent_flush_interval
+      name: Flush interval
+    - type: divider
+    - entity: binary_sensor.3x3_mothers_tent_flush_due
+      name: Flush due?
+    - entity: sensor.3x3_mothers_tent_days_since_flush
+      name: Days since flush
+    - entity: sensor.3x3_mothers_tent_days_until_flush
+      name: Days until next
+    - entity: sensor.3x3_mothers_tent_next_flush_due
+      name: Next due
+    - entity: sensor.3x3_mothers_tent_last_flush
+      name: Last flush
+  - type: history-graph
+    title: 3x3 Trend (48h)
+    hours_to_show: 48
+    entities:
+    - sensor.3x3_mothers_tent_tuya_7eizfw_ec_7eizfw
+    - sensor.3x3_mothers_tent_tuya_7eizfw_tds_7eizfw
+    - sensor.3x3_mothers_tent_tuya_7eizfw_orp_7eizfw
+    - sensor.3x3_mothers_tent_tuya_7eizfw_water_temperature_7eizfw
+  - type: entities
+    title: AI Health
+    state_color: true
+    entities:
+    - sensor.ai_health_score
+    - sensor.ai_health_summary
+    - sensor.ai_last_health_check
+    - binary_sensor.ai_health_critical_alert
+    - button.run_ai_health_check
+  - type: markdown
+    title: AI Health Report
+    content: '{{ state_attr(''sensor.ai_health_score'',''report'') }}'
+  - type: markdown
+    title: AI Feeding Schedule
+    content: '{{ state_attr(''sensor.ai_health_score'',''feeding_schedule_md'') }}'
+  - type: entities
+    title: Cultivation Plan
+    entities:
+    - text.3x3_mothers_tent_strain_genetics
+    - select.3x3_mothers_tent_growth_stage
+    - number.3x3_mothers_tent_week_in_stage
+    - number.3x3_mothers_tent_sites_plants
+    - number.3x3_mothers_tent_reservoir_volume
+    - number.3x3_mothers_tent_target_ph
+    - number.3x3_mothers_tent_target_ec
+    - number.3x3_mothers_tent_feed_interval
+    - number.3x3_mothers_tent_lights_on
+    - number.3x3_mothers_tent_runoff_target
+    - text.3x3_mothers_tent_nutrient_line
+    - text.3x3_mothers_tent_base_nutrients
+    - text.3x3_mothers_tent_additives
+- path: zone-4x4
+  title: 4x4 Full Cycle Tent
+  icon: mdi:sprout
+  cards:
+  - show_state: false
+    show_name: true
+    camera_view: auto
+    fit_mode: cover
+    type: picture-entity
+    entity: camera.grow_tent_4k_fluent
+    name: 4x4 Tent Snapshot
+    tap_action:
+      action: more-info
+  - type: entities
+    title: 4x4 Full Telemetry
+    state_color: true
+    entities:
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_ph_43twoh
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_ec_43twoh
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_cf_43twoh
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_tds_43twoh
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_orp_43twoh
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_water_temperature_43twoh
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_humidity_43twoh
+    - sensor.basement_4x4_full_cycle_tent_4x4_header_bucket_last_updated_43twoh
+  - type: entities
+    title: Reservoir Flush
+    state_color: true
+    show_header_toggle: false
+    entities:
+    - entity: button.4x4_full_cycle_tent_flush_now
+      name: Flush now
+      icon: mdi:water-sync
+    - entity: number.4x4_full_cycle_tent_flush_interval
+      name: Flush interval
+    - type: divider
+    - entity: binary_sensor.4x4_full_cycle_tent_flush_due
+      name: Flush due?
+    - entity: sensor.4x4_full_cycle_tent_days_since_flush
+      name: Days since flush
+    - entity: sensor.4x4_full_cycle_tent_days_until_flush
+      name: Days until next
+    - entity: sensor.4x4_full_cycle_tent_next_flush_due
+      name: Next due
+    - entity: sensor.4x4_full_cycle_tent_last_flush
+      name: Last flush
+  - type: history-graph
+    title: 4x4 Trend (48h)
+    hours_to_show: 48
+    entities:
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_ec_43twoh
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_tds_43twoh
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_orp_43twoh
+    - sensor.4x4_full_cycle_tent_4x4_header_bucket_water_temperature_43twoh
+  - type: entities
+    title: Platform
+    entities:
+    - update.tendrilgrow_update
+  - type: entities
+    title: AI Health
+    state_color: true
+    entities:
+    - sensor.ai_health_score_2
+    - sensor.ai_health_summary_2
+    - sensor.ai_last_health_check_2
+    - binary_sensor.ai_health_critical_alert_2
+    - button.run_ai_health_check_2
+  - type: markdown
+    title: AI Health Report
+    content: '{{ state_attr(''sensor.ai_health_score_2'',''report'') }}'
+  - type: markdown
+    title: AI Feeding Schedule
+    content: '{{ state_attr(''sensor.ai_health_score_2'',''feeding_schedule_md'')
+      }}'
+  - type: entities
+    title: Cultivation Plan
+    entities:
+    - text.4x4_full_cycle_tent_strain_genetics
+    - select.4x4_full_cycle_tent_growth_stage
+    - number.4x4_full_cycle_tent_week_in_stage
+    - number.4x4_full_cycle_tent_sites_plants
+    - number.4x4_full_cycle_tent_reservoir_volume
+    - number.4x4_full_cycle_tent_target_ph
+    - number.4x4_full_cycle_tent_target_ec
+    - number.4x4_full_cycle_tent_feed_interval
+    - number.4x4_full_cycle_tent_lights_on
+    - number.4x4_full_cycle_tent_runoff_target
+    - text.4x4_full_cycle_tent_nutrient_line
+    - text.4x4_full_cycle_tent_base_nutrients
+    - text.4x4_full_cycle_tent_additives

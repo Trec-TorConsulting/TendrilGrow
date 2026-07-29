@@ -140,6 +140,25 @@ To run AI health checks, map a `camera` entity and select a vision-capable
 provider and model. Checks run on a schedule, on demand via the run button, or
 through the `tendrilgrow.run_ai_health_check` service.
 
+## Dashboards
+
+An example multi-tab Lovelace dashboard is tracked at
+[dashboards/tendrial_grow.yaml](dashboards/tendrial_grow.yaml): an executive
+overview plus a per-zone tab, with camera snapshots, reservoir chemistry,
+trends, AI health, the cultivation plan, and a **Reservoir Flush** card (the
+Flush Now button, flush interval, days-since / days-until / next-due, and the
+flush-due alert).
+
+Entity ids in the file are specific to the maintainer's grow spaces
+(`3x3_mothers_tent_*`, `4x4_full_cycle_tent_*`); adjust the prefixes for your own
+spaces.
+
+- Reuse it: open the dashboard's **Raw configuration editor** in Home Assistant
+	and paste the file contents, or add individual cards via **Add card → Manual**.
+- Re-export a live dashboard into the repo:
+	`./.venv/bin/python scripts/export_dashboard.py <url_path>` — reads read-only
+	`HA_URL`/`HA_TOKEN` from `.env`; the token is never printed or logged.
+
 ## Configuration model
 
 Each grow-space entry stores:
