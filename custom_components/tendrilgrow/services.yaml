@@ -22,3 +22,35 @@ run_ai_health_check:
       description: Optional reason string recorded with the AI check result.
       selector:
         text:
+
+set_pump:
+  name: Set pump
+  description: Control a mapped pump (on, off, or toggle).
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: The TendrilGrow config entry ID containing the pump mapping.
+      required: true
+      selector:
+        text:
+    pump:
+      name: Pump
+      description: The pump role (rdwc_pump, chiller_pump, or air_pump).
+      required: true
+      selector:
+        select:
+          options:
+            - rdwc_pump
+            - chiller_pump
+            - air_pump
+    action:
+      name: Action
+      description: The action to perform (on, off, or toggle).
+      required: true
+      selector:
+        select:
+          options:
+            - "on"
+            - "off"
+            - toggle
+

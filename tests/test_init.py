@@ -9,6 +9,7 @@ from homeassistant.exceptions import HomeAssistantError
 from custom_components.tendrilgrow import (
     SERVICE_REBUILD_AUTOMAP,
     SERVICE_RUN_AI_HEALTH_CHECK,
+    SERVICE_SET_PUMP,
     async_setup_entry,
     async_unload_entry,
 )
@@ -51,7 +52,7 @@ async def test_setup_and_unload_entry_lifecycle() -> None:
 
     assert await async_setup_entry(hass, entry)
     assert "entry-1" in hass.data["tendrilgrow"]
-    assert hass.services.async_register.call_count == 2
+    assert hass.services.async_register.call_count == 3
 
     assert await async_unload_entry(hass, entry)
     assert "entry-1" not in hass.data["tendrilgrow"]
@@ -60,6 +61,7 @@ async def test_setup_and_unload_entry_lifecycle() -> None:
     hass.services.async_remove.assert_any_call(
         "tendrilgrow", SERVICE_RUN_AI_HEALTH_CHECK
     )
+    hass.services.async_remove.assert_any_call("tendrilgrow", SERVICE_SET_PUMP)
 
 
 @pytest.mark.asyncio
@@ -105,3 +107,345 @@ async def test_rebuild_automap_service_reloads_entries() -> None:
 
     with pytest.raises(HomeAssistantError):
         await handler(SimpleNamespace(data={"entry_id": "missing"}))
+
+
+@pytest.mark.asyncio
+async def test_set_pump_service_routes_to_switch() -> None:
+    unsub = Mock()
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        title="Tent A",
+        data={
+            "space_id": "space-1",
+            "name": "Tent A",
+            "grow_type": "rdwc",
+            "descriptor": "3x3",
+            "sites": [],
+            "sensor_mappings": {},
+            "control_mappings": {"rdwc_pump": "switch.pump_1"},
+            "targets": {},
+            "schedules": {},
+        },
+        add_update_listener=Mock(return_value=unsub),
+    )
+
+    services = SimpleNamespace(async_register=Mock(), async_remove=Mock())
+    hass = SimpleNamespace(
+        data={},
+        states=SimpleNamespace(
+            get=Mock(return_value=SimpleNamespace(state="on", attributes={}))
+        ),
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+            async_reload=AsyncMock(return_value=True),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(
+            async_call=AsyncMock(),
+            async_register=services.async_register,
+            async_remove=services.async_remove,
+        ),
+    )
+
+    assert await async_setup_entry(hass, entry)
+
+    handlers_by_service = {
+        call.args[1]: call.args[2] for call in services.async_register.call_args_list
+    }
+    handler = handlers_by_service[SERVICE_SET_PUMP]
+    await handler(
+        SimpleNamespace(
+            data={"entry_id": "entry-1", "pump": "rdwc_pump", "action": "on"}
+        )
+    )
+    hass.services.async_call.assert_called_once_with(
+        "switch", "turn_on", {"entity_id": "switch.pump_1"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_pump_service_routes_to_input_boolean() -> None:
+    unsub = Mock()
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        title="Tent A",
+        data={
+            "space_id": "space-1",
+            "name": "Tent A",
+            "grow_type": "rdwc",
+            "descriptor": "3x3",
+            "sites": [],
+            "sensor_mappings": {},
+            "control_mappings": {"chiller_pump": "input_boolean.chiller"},
+            "targets": {},
+            "schedules": {},
+        },
+        add_update_listener=Mock(return_value=unsub),
+    )
+
+    services = SimpleNamespace(async_register=Mock(), async_remove=Mock())
+    hass = SimpleNamespace(
+        data={},
+        states=SimpleNamespace(
+            get=Mock(return_value=SimpleNamespace(state="off", attributes={}))
+        ),
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+            async_reload=AsyncMock(return_value=True),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(
+            async_call=AsyncMock(),
+            async_register=services.async_register,
+            async_remove=services.async_remove,
+        ),
+    )
+
+    assert await async_setup_entry(hass, entry)
+
+    handlers_by_service = {
+        call.args[1]: call.args[2] for call in services.async_register.call_args_list
+    }
+    handler = handlers_by_service[SERVICE_SET_PUMP]
+    await handler(
+        SimpleNamespace(
+            data={"entry_id": "entry-1", "pump": "chiller_pump", "action": "off"}
+        )
+    )
+    hass.services.async_call.assert_called_once_with(
+        "input_boolean", "turn_off", {"entity_id": "input_boolean.chiller"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_pump_service_skip_when_unmapped() -> None:
+    unsub = Mock()
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        title="Tent A",
+        data={
+            "space_id": "space-1",
+            "name": "Tent A",
+            "grow_type": "rdwc",
+            "descriptor": "3x3",
+            "sites": [],
+            "sensor_mappings": {},
+            "control_mappings": {},
+            "targets": {},
+            "schedules": {},
+        },
+        add_update_listener=Mock(return_value=unsub),
+    )
+
+    services = SimpleNamespace(async_register=Mock(), async_remove=Mock())
+    hass = SimpleNamespace(
+        data={},
+        states=SimpleNamespace(get=Mock()),
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+            async_reload=AsyncMock(return_value=True),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(
+            async_call=AsyncMock(),
+            async_register=services.async_register,
+            async_remove=services.async_remove,
+        ),
+    )
+
+    assert await async_setup_entry(hass, entry)
+
+    handlers_by_service = {
+        call.args[1]: call.args[2] for call in services.async_register.call_args_list
+    }
+    handler = handlers_by_service[SERVICE_SET_PUMP]
+    await handler(
+        SimpleNamespace(
+            data={"entry_id": "entry-1", "pump": "rdwc_pump", "action": "on"}
+        )
+    )
+    # Service should not be called when pump is unmapped
+    hass.services.async_call.assert_not_called()
+    # But state should not have been checked
+    hass.states.get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_set_pump_service_skip_when_unavailable() -> None:
+    unsub = Mock()
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        title="Tent A",
+        data={
+            "space_id": "space-1",
+            "name": "Tent A",
+            "grow_type": "rdwc",
+            "descriptor": "3x3",
+            "sites": [],
+            "sensor_mappings": {},
+            "control_mappings": {"rdwc_pump": "switch.pump_1"},
+            "targets": {},
+            "schedules": {},
+        },
+        add_update_listener=Mock(return_value=unsub),
+    )
+
+    services = SimpleNamespace(async_register=Mock(), async_remove=Mock())
+    hass = SimpleNamespace(
+        data={},
+        states=SimpleNamespace(
+            get=Mock(return_value=SimpleNamespace(state="unavailable", attributes={}))
+        ),
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+            async_reload=AsyncMock(return_value=True),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(
+            async_call=AsyncMock(),
+            async_register=services.async_register,
+            async_remove=services.async_remove,
+        ),
+    )
+
+    assert await async_setup_entry(hass, entry)
+
+    handlers_by_service = {
+        call.args[1]: call.args[2] for call in services.async_register.call_args_list
+    }
+    handler = handlers_by_service[SERVICE_SET_PUMP]
+    await handler(
+        SimpleNamespace(
+            data={"entry_id": "entry-1", "pump": "rdwc_pump", "action": "on"}
+        )
+    )
+    # Service should not be called when entity is unavailable
+    hass.services.async_call.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_set_pump_service_toggle_action() -> None:
+    unsub = Mock()
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        title="Tent A",
+        data={
+            "space_id": "space-1",
+            "name": "Tent A",
+            "grow_type": "rdwc",
+            "descriptor": "3x3",
+            "sites": [],
+            "sensor_mappings": {},
+            "control_mappings": {"rdwc_pump": "switch.pump_1"},
+            "targets": {},
+            "schedules": {},
+        },
+        add_update_listener=Mock(return_value=unsub),
+    )
+
+    services = SimpleNamespace(async_register=Mock(), async_remove=Mock())
+    hass = SimpleNamespace(
+        data={},
+        states=SimpleNamespace(
+            get=Mock(return_value=SimpleNamespace(state="on", attributes={}))
+        ),
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+            async_reload=AsyncMock(return_value=True),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(
+            async_call=AsyncMock(),
+            async_register=services.async_register,
+            async_remove=services.async_remove,
+        ),
+    )
+
+    assert await async_setup_entry(hass, entry)
+
+    handlers_by_service = {
+        call.args[1]: call.args[2] for call in services.async_register.call_args_list
+    }
+    handler = handlers_by_service[SERVICE_SET_PUMP]
+    await handler(
+        SimpleNamespace(
+            data={"entry_id": "entry-1", "pump": "rdwc_pump", "action": "toggle"}
+        )
+    )
+    hass.services.async_call.assert_called_once_with(
+        "switch", "toggle", {"entity_id": "switch.pump_1"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_pump_service_validation() -> None:
+    unsub = Mock()
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        title="Tent A",
+        data={
+            "space_id": "space-1",
+            "name": "Tent A",
+            "grow_type": "rdwc",
+            "descriptor": "3x3",
+            "sites": [],
+            "sensor_mappings": {},
+            "control_mappings": {"rdwc_pump": "switch.pump_1"},
+            "targets": {},
+            "schedules": {},
+        },
+        add_update_listener=Mock(return_value=unsub),
+    )
+
+    services = SimpleNamespace(async_register=Mock(), async_remove=Mock())
+    hass = SimpleNamespace(
+        data={},
+        states=SimpleNamespace(get=Mock()),
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+            async_reload=AsyncMock(return_value=True),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(
+            async_call=AsyncMock(),
+            async_register=services.async_register,
+            async_remove=services.async_remove,
+        ),
+    )
+
+    assert await async_setup_entry(hass, entry)
+
+    handlers_by_service = {
+        call.args[1]: call.args[2] for call in services.async_register.call_args_list
+    }
+    handler = handlers_by_service[SERVICE_SET_PUMP]
+
+    # Test missing entry_id
+    with pytest.raises(HomeAssistantError):
+        await handler(SimpleNamespace(data={"pump": "rdwc_pump", "action": "on"}))
+
+    # Test invalid pump
+    with pytest.raises(HomeAssistantError):
+        await handler(
+            SimpleNamespace(
+                data={"entry_id": "entry-1", "pump": "invalid_pump", "action": "on"}
+            )
+        )
+
+    # Test invalid action
+    with pytest.raises(HomeAssistantError):
+        await handler(
+            SimpleNamespace(
+                data={
+                    "entry_id": "entry-1",
+                    "pump": "rdwc_pump",
+                    "action": "invalid",
+                }
+            )
+        )

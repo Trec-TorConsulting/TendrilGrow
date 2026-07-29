@@ -8,6 +8,7 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
@@ -19,6 +20,7 @@ from .const import (
     CONF_AI_HEALTH_INTERVAL_HOURS,
     DEFAULT_AI_HEALTH_INTERVAL_HOURS,
     DOMAIN,
+    PUMP_CONTROL_ROLES,
 )
 from .models.grow import GrowSpace
 
@@ -35,8 +37,11 @@ PLATFORMS: list[str] = [
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 SERVICE_REBUILD_AUTOMAP = "rebuild_automap"
 SERVICE_RUN_AI_HEALTH_CHECK = "run_ai_health_check"
+SERVICE_SET_PUMP = "set_pump"
 ATTR_ENTRY_ID = "entry_id"
 ATTR_REASON = "reason"
+ATTR_PUMP = "pump"
+ATTR_ACTION = "action"
 _SERVICES_REGISTERED_KEY = "_services_registered"
 
 
@@ -235,6 +240,108 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             "y" if len(target_entries) == 1 else "ies",
         )
 
+    async def _async_handle_set_pump(call: ServiceCall) -> None:
+        entry_id = str(call.data.get(ATTR_ENTRY_ID, "")).strip()
+        pump = str(call.data.get(ATTR_PUMP, "")).strip()
+        action = str(call.data.get(ATTR_ACTION, "")).strip().lower()
+
+        if not entry_id:
+            raise HomeAssistantError("entry_id is required")
+        if not pump:
+            raise HomeAssistantError("pump is required")
+        if action not in ("on", "off", "toggle"):
+            raise HomeAssistantError(
+                f"action must be 'on', 'off', or 'toggle', got '{action}'"
+            )
+
+        loaded_entries = [
+            entry_id_item
+            for entry_id_item in hass.data.get(DOMAIN, {})
+            if not str(entry_id_item).startswith("_")
+        ]
+
+        if entry_id not in loaded_entries:
+            raise HomeAssistantError(f"TendrilGrow entry not loaded: {entry_id}")
+
+        runtime = hass.data.get(DOMAIN, {}).get(entry_id)
+        if runtime is None:
+            raise HomeAssistantError(f"TendrilGrow entry not loaded: {entry_id}")
+
+        if pump not in PUMP_CONTROL_ROLES:
+            raise HomeAssistantError(
+                f"pump must be one of {PUMP_CONTROL_ROLES}, got '{pump}'"
+            )
+
+        grow_space = runtime.grow_space
+        mapped_entity_id = grow_space.control_mappings.get(pump)
+
+        if not mapped_entity_id:
+            LOGGER.warning(
+                "Skipping set_pump for entry %s pump %s: pump role not mapped",
+                entry_id,
+                pump,
+            )
+            return
+
+        state = hass.states.get(mapped_entity_id)
+        if state is None:
+            LOGGER.warning(
+                "Skipping set_pump for entry %s pump %s: entity %s not found",
+                entry_id,
+                pump,
+                mapped_entity_id,
+            )
+            return
+
+        if state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            LOGGER.warning(
+                "Skipping set_pump for entry %s pump %s: entity %s is %s",
+                entry_id,
+                pump,
+                mapped_entity_id,
+                state.state,
+            )
+            return
+
+        # Determine the domain and action
+        domain = mapped_entity_id.split(".")[0]
+        action_name = action if action == "toggle" else f"turn_{action}"
+
+        if domain not in ("switch", "input_boolean"):
+            LOGGER.warning(
+                "Skipping set_pump for entry %s pump %s: unsupported domain %s",
+                entry_id,
+                pump,
+                domain,
+            )
+            return
+
+        try:
+            await hass.services.async_call(
+                domain,
+                action_name,
+                {"entity_id": mapped_entity_id},
+            )
+            LOGGER.info(
+                "Set pump %s (%s) to %s for entry %s",
+                pump,
+                mapped_entity_id,
+                action,
+                entry_id,
+            )
+        except Exception as err:  # noqa: BLE001
+            LOGGER.error(
+                "Failed to set pump %s (%s) to %s for entry %s: %s",
+                pump,
+                mapped_entity_id,
+                action,
+                entry_id,
+                err,
+            )
+            raise HomeAssistantError(
+                f"Failed to set pump {pump} ({mapped_entity_id}) to {action}: {err}"
+            ) from err
+
     hass.services.async_register(
         DOMAIN, SERVICE_REBUILD_AUTOMAP, _async_handle_rebuild_automap
     )
@@ -242,6 +349,11 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         DOMAIN,
         SERVICE_RUN_AI_HEALTH_CHECK,
         _async_handle_run_ai_health_check,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_PUMP,
+        _async_handle_set_pump,
     )
     domain_data[_SERVICES_REGISTERED_KEY] = True
 
@@ -260,6 +372,7 @@ async def _async_maybe_unregister_services(hass: HomeAssistant) -> None:
 
     hass.services.async_remove(DOMAIN, SERVICE_REBUILD_AUTOMAP)
     hass.services.async_remove(DOMAIN, SERVICE_RUN_AI_HEALTH_CHECK)
+    hass.services.async_remove(DOMAIN, SERVICE_SET_PUMP)
     domain_data[_SERVICES_REGISTERED_KEY] = False
 
 
