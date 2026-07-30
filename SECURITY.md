@@ -2,7 +2,13 @@
 
 ## Supported versions
 
-Security updates are provided for the latest released version on `main`.
+Security fixes are provided for the latest released version. Always run the most
+recent release.
+
+| Version | Supported |
+| --- | --- |
+| Latest release on `main` | Yes |
+| Older releases | No |
 
 ## Reporting a vulnerability
 
@@ -17,8 +23,10 @@ Report privately with as much detail as possible:
 
 Preferred contact:
 
-- Open a private security advisory in GitHub for this repository
-- Or contact the maintainer directly using channels listed in `SUPPORT.md`
+- Open a private [GitHub security advisory](https://github.com/Trec-TorConsulting/TendrilGrow/security/advisories/new)
+  for this repository.
+
+Please do not disclose the issue publicly until a fix is available.
 
 ## Response targets
 

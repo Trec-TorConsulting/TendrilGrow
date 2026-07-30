@@ -1,0 +1,26 @@
+title: "[Question]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Need help with setup or configuration? Share enough detail for others to
+        help. Never paste API keys, tokens, or private URLs, and sanitize logs.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+  - type: input
+    id: tg_version
+    attributes:
+      label: TendrilGrow version
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you tried?
+      description: Steps taken so far and any sanitized logs.

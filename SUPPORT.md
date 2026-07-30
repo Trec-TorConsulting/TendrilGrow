@@ -2,7 +2,9 @@
 
 ## Getting help
 
-Use GitHub Issues for product questions, bugs, and feature requests.
+- **Documentation:** <https://trec-torconsulting.github.io/TendrilGrow/>
+- **Questions and discussion:** [GitHub Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions)
+- **Bugs and feature requests:** [GitHub Issues](https://github.com/Trec-TorConsulting/TendrilGrow/issues/new/choose)
 
 Before opening an issue:
 

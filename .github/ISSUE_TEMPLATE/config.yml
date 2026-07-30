@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and discussions
+    url: https://github.com/Trec-TorConsulting/TendrilGrow/discussions
+    about: Ask questions, share your grow setup, and get help from the community.
+  - name: Documentation
+    url: https://trec-torconsulting.github.io/TendrilGrow/
+    about: Installation, configuration, and troubleshooting guides.
+  - name: Report a security vulnerability
+    url: https://github.com/Trec-TorConsulting/TendrilGrow/security/advisories/new
+    about: Privately report a security issue with a GitHub security advisory.

@@ -10,10 +10,20 @@ Thanks for helping improve TendrilGrow.
 
 ## Development setup
 
+TendrilGrow targets Python 3.13+ and the current Home Assistant release.
+
 ```bash
 python3 -m venv .venv
 ./.venv/bin/python -m pip install --upgrade pip
 ./.venv/bin/pip install -r requirements-test.txt
+```
+
+Run the same checks CI runs before pushing:
+
+```bash
+./.venv/bin/ruff format --check .
+./.venv/bin/ruff check .
+./.venv/bin/pytest -q
 ```
 
 ## Workflow
@@ -52,6 +62,24 @@ This repository uses OpenSpec for planning and implementation tracking.
 
 - Propose changes first when introducing non-trivial behavior.
 - Keep tasks/specs synchronized with implemented changes.
+
+## Commit and PR conventions
+
+- This project follows [Conventional Commits](https://www.conventionalcommits.org/)
+  (for example, `feat(sensor): ...`, `fix(config): ...`, `docs: ...`).
+- Keep PRs small and focused, and fill in the pull request template.
+- Add or update tests for behavior changes, and update docs for user-visible
+  changes.
+
+## Documentation
+
+User-facing docs live under `docs/` and are built with MkDocs Material. Preview
+locally with:
+
+```bash
+./.venv/bin/pip install -r requirements-docs.txt
+./.venv/bin/mkdocs serve
+```
 
 ## Reporting bugs
 

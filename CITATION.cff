@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+title: TendrilGrow
+message: "If you use this software, please cite it using this metadata."
+type: software
+authors:
+  - name: TendrilGrow contributors
+repository-code: "https://github.com/Trec-TorConsulting/TendrilGrow"
+url: "https://trec-torconsulting.github.io/TendrilGrow/"
+abstract: >-
+  TendrilGrow is a Home Assistant custom integration (HACS) for indoor
+  cultivation: per-grow-space configuration, sensor and control role mapping,
+  optional Tuya cloud water monitoring, camera-based AI health checks, and
+  pluggable AI provider model discovery.
+keywords:
+  - home-assistant
+  - hacs
+  - home-automation
+  - indoor-gardening
+  - ai
+license: MIT
+version: "0.1.4"
+date-released: "2026-07-30"

@@ -1,0 +1,82 @@
+site_name: TendrilGrow
+site_description: >-
+  Home Assistant custom integration (HACS) for indoor cultivation: per-grow-space
+  configuration, sensor and control role mapping, Tuya water monitoring, and
+  camera-based AI health checks.
+site_url: https://trec-torconsulting.github.io/TendrilGrow/
+repo_url: https://github.com/Trec-TorConsulting/TendrilGrow
+repo_name: Trec-TorConsulting/TendrilGrow
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 TendrilGrow contributors
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - content.action.edit
+    - search.suggest
+    - search.highlight
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: [.]
+      check_paths: true
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: installation.md
+      - Configuration: configuration.md
+  - Features:
+      - AI health checks: ai-health.md
+      - Tuya water monitoring: tuya-water.md
+      - Pump control and monitoring: pumps.md
+      - Reservoir flush tracking: flush-tracking.md
+      - Dashboards: dashboards.md
+  - Reference:
+      - Entities: entities.md
+      - Services: services.md
+      - Troubleshooting: troubleshooting.md
+      - FAQ: faq.md
+  - Project:
+      - Contributing: contributing.md
+      - Security: security.md
+      - Changelog: changelog.md

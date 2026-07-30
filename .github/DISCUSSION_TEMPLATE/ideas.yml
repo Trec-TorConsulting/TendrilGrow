@@ -1,0 +1,27 @@
+title: "[Idea]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing an idea to improve TendrilGrow. Please describe the
+        problem you are trying to solve and your proposed solution. Never paste
+        API keys, tokens, or private URLs.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to achieve? What is missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed idea
+      description: Describe your preferred behavior or implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Grow type, hardware, screenshots, or related links.

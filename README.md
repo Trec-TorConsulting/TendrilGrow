@@ -1,15 +1,44 @@
 # TendrilGrow
 
-TendrilGrow is a Home Assistant custom integration for indoor cultivation
-workflows. It unifies grow-space configuration, sensor/control mapping, and
-AI-provider model selection into a single HACS-installable package.
+> Home Assistant custom integration for indoor cultivation — unify grow-space
+> configuration, sensor/control mapping, Tuya water monitoring, and camera-based
+> AI health checks in a single HACS package.
+
+[![lint & test](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/lint-test.yml/badge.svg)](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/lint-test.yml)
+[![hassfest](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/hassfest.yml/badge.svg)](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/hassfest.yml)
+[![HACS validation](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/hacs.yml/badge.svg)](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/hacs.yml)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.2.0%2B-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/)
+[![Release](https://img.shields.io/github/v/release/Trec-TorConsulting/TendrilGrow?sort=semver)](https://github.com/Trec-TorConsulting/TendrilGrow/releases)
+[![License: MIT](https://img.shields.io/github/license/Trec-TorConsulting/TendrilGrow)](LICENSE)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+**[Documentation](https://trec-torconsulting.github.io/TendrilGrow/) ·
+[Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions) ·
+[Changelog](CHANGELOG.md) ·
+[Report a bug](https://github.com/Trec-TorConsulting/TendrilGrow/issues/new/choose)**
+
+## Contents
+
+- [Status](#status)
+- [Core capabilities](#core-capabilities)
+- [Current scope and non-goals](#current-scope-and-non-goals)
+- [Architecture overview](#architecture-overview)
+- [Installation via HACS](#installation-via-hacs)
+- [Configuration model](#configuration-model)
+- [Dashboards](#dashboards)
+- [Security and secrets](#security-and-secrets)
+- [Quality gates](#quality-gates)
+- [Local development](#local-development)
+- [Documentation and community](#documentation-and-community)
 
 ## Status
 
-- Maturity: Foundation release (MVP integration scaffolding)
-- Distribution: HACS custom integration
-- Config model: One Home Assistant config entry per grow space
-- License: MIT
+- **Maturity:** Foundation release (actively developed)
+- **Distribution:** HACS custom integration
+- **Config model:** One Home Assistant config entry per grow space
+- **Minimum Home Assistant:** 2026.2.0
+- **License:** MIT
 
 ## Core capabilities
 
@@ -46,7 +75,8 @@ AI-provider model selection into a single HACS-installable package.
 	(days remaining and projected stage-end/harvest/ready dates)
 - AI health entities (score, summary, feeding schedule, last check, critical
 	alert) and a run button
-- Services: `run_ai_health_check` and `rebuild_automap`
+- Services: `run_ai_health_check`, `rebuild_automap`, `set_pump`, and
+	`mark_flush`
 - Pluggable AI provider selection:
 	- Google Gemini
 	- OpenAI
@@ -221,12 +251,15 @@ Copy `custom_components/tendrilgrow` into your Home Assistant config at:
 
 Then restart Home Assistant and add the integration from Devices & Services.
 
-## Operations and support
+## Documentation and community
 
-- Usage/support: See `SUPPORT.md`
-- Security reporting: See `SECURITY.md`
-- Contribution guide: See `CONTRIBUTING.md`
-- Community standards: See `CODE_OF_CONDUCT.md`
+- **Documentation site:** <https://trec-torconsulting.github.io/TendrilGrow/>
+- **Questions and discussion:** [GitHub Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions)
+- **Bugs and features:** [GitHub Issues](https://github.com/Trec-TorConsulting/TendrilGrow/issues/new/choose)
+- **Usage/support:** See [SUPPORT.md](SUPPORT.md)
+- **Security reporting:** See [SECURITY.md](SECURITY.md)
+- **Contribution guide:** See [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Community standards:** See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
 ## Disclaimer
 
