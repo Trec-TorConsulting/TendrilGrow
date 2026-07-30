@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/logo.png" alt="TendrilGrow" width="520">
+</p>
+
 # TendrilGrow
 
 > Home Assistant custom integration for indoor cultivation — unify grow-space

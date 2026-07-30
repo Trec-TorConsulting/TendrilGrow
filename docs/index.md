@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="TendrilGrow" width="460">
+</p>
+
 # TendrilGrow
 
 TendrilGrow is a [Home Assistant](https://www.home-assistant.io/) custom

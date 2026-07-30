@@ -1,0 +1,30 @@
+name: Documentation issue
+description: Report a problem or gap in the documentation
+title: "[Docs]: "
+labels:
+  - documentation
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report anything unclear, missing, or incorrect in the README, the
+        documentation site, or the wiki.
+  - type: input
+    id: location
+    attributes:
+      label: Page or URL
+      description: Which page or section is affected?
+      placeholder: https://trec-torconsulting.github.io/TendrilGrow/...
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing?
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement

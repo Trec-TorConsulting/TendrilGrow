@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 360" width="1300" height="360" role="img" aria-label="TendrilGrow">
+  <title>TendrilGrow</title>
+  <defs>
+    <linearGradient id="leafL" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8bd07f"/>
+      <stop offset="1" stop-color="#2e7d32"/>
+    </linearGradient>
+    <linearGradient id="leafR" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#aee0a0"/>
+      <stop offset="1" stop-color="#43a047"/>
+    </linearGradient>
+    <symbol id="mark" viewBox="0 0 512 512">
+      <g transform="translate(0,-64)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M256 452 C 248 388 248 338 256 276" stroke="#2e7d32" stroke-width="22"/>
+        <path d="M256 312 C 210 322 160 282 150 206 C 176 256 222 292 256 312 Z" fill="url(#leafL)"/>
+        <path d="M256 312 C 302 322 352 282 362 206 C 336 256 290 292 256 312 Z" fill="url(#leafR)"/>
+        <path d="M256 286 C 256 250 300 246 312 270 C 322 290 300 308 286 296" stroke="#2e7d32" stroke-width="16"/>
+        <path d="M256 312 C 226 296 196 262 172 224" stroke="#ffffff" stroke-opacity="0.45" stroke-width="7"/>
+        <path d="M256 312 C 286 296 316 262 340 224" stroke="#ffffff" stroke-opacity="0.45" stroke-width="7"/>
+      </g>
+    </symbol>
+  </defs>
+  <use href="#mark" x="10" y="30" width="300" height="300"/>
+  <text x="320" y="235" font-family="'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="150" font-weight="700" letter-spacing="-2">
+    <tspan fill="#2e7d32">Tendril</tspan><tspan fill="#43a047">Grow</tspan>
+  </text>
+</svg>

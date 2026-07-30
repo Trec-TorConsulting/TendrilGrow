@@ -11,6 +11,8 @@ copyright: Copyright &copy; 2026 TendrilGrow contributors
 
 theme:
   name: material
+  logo: assets/logo-white.svg
+  favicon: assets/icon.svg
   palette:
     - media: "(prefers-color-scheme: light)"
       scheme: default

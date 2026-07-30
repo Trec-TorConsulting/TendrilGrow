@@ -3,7 +3,20 @@ description: Suggest a new capability or improvement
 title: "[Feature]: "
 labels:
   - enhancement
+  - needs-triage
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question instead of a feature idea? Please use
+        [Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions).
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you start
+      options:
+        - label: I searched existing issues and discussions for a similar request.
+          required: true
   - type: textarea
     id: problem
     attributes:
@@ -17,6 +30,23 @@ body:
     attributes:
       label: Proposed solution
       description: Describe your preferred implementation or behavior
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Related area
+      options:
+        - Config / options flow
+        - AI health checks
+        - Tuya water monitoring
+        - Pumps (control / power)
+        - Reservoir flush tracking
+        - Sensors / VPD / entities
+        - Dashboards
+        - Documentation
+        - Other
     validations:
       required: true
 
