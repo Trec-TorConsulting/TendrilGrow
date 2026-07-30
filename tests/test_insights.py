@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 from custom_components.tendrilgrow.insights import (
     build_grow_events,
     build_grow_tasks,
+    compose_weekly_journal,
     compute_daily_energy_kwh,
     compute_dew_point_c,
     compute_dli,
@@ -99,3 +101,40 @@ def test_build_grow_tasks_empty_when_nothing_due() -> None:
         now,
     )
     assert tasks == []
+
+
+def test_compose_weekly_journal_summarizes_recent() -> None:
+    now = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
+    checks = [
+        SimpleNamespace(
+            checked_at=datetime(2026, 7, 25, tzinfo=UTC),
+            score=60,
+            summary="ok",
+            issues=["tip burn"],
+        ),
+        SimpleNamespace(
+            checked_at=datetime(2026, 7, 29, tzinfo=UTC),
+            score=80,
+            summary="better",
+            issues=["tip burn", "light stress"],
+        ),
+    ]
+    journal = compose_weekly_journal(checks, now)
+    assert "2 checks" in journal["headline"]
+    assert "avg 70/100" in journal["headline"]
+    assert "improving" in journal["headline"]
+    assert "tip burn" in journal["markdown"]
+
+
+def test_compose_weekly_journal_empty_when_no_recent() -> None:
+    now = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
+    old = [
+        SimpleNamespace(
+            checked_at=datetime(2026, 7, 1, tzinfo=UTC),
+            score=50,
+            summary="",
+            issues=[],
+        )
+    ]
+    assert compose_weekly_journal(old, now)["headline"].startswith("No AI checks")
+    assert compose_weekly_journal([], now)["headline"].startswith("No AI checks")

@@ -18,6 +18,8 @@ The format is inspired by Keep a Changelog and semantic versioning.
   camera or model is configured.
 - Grow Tasks to-do list that auto-generates actionable tasks (reservoir flush
   due, stage change approaching, and critical AI health alerts).
+- AI Weekly Journal sensor summarizing the last 7 days of recorded AI health
+  checks (count, average score, trend, and notable issues) as markdown.
 
 ## [0.1.6] - 2026-07-30
 

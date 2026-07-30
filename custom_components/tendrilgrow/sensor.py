@@ -67,6 +67,7 @@ from .coordinator import (
 from .entity import grow_device_info
 from .flush import flush_dispatcher_signal, flush_status
 from .insights import (
+    compose_weekly_journal,
     compute_daily_energy_kwh,
     compute_dew_point_c,
     compute_dli,
@@ -167,6 +168,7 @@ async def async_setup_entry(
                 AIHealthSummarySensor(hass, entry),
                 AIFeedingScheduleSensor(hass, entry),
                 AIHealthLastCheckSensor(hass, entry),
+                AIWeeklyJournalSensor(hass, entry),
                 TendrilGrowVpdSensor(hass, entry),
             ]
         )
@@ -845,6 +847,29 @@ class AIHealthLastCheckSensor(AIHealthBaseSensor):
         if runtime is None or runtime.ai_health_state.latest is None:
             return None
         return runtime.ai_health_state.latest.checked_at
+
+
+class AIWeeklyJournalSensor(AIHealthBaseSensor):
+    """A weekly recap composed from the recorded AI health checks."""
+
+    _attr_icon = "mdi:notebook-outline"
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(hass, entry, "ai_weekly_journal", "AI Weekly Journal")
+
+    def _journal(self) -> dict[str, str]:
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        state = getattr(runtime, "ai_health_state", None)
+        history = getattr(state, "history", None) or []
+        return compose_weekly_journal(history, dt_util.now())
+
+    @property
+    def native_value(self):
+        return self._journal()["headline"][:255]
+
+    @property
+    def extra_state_attributes(self):
+        return {"journal_markdown": self._journal()["markdown"]}
 
 
 async def _resolve_pump_power_source(

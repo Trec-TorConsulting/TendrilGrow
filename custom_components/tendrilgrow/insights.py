@@ -159,3 +159,52 @@ def build_grow_tasks(
             }
         )
     return tasks
+
+
+def compose_weekly_journal(checks: object, now: datetime) -> dict[str, str]:
+    """Summarize the last 7 days of recorded AI health checks as markdown.
+
+    ``checks`` is any iterable of objects exposing ``checked_at`` (datetime),
+    ``score`` (int | None), ``summary`` (str), and ``issues`` (list[str]).
+    """
+    week_ago = now - timedelta(days=7)
+    recent = [
+        c
+        for c in (checks or [])
+        if getattr(c, "checked_at", None) is not None and c.checked_at >= week_ago
+    ]
+    if not recent:
+        return {
+            "headline": "No AI checks in the last 7 days",
+            "markdown": "_No AI health checks were recorded this week._",
+        }
+    scores = [c.score for c in recent if getattr(c, "score", None) is not None]
+    avg = round(sum(scores) / len(scores)) if scores else None
+    trend = None
+    if len(scores) >= 2:
+        delta = scores[-1] - scores[0]
+        trend = "improving" if delta > 3 else "declining" if delta < -3 else "steady"
+    issues: list[str] = []
+    for check in recent:
+        for issue in getattr(check, "issues", None) or []:
+            text = str(issue).strip()
+            if text and text not in issues:
+                issues.append(text)
+    latest_summary = str(getattr(recent[-1], "summary", "") or "").strip()
+
+    lines = ["### Weekly grow journal", "", f"- Checks recorded: {len(recent)}"]
+    if avg is not None:
+        lines.append(f"- Average score: {avg}/100")
+    if trend:
+        lines.append(f"- Trend: {trend}")
+    if latest_summary:
+        lines.append(f"- Latest: {latest_summary}")
+    if issues:
+        lines.append("- Issues noted: " + ", ".join(issues[:5]))
+
+    headline = f"{len(recent)} checks"
+    if avg is not None:
+        headline += f", avg {avg}/100"
+    if trend:
+        headline += f" ({trend})"
+    return {"headline": headline, "markdown": "\n".join(lines)}
