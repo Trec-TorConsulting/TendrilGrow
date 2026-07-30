@@ -9,6 +9,10 @@ updates:
     commit-message:
       prefix: chore
       include: scope
+    ignore:
+      # Home Assistant is pinned to the minimum supported version (see hacs.json);
+      # its floor is a compatibility decision, not an automated bump.
+      - dependency-name: homeassistant
     groups:
       python-dependencies:
         patterns:
