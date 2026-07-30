@@ -134,6 +134,7 @@ CTX_RUNOFF_TARGET_PCT = "ctx_runoff_target_pct"
 CTX_NUTRIENT_LINE = "ctx_nutrient_line"
 CTX_BASE_NUTRIENTS = "ctx_base_nutrients"
 CTX_ADDITIVES = "ctx_additives"
+CTX_PRICE_PER_KWH = "ctx_price_per_kwh"
 
 # Reservoir full-flush tracking. Suffixes are appended to the entry id to form
 # entity unique ids. Suffixes MUST NOT be a suffix of one another so the AI

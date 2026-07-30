@@ -18,6 +18,7 @@ from .const import (
     CTX_FEED_INTERVAL_DAYS,
     CTX_FLUSH_INTERVAL_DAYS,
     CTX_LIGHTS_ON_HOURS,
+    CTX_PRICE_PER_KWH,
     CTX_RESERVOIR_VOLUME,
     CTX_RUNOFF_TARGET_PCT,
     CTX_SITE_COUNT,
@@ -111,6 +112,16 @@ NUMBERS: tuple[GrowNumberDescription, ...] = (
         "%",
         15.0,
         "mdi:water-percent",
+    ),
+    GrowNumberDescription(
+        CTX_PRICE_PER_KWH,
+        "Electricity Price",
+        0.0,
+        2.0,
+        0.01,
+        "/kWh",
+        0.15,
+        "mdi:cash",
     ),
 )
 

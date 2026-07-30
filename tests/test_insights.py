@@ -1,0 +1,77 @@
+"""Tests for pure derived-metric helpers."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+from custom_components.tendrilgrow.insights import (
+    build_grow_events,
+    compute_daily_energy_kwh,
+    compute_dew_point_c,
+    compute_dli,
+    estimate_daily_cost,
+)
+
+
+def test_dew_point_at_saturation_equals_temperature() -> None:
+    assert round(compute_dew_point_c(20.0, 100.0), 2) == 20.0
+
+
+def test_dew_point_typical() -> None:
+    # 20 C / 50% RH -> ~9.25 C
+    assert round(compute_dew_point_c(20.0, 50.0), 1) == 9.3
+
+
+def test_dew_point_invalid_inputs() -> None:
+    assert compute_dew_point_c(None, 50.0) is None
+    assert compute_dew_point_c(20.0, 0.0) is None
+    assert compute_dew_point_c(20.0, 150.0) is None
+
+
+def test_dli_typical_veg() -> None:
+    # 400 umol/m2/s for 18 h -> 25.92 mol/m2/day
+    assert round(compute_dli(400.0, 18.0), 2) == 25.92
+
+
+def test_dli_invalid_inputs() -> None:
+    assert compute_dli(None, 18.0) is None
+    assert compute_dli(400.0, None) is None
+    assert compute_dli(-1.0, 18.0) is None
+
+
+def test_daily_energy_and_cost() -> None:
+    assert compute_daily_energy_kwh(100.0) == 2.4
+    assert compute_daily_energy_kwh(100.0, hours=12.0) == 1.2
+    assert compute_daily_energy_kwh(None) is None
+    assert estimate_daily_cost(2.4, 0.15) == 0.36
+    assert estimate_daily_cost(None, 0.15) is None
+    assert estimate_daily_cost(2.4, None) is None
+
+
+def test_build_grow_events_orders_and_skips_past() -> None:
+    now = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
+    projection = {
+        "stage": "mid_flower",
+        "projected_stage_end": "2026-08-10",
+        "projected_harvest_date": "2026-09-01",
+        "projected_ready_date": "2026-07-01",  # past -> skipped
+    }
+    flush_due = datetime(2026, 8, 5, 9, 0, tzinfo=UTC)
+    events = build_grow_events(projection, flush_due, now)
+
+    summaries = [e["summary"] for e in events]
+    assert "Ready (cured)" not in summaries  # past date skipped
+    # sorted by date: flush 08-05, stage end 08-10, harvest 09-01
+    assert summaries == [
+        "Reservoir flush due",
+        "Stage ends (mid_flower)",
+        "Projected harvest",
+    ]
+    # all-day event spans one day
+    first = events[0]
+    assert first["end"] - first["start"] == timedelta(days=1)
+
+
+def test_build_grow_events_empty_when_no_dates() -> None:
+    now = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
+    assert build_grow_events({"stage": "mother"}, None, now) == []

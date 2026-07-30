@@ -38,6 +38,7 @@ PLATFORMS: list[str] = [
     "sensor",
     "button",
     "binary_sensor",
+    "calendar",
     "number",
     "select",
     "text",

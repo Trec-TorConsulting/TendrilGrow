@@ -34,6 +34,8 @@ from homeassistant.util import dt as dt_util
 
 from .ai.health_checks import ai_dispatcher_signal
 from .const import (
+    CTX_LIGHTS_ON_HOURS,
+    CTX_PRICE_PER_KWH,
     CTX_STAGE,
     CTX_WEEK_IN_STAGE,
     DOMAIN,
@@ -47,6 +49,7 @@ from .const import (
     SENSOR_ROLE_CF,
     SENSOR_ROLE_EC,
     SENSOR_ROLE_HUMIDITY,
+    SENSOR_ROLE_LIGHT,
     SENSOR_ROLE_ORP,
     SENSOR_ROLE_PH,
     SENSOR_ROLE_TDS,
@@ -63,6 +66,12 @@ from .coordinator import (
 )
 from .entity import grow_device_info
 from .flush import flush_dispatcher_signal, flush_status
+from .insights import (
+    compute_daily_energy_kwh,
+    compute_dew_point_c,
+    compute_dli,
+    estimate_daily_cost,
+)
 from .models.grow import GrowSpace
 
 LOGGER = logging.getLogger(__name__)
@@ -207,6 +216,15 @@ async def async_setup_entry(
 
     # Lifecycle stage projection (independent of Tuya).
     entities.append(TendrilGrowStageProjectionSensor(hass, entry))
+
+    # Derived climate/light/energy insights (independent of Tuya).
+    entities.extend(
+        [
+            TendrilGrowDewPointSensor(hass, entry),
+            TendrilGrowDliSensor(hass, entry),
+            TendrilGrowEnergyCostSensor(hass, entry),
+        ]
+    )
 
     if entities:
         async_add_entities(entities)
@@ -485,6 +503,201 @@ class TendrilGrowVpdSensor(SensorEntity):
             unsub()
         self._timer_unsubs = []
         self._state_unsubs = []
+
+
+class _DerivedGrowSensor(SensorEntity):
+    """Base for sensors derived from other mapped or context entities."""
+
+    _attr_should_poll = False
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, hass: HomeAssistant, entry: ConfigEntry, suffix: str, name: str
+    ) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_{suffix}"
+        self._attr_device_info = grow_device_info(entry)
+        self._attr_name = name
+        self._state_unsubs: list = []
+        self._timer_unsubs: list = []
+
+    @property
+    def available(self) -> bool:
+        return self._entry.entry_id in self.hass.data.get(DOMAIN, {})
+
+    def _grow_space(self):
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        return getattr(runtime, "grow_space", None)
+
+    def _number_entity(self, suffix: str) -> str | None:
+        registry = get_entity_registry(self.hass)
+        return registry.async_get_entity_id(
+            "number", DOMAIN, f"{self._entry.entry_id}_{suffix}"
+        )
+
+    def _read_float(self, entity_id: str | None) -> float | None:
+        if not entity_id:
+            return None
+        state = self.hass.states.get(entity_id)
+        return _to_float(state.state) if state else None
+
+    def _source_entity_ids(self) -> list[str]:
+        return []
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._resubscribe()
+        # Re-resolve once after the Tuya auto-map backfill window.
+        self._timer_unsubs.append(
+            async_call_later(self.hass, 20, self._handle_delayed_resolve)
+        )
+
+    @callback
+    def _handle_delayed_resolve(self, _now) -> None:
+        self._resubscribe()
+
+    @callback
+    def _resubscribe(self) -> None:
+        for unsub in self._state_unsubs:
+            unsub()
+        self._state_unsubs = []
+        tracked = self._source_entity_ids()
+        if tracked:
+            self._state_unsubs.append(
+                async_track_state_change_event(self.hass, tracked, self._on_change)
+            )
+        self.async_write_ha_state()
+
+    @callback
+    def _on_change(self, _event) -> None:
+        self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        for unsub in (*self._timer_unsubs, *self._state_unsubs):
+            unsub()
+        self._timer_unsubs = []
+        self._state_unsubs = []
+
+
+class TendrilGrowDewPointSensor(_DerivedGrowSensor):
+    """Dew point derived from mapped AIR temperature and humidity."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_suggested_display_precision = 1
+    _attr_icon = "mdi:thermometer-water"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(hass, entry, "dew_point", "Dew Point")
+
+    def _air_ids(self) -> tuple[str | None, str | None]:
+        grow_space = self._grow_space()
+        if grow_space is None:
+            return None, None
+        return (
+            grow_space.sensor_mappings.get(SENSOR_ROLE_TEMPERATURE),
+            grow_space.sensor_mappings.get(SENSOR_ROLE_HUMIDITY),
+        )
+
+    def _source_entity_ids(self) -> list[str]:
+        return [eid for eid in self._air_ids() if eid]
+
+    @property
+    def native_value(self):
+        temp_id, hum_id = self._air_ids()
+        temp_state = self.hass.states.get(temp_id) if temp_id else None
+        hum_state = self.hass.states.get(hum_id) if hum_id else None
+        if temp_state is None or hum_state is None:
+            return None
+        temp_c = GrowSpace.to_celsius(
+            _to_float(temp_state.state),
+            temp_state.attributes.get("unit_of_measurement"),
+        )
+        dew = compute_dew_point_c(temp_c, _to_float(hum_state.state))
+        return round(dew, 1) if dew is not None else None
+
+
+class TendrilGrowDliSensor(_DerivedGrowSensor):
+    """Estimated Daily Light Integral from mapped PPFD and photoperiod."""
+
+    _attr_native_unit_of_measurement = "mol/m\u00b2/d"
+    _attr_suggested_display_precision = 1
+    _attr_icon = "mdi:white-balance-sunny"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(hass, entry, "dli", "DLI")
+
+    def _ppfd_id(self) -> str | None:
+        grow_space = self._grow_space()
+        if grow_space is None:
+            return None
+        return grow_space.sensor_mappings.get(SENSOR_ROLE_LIGHT)
+
+    def _source_entity_ids(self) -> list[str]:
+        ids = [self._ppfd_id(), self._number_entity(CTX_LIGHTS_ON_HOURS)]
+        return [eid for eid in ids if eid]
+
+    @property
+    def native_value(self):
+        ppfd = self._read_float(self._ppfd_id())
+        hours = self._read_float(self._number_entity(CTX_LIGHTS_ON_HOURS))
+        dli = compute_dli(ppfd, hours)
+        return round(dli, 1) if dli is not None else None
+
+    @property
+    def extra_state_attributes(self):
+        return {
+            "estimated": True,
+            "photoperiod_hours": self._read_float(
+                self._number_entity(CTX_LIGHTS_ON_HOURS)
+            ),
+        }
+
+
+class TendrilGrowEnergyCostSensor(_DerivedGrowSensor):
+    """Estimated daily pump electricity cost (total pump power x 24h x price)."""
+
+    _attr_icon = "mdi:cash-clock"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(hass, entry, "pump_daily_cost", "Pump Daily Cost (est.)")
+        self._attr_native_unit_of_measurement = getattr(
+            getattr(hass, "config", None), "currency", None
+        )
+
+    def _power_id(self) -> str | None:
+        registry = get_entity_registry(self.hass)
+        return registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{self._entry.entry_id}_total_pump_power"
+        )
+
+    def _source_entity_ids(self) -> list[str]:
+        ids = [self._power_id(), self._number_entity(CTX_PRICE_PER_KWH)]
+        return [eid for eid in ids if eid]
+
+    def _energy_kwh(self) -> float | None:
+        return compute_daily_energy_kwh(self._read_float(self._power_id()))
+
+    @property
+    def native_value(self):
+        cost = estimate_daily_cost(
+            self._energy_kwh(),
+            self._read_float(self._number_entity(CTX_PRICE_PER_KWH)),
+        )
+        return round(cost, 2) if cost is not None else None
+
+    @property
+    def extra_state_attributes(self):
+        energy = self._energy_kwh()
+        return {
+            "estimated": True,
+            "energy_kwh_per_day": round(energy, 3) if energy is not None else None,
+            "assumes_hours_per_day": 24,
+        }
 
 
 class AIHealthBaseSensor(SensorEntity):

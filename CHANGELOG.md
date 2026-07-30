@@ -6,6 +6,15 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+### Added
+- Dew point sensor derived from the mapped air temperature and humidity.
+- Estimated Daily Light Integral (DLI) sensor from the mapped PPFD and the
+  configured photoperiod (`mol/m²/day`).
+- Estimated daily pump electricity-cost sensor, plus a new editable
+  "Electricity Price" (per kWh) helper.
+- Grow Timeline calendar entity exposing projected stage-end, harvest, and ready
+  dates and the next reservoir flush due date.
+
 ## [0.1.6] - 2026-07-30
 
 ### Fixed
