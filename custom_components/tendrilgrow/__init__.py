@@ -43,6 +43,7 @@ PLATFORMS: list[str] = [
     "number",
     "select",
     "text",
+    "todo",
     "switch",
 ]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)

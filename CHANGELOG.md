@@ -16,6 +16,8 @@ The format is inspired by Keep a Changelog and semantic versioning.
   dates and the next reservoir flush due date.
 - Home Assistant repair issues that flag when an AI provider is selected but no
   camera or model is configured.
+- Grow Tasks to-do list that auto-generates actionable tasks (reservoir flush
+  due, stage change approaching, and critical AI health alerts).
 
 ## [0.1.6] - 2026-07-30
 

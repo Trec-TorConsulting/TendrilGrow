@@ -120,3 +120,42 @@ def build_grow_events(
 
     events.sort(key=lambda e: e["start"])
     return events
+
+
+def build_grow_tasks(
+    flush_status: dict | None,
+    projection: dict[str, object | None] | None,
+    ai_critical: bool,
+    now: datetime,
+) -> list[dict[str, object]]:
+    """Build actionable grow tasks from current flush, stage, and AI state."""
+    tasks: list[dict[str, object]] = []
+    if flush_status and flush_status.get("due"):
+        due = flush_status.get("next_due")
+        tasks.append(
+            {
+                "uid": "flush",
+                "summary": "Flush and refill the reservoir",
+                "due": due.date() if isinstance(due, datetime) else None,
+            }
+        )
+    projection = projection or {}
+    days_remaining = projection.get("days_remaining")
+    stage = projection.get("stage")
+    if isinstance(days_remaining, int) and days_remaining <= 3 and stage:
+        tasks.append(
+            {
+                "uid": "stage",
+                "summary": f"Stage '{stage}' ends soon \u2014 prepare the transition",
+                "due": _parse_iso_date(projection.get("projected_stage_end")),
+            }
+        )
+    if ai_critical:
+        tasks.append(
+            {
+                "uid": "ai",
+                "summary": "Review the critical AI health alert",
+                "due": None,
+            }
+        )
+    return tasks

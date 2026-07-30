@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from custom_components.tendrilgrow.insights import (
     build_grow_events,
+    build_grow_tasks,
     compute_daily_energy_kwh,
     compute_dew_point_c,
     compute_dli,
@@ -75,3 +76,26 @@ def test_build_grow_events_orders_and_skips_past() -> None:
 def test_build_grow_events_empty_when_no_dates() -> None:
     now = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
     assert build_grow_events({"stage": "mother"}, None, now) == []
+
+
+def test_build_grow_tasks_collects_due_items() -> None:
+    now = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
+    flush = {"due": True, "next_due": datetime(2026, 7, 29, tzinfo=UTC)}
+    projection = {
+        "stage": "late_flower",
+        "days_remaining": 2,
+        "projected_stage_end": "2026-08-01",
+    }
+    tasks = build_grow_tasks(flush, projection, True, now)
+    assert [t["uid"] for t in tasks] == ["flush", "stage", "ai"]
+
+
+def test_build_grow_tasks_empty_when_nothing_due() -> None:
+    now = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
+    tasks = build_grow_tasks(
+        {"due": False},
+        {"stage": "vegetative", "days_remaining": 20},
+        False,
+        now,
+    )
+    assert tasks == []
