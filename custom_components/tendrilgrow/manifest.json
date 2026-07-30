@@ -5,15 +5,15 @@
     "@Trec-TorConsulting"
   ],
   "config_flow": true,
+  "dependencies": [
+    "ffmpeg"
+  ],
   "documentation": "https://github.com/Trec-TorConsulting/TendrilGrow",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Trec-TorConsulting/TendrilGrow/issues",
   "loggers": [
     "custom_components.tendrilgrow"
-  ],
-  "dependencies": [
-    "ffmpeg"
   ],
   "requirements": [],
   "version": "0.3.0"
