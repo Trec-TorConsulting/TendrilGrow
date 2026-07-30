@@ -87,6 +87,7 @@
 	- Ollama
 - Dynamic model discovery after provider credentials are entered
 - Secrets-safe diagnostics and logging (API keys are redacted)
+- More grow insights and extras: dew point, estimated Daily Light Integral (DLI), estimated daily pump energy cost, a Grow Timeline calendar, an auto-generated Grow Tasks to-do list, a weekly AI journal, actionable mobile notifications, and Home Assistant Repairs prompts for common misconfigurations
 
 ## Current scope and non-goals
 

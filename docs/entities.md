@@ -48,6 +48,11 @@ Editable helpers that ground the AI advisor. Set them to match your grow.
 - **Grow Timeline** (calendar) — projected stage-end, harvest, and ready dates
   plus the next reservoir flush due date, surfaced as calendar events.
 
+## Tasks
+
+- **Grow Tasks** (to-do list) — auto-generated actionable tasks: reservoir flush
+  due, stage change approaching, and a critical AI health alert.
+
 ## AI health (created when AI is configured)
 
 - **AI Health Score** (0–100)
@@ -55,6 +60,7 @@ Editable helpers that ground the AI advisor. Set them to match your grow.
 - **AI Feeding Schedule**
 - **AI Last Health Check** (timestamp, diagnostic)
 - **AI Health Critical Alert** (binary sensor, problem class)
+- **AI Weekly Journal** (7-day recap composed from recorded checks)
 - **Run AI Health Check** (button)
 
 ## Reservoir flush tracking (always created)

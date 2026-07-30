@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-30
+
 ### Added
 - Dew point sensor derived from the mapped air temperature and humidity.
 - Estimated Daily Light Integral (DLI) sensor from the mapped PPFD and the
