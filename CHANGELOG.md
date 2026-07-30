@@ -6,6 +6,16 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-07-30
+
+### Added
+- Project brand icon and logo. Home Assistant 2026.3+ serves these local brand
+  images (via the brand images proxy), so the TendrilGrow icon now appears in
+  HACS and on the integration and device pages. Update to this release and
+  restart Home Assistant to see it.
+- Documentation site built with MkDocs Material at
+  https://trec-torconsulting.github.io/TendrilGrow/.
+
 ## [0.1.4] - 2026-07-30
 
 ### Added
