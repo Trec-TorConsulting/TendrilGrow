@@ -33,6 +33,10 @@ from .const import (
     CONF_SCHEDULES,
     CONF_SENSOR_MAPPINGS,
     CONF_TARGETS,
+    CONF_TIMELAPSE_DIR,
+    CONF_TIMELAPSE_ENABLED,
+    CONF_TIMELAPSE_INTERVAL_HOURS,
+    CONF_TIMELAPSE_RETENTION_FRAMES,
     CONF_TUYA_ACCESS_ID,
     CONF_TUYA_ACCESS_SECRET,
     CONF_TUYA_DEVICE_IDS,
@@ -44,6 +48,9 @@ from .const import (
     DEFAULT_AI_HEALTH_INTERVAL_HOURS,
     DEFAULT_AI_RESULT_RETENTION_DAYS,
     DEFAULT_AI_SEVERE_THRESHOLD,
+    DEFAULT_TIMELAPSE_ENABLED,
+    DEFAULT_TIMELAPSE_INTERVAL_HOURS,
+    DEFAULT_TIMELAPSE_RETENTION_FRAMES,
     DOMAIN,
     GROW_TYPE_OPTIONS,
     PROVIDER_GEMINI,
@@ -237,6 +244,24 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_AI_RESULT_RETENTION_DAYS, DEFAULT_AI_RESULT_RETENTION_DAYS
                 )
             )
+            self._data[CONF_TIMELAPSE_ENABLED] = bool(
+                user_input.get(CONF_TIMELAPSE_ENABLED, DEFAULT_TIMELAPSE_ENABLED)
+            )
+            self._data[CONF_TIMELAPSE_INTERVAL_HOURS] = int(
+                user_input.get(
+                    CONF_TIMELAPSE_INTERVAL_HOURS,
+                    DEFAULT_TIMELAPSE_INTERVAL_HOURS,
+                )
+            )
+            self._data[CONF_TIMELAPSE_RETENTION_FRAMES] = int(
+                user_input.get(
+                    CONF_TIMELAPSE_RETENTION_FRAMES,
+                    DEFAULT_TIMELAPSE_RETENTION_FRAMES,
+                )
+            )
+            self._data[CONF_TIMELAPSE_DIR] = str(
+                user_input.get(CONF_TIMELAPSE_DIR, "")
+            ).strip()
             self._data.setdefault(CONF_TARGETS, {})
             self._data.setdefault(CONF_SCHEDULES, {})
             return await self.async_step_ai_provider()
@@ -293,6 +318,22 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_AI_RESULT_RETENTION_DAYS, default=DEFAULT_AI_RESULT_RETENTION_DAYS
             )
         ] = vol.All(vol.Coerce(int), vol.Range(min=1, max=180))
+        fields[
+            vol.Optional(CONF_TIMELAPSE_ENABLED, default=DEFAULT_TIMELAPSE_ENABLED)
+        ] = bool
+        fields[
+            vol.Optional(
+                CONF_TIMELAPSE_INTERVAL_HOURS,
+                default=DEFAULT_TIMELAPSE_INTERVAL_HOURS,
+            )
+        ] = vol.All(vol.Coerce(int), vol.Range(min=1, max=168))
+        fields[
+            vol.Optional(
+                CONF_TIMELAPSE_RETENTION_FRAMES,
+                default=DEFAULT_TIMELAPSE_RETENTION_FRAMES,
+            )
+        ] = vol.All(vol.Coerce(int), vol.Range(min=1, max=5000))
+        fields[vol.Optional(CONF_TIMELAPSE_DIR, default="")] = str
         schema = vol.Schema(fields)
         return self.async_show_form(
             step_id="entity_mapping", data_schema=schema, errors={}
@@ -442,6 +483,19 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_AI_RESULT_RETENTION_DAYS,
             DEFAULT_AI_RESULT_RETENTION_DAYS,
         )
+        data[CONF_TIMELAPSE_ENABLED] = self._data.get(
+            CONF_TIMELAPSE_ENABLED,
+            DEFAULT_TIMELAPSE_ENABLED,
+        )
+        data[CONF_TIMELAPSE_INTERVAL_HOURS] = self._data.get(
+            CONF_TIMELAPSE_INTERVAL_HOURS,
+            DEFAULT_TIMELAPSE_INTERVAL_HOURS,
+        )
+        data[CONF_TIMELAPSE_RETENTION_FRAMES] = self._data.get(
+            CONF_TIMELAPSE_RETENTION_FRAMES,
+            DEFAULT_TIMELAPSE_RETENTION_FRAMES,
+        )
+        data[CONF_TIMELAPSE_DIR] = self._data.get(CONF_TIMELAPSE_DIR, "")
         if CONF_API_KEY in self._data:
             data[CONF_API_KEY] = self._data[CONF_API_KEY]
         if CONF_BASE_URL in self._data:
@@ -544,6 +598,39 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                             ),
                         )
                     ),
+                    CONF_TIMELAPSE_ENABLED: bool(
+                        user_input.get(
+                            CONF_TIMELAPSE_ENABLED,
+                            current.get(
+                                CONF_TIMELAPSE_ENABLED,
+                                DEFAULT_TIMELAPSE_ENABLED,
+                            ),
+                        )
+                    ),
+                    CONF_TIMELAPSE_INTERVAL_HOURS: int(
+                        user_input.get(
+                            CONF_TIMELAPSE_INTERVAL_HOURS,
+                            current.get(
+                                CONF_TIMELAPSE_INTERVAL_HOURS,
+                                DEFAULT_TIMELAPSE_INTERVAL_HOURS,
+                            ),
+                        )
+                    ),
+                    CONF_TIMELAPSE_RETENTION_FRAMES: int(
+                        user_input.get(
+                            CONF_TIMELAPSE_RETENTION_FRAMES,
+                            current.get(
+                                CONF_TIMELAPSE_RETENTION_FRAMES,
+                                DEFAULT_TIMELAPSE_RETENTION_FRAMES,
+                            ),
+                        )
+                    ),
+                    CONF_TIMELAPSE_DIR: str(
+                        user_input.get(
+                            CONF_TIMELAPSE_DIR,
+                            current.get(CONF_TIMELAPSE_DIR, ""),
+                        )
+                    ).strip(),
                 },
             )
 
@@ -641,6 +728,39 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                 ),
             )
         ] = vol.All(vol.Coerce(int), vol.Range(min=1, max=180))
+        fields[
+            vol.Optional(
+                CONF_TIMELAPSE_ENABLED,
+                default=current.get(
+                    CONF_TIMELAPSE_ENABLED,
+                    DEFAULT_TIMELAPSE_ENABLED,
+                ),
+            )
+        ] = bool
+        fields[
+            vol.Optional(
+                CONF_TIMELAPSE_INTERVAL_HOURS,
+                default=current.get(
+                    CONF_TIMELAPSE_INTERVAL_HOURS,
+                    DEFAULT_TIMELAPSE_INTERVAL_HOURS,
+                ),
+            )
+        ] = vol.All(vol.Coerce(int), vol.Range(min=1, max=168))
+        fields[
+            vol.Optional(
+                CONF_TIMELAPSE_RETENTION_FRAMES,
+                default=current.get(
+                    CONF_TIMELAPSE_RETENTION_FRAMES,
+                    DEFAULT_TIMELAPSE_RETENTION_FRAMES,
+                ),
+            )
+        ] = vol.All(vol.Coerce(int), vol.Range(min=1, max=5000))
+        fields[
+            vol.Optional(
+                CONF_TIMELAPSE_DIR,
+                default=current.get(CONF_TIMELAPSE_DIR, ""),
+            )
+        ] = str
 
         return self.async_show_form(
             step_id="init", data_schema=vol.Schema(fields), errors={}

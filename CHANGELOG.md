@@ -6,6 +6,33 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-30
+
+### Added
+- Camera timelapse as an opt-in per-grow-space feature with configurable
+  capture interval, frame retention, and optional capture-directory override.
+- New timelapse capture pipeline with deterministic timestamped frame names,
+  bounded retention pruning, and `/local/...` URL resolution for default
+  `www`-backed storage.
+- Per-entry scheduled capture runtime plus manual capture triggers via the new
+  `Capture Timelapse Frame` button and `tendrilgrow.capture_timelapse_frame`
+  service.
+- New timelapse status sensors: frame count (with directory/latest-frame
+  attributes) and latest-frame timestamp.
+- New `tendrilgrow.build_timelapse` service that assembles frames to MP4 using
+  Home Assistant's ffmpeg manager binary with async subprocess execution.
+
+### Changed
+- Timelapse scheduling now pauses automatically if capture fails due to a
+  missing allow-list path and resumes once a capture succeeds.
+
+### Fixed
+- Added a dedicated Home Assistant Repair issue (`timelapse_not_allowlisted`)
+  that explicitly identifies which capture path must be added to
+  `allowlist_external_dirs`.
+- Build-timelapse gracefully degrades when ffmpeg is unavailable by logging the
+  equivalent manual command while preserving captured frames.
+
 ## [0.2.0] - 2026-07-30
 
 ### Added

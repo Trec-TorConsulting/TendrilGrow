@@ -11,7 +11,10 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.tendrilgrow import _EphemeralStore
 from custom_components.tendrilgrow.binary_sensor import FlushDueBinarySensor
-from custom_components.tendrilgrow.button import FlushNowButton
+from custom_components.tendrilgrow.button import (
+    CaptureTimelapseFrameButton,
+    FlushNowButton,
+)
 from custom_components.tendrilgrow.const import (
     CTX_FLUSH_INTERVAL_DAYS,
     DOMAIN,
@@ -187,6 +190,24 @@ async def test_flush_now_button_unavailable_without_runtime() -> None:
     assert button.available is False
     # Should not raise even with no runtime present.
     await button.async_press()
+
+
+@pytest.mark.asyncio
+async def test_capture_timelapse_button_calls_capture() -> None:
+    """Capture button triggers exactly one timelapse capture helper call."""
+    hass = SimpleNamespace(data={DOMAIN: {"entry-1": SimpleNamespace()}})
+    entry = SimpleNamespace(entry_id="entry-1", title="Tent A", data={}, options={})
+    button = CaptureTimelapseFrameButton(hass, entry)
+
+    from custom_components.tendrilgrow import button as button_module
+
+    original = button_module._async_capture_timelapse_frame
+    button_module._async_capture_timelapse_frame = AsyncMock(return_value=True)
+    try:
+        await button.async_press()
+        button_module._async_capture_timelapse_frame.assert_awaited_once()
+    finally:
+        button_module._async_capture_timelapse_frame = original
 
 
 @pytest.mark.asyncio

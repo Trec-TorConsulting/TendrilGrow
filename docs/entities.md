@@ -43,6 +43,14 @@ Editable helpers that ground the AI advisor. Set them to match your grow.
 - **Stage Projection** — days remaining in the current stage plus projected
   stage-end, harvest, and ready dates.
 
+## Camera timelapse status (always created)
+
+- **Capture Timelapse Frame** (button) — captures one frame immediately.
+- **Timelapse Frames** (sensor) — count of stored frames.
+  Attributes: capture directory, `/local` URL base (when under `/config/www`),
+  latest frame file path, latest frame URL.
+- **Timelapse Last Frame** (sensor, timestamp) — newest captured frame time.
+
 ## Calendar
 
 - **Grow Timeline** (calendar) — projected stage-end, harvest, and ready dates

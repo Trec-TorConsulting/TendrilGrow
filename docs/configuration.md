@@ -75,6 +75,24 @@ sensors, and the `set_pump` service.
 
 See [AI health checks](ai-health.md) for provider details and scoring.
 
+## Camera timelapse settings
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| Timelapse enabled | `false` | Turns periodic camera frame capture on/off. |
+| Capture interval (hours) | `24` | How often scheduled frame capture runs. |
+| Frame retention | `120` | Max frames kept per grow space (oldest pruned first). |
+| Capture directory override | _empty_ | Optional absolute/relative path override for frame storage. |
+
+Default frame directory:
+`/config/www/tendrilgrow/<grow_slug>/timelapse/`.
+
+!!! warning "One-time Home Assistant allow-list step"
+    Snapshot writes require the target directory in
+    `homeassistant.allowlist_external_dirs`. If missing, TendrilGrow raises a
+    Repair issue and pauses scheduled captures until the path is allow-listed
+    and one capture succeeds.
+
 ## Tuya cloud water monitoring (optional)
 
 Enable Tuya during the **Map entities** step to poll reservoir water monitors

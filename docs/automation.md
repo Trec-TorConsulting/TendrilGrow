@@ -17,6 +17,8 @@ decide what to automate, and you are responsible for validating it.
 - `tendrilgrow.rebuild_automap`
 - `tendrilgrow.set_pump`
 - `tendrilgrow.mark_flush`
+- `tendrilgrow.capture_timelapse_frame`
+- `tendrilgrow.build_timelapse`
 
 See [Services](services.md) for fields and examples.
 

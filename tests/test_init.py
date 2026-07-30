@@ -8,6 +8,8 @@ from homeassistant.exceptions import HomeAssistantError
 
 import custom_components.tendrilgrow as tg
 from custom_components.tendrilgrow import (
+    SERVICE_BUILD_TIMELAPSE,
+    SERVICE_CAPTURE_TIMELAPSE_FRAME,
     SERVICE_MARK_FLUSH,
     SERVICE_REBUILD_AUTOMAP,
     SERVICE_RUN_AI_HEALTH_CHECK,
@@ -55,7 +57,7 @@ async def test_setup_and_unload_entry_lifecycle() -> None:
 
     assert await async_setup_entry(hass, entry)
     assert "entry-1" in hass.data["tendrilgrow"]
-    assert hass.services.async_register.call_count == 4
+    assert hass.services.async_register.call_count == 6
 
     assert await async_unload_entry(hass, entry)
     assert "entry-1" not in hass.data["tendrilgrow"]
@@ -66,6 +68,46 @@ async def test_setup_and_unload_entry_lifecycle() -> None:
     )
     hass.services.async_remove.assert_any_call("tendrilgrow", SERVICE_SET_PUMP)
     hass.services.async_remove.assert_any_call("tendrilgrow", SERVICE_MARK_FLUSH)
+    hass.services.async_remove.assert_any_call(
+        "tendrilgrow", SERVICE_CAPTURE_TIMELAPSE_FRAME
+    )
+    hass.services.async_remove.assert_any_call("tendrilgrow", SERVICE_BUILD_TIMELAPSE)
+
+
+@pytest.mark.asyncio
+async def test_setup_entry_does_not_start_timelapse_scheduler_when_disabled() -> None:
+    unsub = Mock()
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        title="Tent A",
+        data={
+            "space_id": "space-1",
+            "name": "Tent A",
+            "grow_type": "rdwc",
+            "descriptor": "3x3",
+            "sites": [],
+            "sensor_mappings": {},
+            "control_mappings": {},
+            "targets": {},
+            "schedules": {},
+        },
+        add_update_listener=Mock(return_value=unsub),
+    )
+
+    hass = SimpleNamespace(
+        data={},
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+            async_reload=AsyncMock(return_value=True),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(async_register=Mock(), async_remove=Mock()),
+    )
+
+    assert await async_setup_entry(hass, entry)
+    runtime = hass.data["tendrilgrow"]["entry-1"]
+    assert runtime.unsubscribe_timelapse_scheduler is None
 
 
 @pytest.mark.asyncio
@@ -561,6 +603,55 @@ async def test_mark_flush_service_validation() -> None:
     # Unknown/unloaded entry
     with pytest.raises(HomeAssistantError):
         await handler(SimpleNamespace(data={"entry_id": "missing"}))
+
+
+@pytest.mark.asyncio
+async def test_capture_timelapse_service_invokes_single_capture() -> None:
+    unsub = Mock()
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        title="Tent A",
+        data={
+            "space_id": "space-1",
+            "name": "Tent A",
+            "grow_type": "rdwc",
+            "descriptor": "3x3",
+            "sites": [],
+            "sensor_mappings": {"camera": "camera.tent_a"},
+            "control_mappings": {},
+            "targets": {},
+            "schedules": {},
+        },
+        options={},
+        add_update_listener=Mock(return_value=unsub),
+    )
+
+    services = SimpleNamespace(async_register=Mock(), async_remove=Mock())
+    hass = SimpleNamespace(
+        data={},
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+            async_reload=AsyncMock(return_value=True),
+            async_get_entry=Mock(return_value=entry),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(
+            async_call=AsyncMock(),
+            async_register=services.async_register,
+            async_remove=services.async_remove,
+        ),
+    )
+
+    assert await async_setup_entry(hass, entry)
+
+    handlers_by_service = {
+        call.args[1]: call.args[2] for call in services.async_register.call_args_list
+    }
+    handler = handlers_by_service[SERVICE_CAPTURE_TIMELAPSE_FRAME]
+    with patch.object(tg, "_async_capture_timelapse_frame", AsyncMock()) as capture:
+        await handler(SimpleNamespace(data={"entry_id": "entry-1"}))
+        capture.assert_awaited_once()
 
 
 def test_migrate_ai_entity_ids_renames_generic_to_per_tent() -> None:

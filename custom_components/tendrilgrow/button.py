@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import _async_run_ai_health_check
+from . import _async_capture_timelapse_frame, _async_run_ai_health_check
 from .const import DOMAIN, FLUSH_NOW_SUFFIX
 from .entity import grow_device_info
 from .flush import async_record_flush
@@ -23,6 +23,7 @@ async def async_setup_entry(
         [
             RunAIHealthCheckButton(hass, entry),
             FlushNowButton(hass, entry),
+            CaptureTimelapseFrameButton(hass, entry),
         ]
     )
 
@@ -76,3 +77,32 @@ class FlushNowButton(ButtonEntity):
         if runtime is None:
             return
         await async_record_flush(self.hass, self._entry, runtime)
+
+
+class CaptureTimelapseFrameButton(ButtonEntity):
+    """Capture one frame for the grow-space timelapse."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Capture Timelapse Frame"
+    _attr_icon = "mdi:camera-timer"
+    _attr_translation_key = "capture_timelapse_frame"
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_capture_timelapse_frame"
+
+    @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    @property
+    def available(self) -> bool:
+        return self._entry.entry_id in self.hass.data.get(DOMAIN, {})
+
+    async def async_press(self) -> None:
+        await _async_capture_timelapse_frame(
+            self.hass,
+            self._entry,
+            reason="manual_button",
+        )

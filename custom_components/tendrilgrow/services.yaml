@@ -65,4 +65,25 @@ mark_flush:
       selector:
         text:
 
+capture_timelapse_frame:
+  name: Capture timelapse frame
+  description: Capture one timelapse frame now for one or all loaded grow spaces.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: Optional specific TendrilGrow config entry ID to capture. Leave empty to capture for all loaded entries.
+      selector:
+        text:
+
+build_timelapse:
+  name: Build timelapse video
+  description: Build a timelapse video from captured frames for a grow space using ffmpeg.
+  fields:
+    entry_id:
+      name: Config entry ID
+      description: The TendrilGrow config entry ID to build a timelapse video for.
+      required: true
+      selector:
+        text:
+
 

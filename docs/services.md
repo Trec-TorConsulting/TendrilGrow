@@ -1,6 +1,6 @@
 # Services
 
-TendrilGrow registers four services under the `tendrilgrow` domain. Call them
+TendrilGrow registers six services under the `tendrilgrow` domain. Call them
 from **Developer Tools → Actions**, scripts, or automations.
 
 ## `tendrilgrow.run_ai_health_check`
@@ -61,6 +61,44 @@ action: tendrilgrow.mark_flush
 data:
   entry_id: 0123456789abcdef0123456789abcdef
 ```
+
+## `tendrilgrow.capture_timelapse_frame`
+
+Capture one timelapse frame now.
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `entry_id` | No | Specific config entry to capture for. Omit to capture for all loaded entries. |
+
+```yaml
+action: tendrilgrow.capture_timelapse_frame
+data:
+  entry_id: 0123456789abcdef0123456789abcdef
+```
+
+!!! warning "Allow-list required"
+    Snapshot writes are blocked unless the capture directory is in
+    `homeassistant.allowlist_external_dirs`. Default path:
+    `/config/www/tendrilgrow/<grow_slug>/timelapse/`.
+
+## `tendrilgrow.build_timelapse`
+
+Build an MP4 timelapse from captured frames.
+
+| Field | Required | Description |
+| --- | --- | --- |
+| `entry_id` | Yes | The config entry whose timelapse should be built. |
+
+```yaml
+action: tendrilgrow.build_timelapse
+data:
+  entry_id: 0123456789abcdef0123456789abcdef
+```
+
+!!! note "ffmpeg"
+    This service uses Home Assistant's ffmpeg component binary. If ffmpeg is not
+    available, TendrilGrow logs the equivalent manual command and leaves frames
+    untouched.
 
 !!! tip "Finding an entry ID"
     Open **Settings → Devices & Services → TendrilGrow**, choose the entry, and

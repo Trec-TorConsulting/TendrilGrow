@@ -43,7 +43,11 @@
           "ai_health_interval_hours": "AI health check interval (hours)",
           "ai_severe_threshold": "Critical score threshold (0-100)",
           "ai_notify_service": "Notify service for critical alerts (optional)",
-          "ai_result_retention_days": "AI result retention (days)"
+          "ai_result_retention_days": "AI result retention (days)",
+          "timelapse_enabled": "Enable camera timelapse",
+          "timelapse_interval_hours": "Timelapse capture interval (hours)",
+          "timelapse_retention_frames": "Timelapse frame retention (count)",
+          "timelapse_dir": "Timelapse capture directory override (optional)"
         }
       },
       "ai_provider": {
@@ -104,7 +108,11 @@
           "ai_health_interval_hours": "AI health check interval (hours)",
           "ai_severe_threshold": "Critical score threshold (0-100)",
           "ai_notify_service": "Notify service for critical alerts (optional)",
-          "ai_result_retention_days": "AI result retention (days)"
+          "ai_result_retention_days": "AI result retention (days)",
+          "timelapse_enabled": "Enable camera timelapse",
+          "timelapse_interval_hours": "Timelapse capture interval (hours)",
+          "timelapse_retention_frames": "Timelapse frame retention (count)",
+          "timelapse_dir": "Timelapse capture directory override (optional)"
         }
       }
     }
@@ -137,9 +145,42 @@
           "description": "The TendrilGrow config entry ID whose reservoir was flushed."
         }
       }
+    },
+    "capture_timelapse_frame": {
+      "name": "Capture timelapse frame",
+      "description": "Capture one timelapse frame now for one or all loaded grow spaces.",
+      "fields": {
+        "entry_id": {
+          "name": "Config entry ID",
+          "description": "Optional specific TendrilGrow config entry ID to capture. Leave empty to capture for all loaded entries."
+        }
+      }
+    },
+    "build_timelapse": {
+      "name": "Build timelapse video",
+      "description": "Build a timelapse video from captured frames for a grow space using ffmpeg.",
+      "fields": {
+        "entry_id": {
+          "name": "Config entry ID",
+          "description": "The TendrilGrow config entry ID to build a timelapse video for."
+        }
+      }
     }
   },
   "entity": {
+    "button": {
+      "capture_timelapse_frame": {
+        "name": "Capture Timelapse Frame"
+      }
+    },
+    "sensor": {
+      "timelapse_frames": {
+        "name": "Timelapse Frames"
+      },
+      "timelapse_last_frame": {
+        "name": "Timelapse Last Frame"
+      }
+    },
     "select": {
       "growth_stage": {
         "name": "Growth Stage",
@@ -168,6 +209,10 @@
     "ai_no_model": {
       "title": "TendrilGrow: choose an AI model",
       "description": "An AI provider is selected for {grow_space}, but no model is chosen. Open the TendrilGrow options and pick a model (or enter one manually) so AI health checks can run."
+    },
+    "timelapse_not_allowlisted": {
+      "title": "TendrilGrow: allow-list your timelapse directory",
+      "description": "Timelapse capture for {grow_space} failed because the directory is not allow-listed. Add {path} to homeassistant.allowlist_external_dirs, then capture a frame again to resume scheduling."
     }
   }
 }

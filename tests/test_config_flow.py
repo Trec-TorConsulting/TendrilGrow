@@ -24,11 +24,17 @@ from custom_components.tendrilgrow.const import (
     CONF_GROW_SPACE_NAME,
     CONF_GROW_TYPE,
     CONF_SENSOR_MAPPINGS,
+    CONF_TIMELAPSE_DIR,
+    CONF_TIMELAPSE_ENABLED,
+    CONF_TIMELAPSE_INTERVAL_HOURS,
+    CONF_TIMELAPSE_RETENTION_FRAMES,
     CONF_TUYA_ACCESS_ID,
     CONF_TUYA_DEVICE_IDS,
     CONF_TUYA_ENABLED,
     CONF_TUYA_REGION,
     CONF_TUYA_SCAN_INTERVAL,
+    DEFAULT_TIMELAPSE_INTERVAL_HOURS,
+    DEFAULT_TIMELAPSE_RETENTION_FRAMES,
     PROVIDER_NONE,
     SENSOR_ROLE_CAMERA,
     SENSOR_ROLE_CF,
@@ -90,6 +96,15 @@ async def test_create_entry_with_optional_mappings_skipped() -> None:
     assert result["title"] == "Tent B"
     assert result["data"]["sensor_mappings"] == {}
     assert result["data"]["control_mappings"] == {}
+    assert result["data"][CONF_TIMELAPSE_ENABLED] is False
+    assert (
+        result["data"][CONF_TIMELAPSE_INTERVAL_HOURS]
+        == DEFAULT_TIMELAPSE_INTERVAL_HOURS
+    )
+    assert (
+        result["data"][CONF_TIMELAPSE_RETENTION_FRAMES]
+        == DEFAULT_TIMELAPSE_RETENTION_FRAMES
+    )
 
 
 @pytest.mark.asyncio
@@ -158,6 +173,10 @@ async def test_options_flow_edit_creates_options_payload() -> None:
             CONF_AI_HEALTH_INTERVAL_HOURS: 12,
             CONF_AI_SEVERE_THRESHOLD: 20,
             CONF_AI_RESULT_RETENTION_DAYS: 30,
+            CONF_TIMELAPSE_ENABLED: True,
+            CONF_TIMELAPSE_INTERVAL_HOURS: 8,
+            CONF_TIMELAPSE_RETENTION_FRAMES: 300,
+            CONF_TIMELAPSE_DIR: "/config/www/tendrilgrow/tent-a/timelapse",
         }
     )
     assert result["type"] == "create_entry"
@@ -168,6 +187,13 @@ async def test_options_flow_edit_creates_options_payload() -> None:
     }
     assert result["data"][CONF_TUYA_ENABLED] is True
     assert result["data"][CONF_TUYA_DEVICE_IDS] == ["dev-1", "dev-2"]
+    assert result["data"][CONF_TIMELAPSE_ENABLED] is True
+    assert result["data"][CONF_TIMELAPSE_INTERVAL_HOURS] == 8
+    assert result["data"][CONF_TIMELAPSE_RETENTION_FRAMES] == 300
+    assert (
+        result["data"][CONF_TIMELAPSE_DIR]
+        == "/config/www/tendrilgrow/tent-a/timelapse"
+    )
 
 
 @pytest.mark.asyncio

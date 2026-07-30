@@ -79,8 +79,10 @@
 	(days remaining and projected stage-end/harvest/ready dates)
 - AI health entities (score, summary, feeding schedule, last check, critical
 	alert) and a run button
-- Services: `run_ai_health_check`, `rebuild_automap`, `set_pump`, and
-	`mark_flush`
+- Camera timelapse (opt-in): scheduled/on-demand frame capture, frame retention,
+	frame-count and last-frame sensors, and ffmpeg video build service
+- Services: `run_ai_health_check`, `rebuild_automap`, `set_pump`, `mark_flush`,
+	`capture_timelapse_frame`, and `build_timelapse`
 - Pluggable AI provider selection:
 	- Google Gemini
 	- OpenAI
@@ -179,6 +181,12 @@ For each grow space (one entry per space):
 To run AI health checks, map a `camera` entity and select a vision-capable
 provider and model. Checks run on a schedule, on demand via the run button, or
 through the `tendrilgrow.run_ai_health_check` service.
+
+To use camera timelapse capture, also add the capture directory to
+`homeassistant.allowlist_external_dirs` (default:
+`/config/www/tendrilgrow/<grow_slug>/timelapse/`). Frame capture pauses and a
+Repair issue is raised if the path is not allow-listed. The
+`tendrilgrow.build_timelapse` service requires ffmpeg to be available.
 
 ## Dashboards
 

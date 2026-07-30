@@ -20,7 +20,12 @@ _DOCS_URL = "https://trec-torconsulting.github.io/TendrilGrow/troubleshooting/"
 
 ISSUE_AI_NO_CAMERA = "ai_no_camera"
 ISSUE_AI_NO_MODEL = "ai_no_model"
-_ALL_ISSUES = (ISSUE_AI_NO_CAMERA, ISSUE_AI_NO_MODEL)
+ISSUE_TIMELAPSE_NOT_ALLOWLISTED = "timelapse_not_allowlisted"
+_ALL_ISSUES = (
+    ISSUE_AI_NO_CAMERA,
+    ISSUE_AI_NO_MODEL,
+    ISSUE_TIMELAPSE_NOT_ALLOWLISTED,
+)
 
 
 def _issue_id(entry_id: str, key: str) -> str:
@@ -73,3 +78,38 @@ def async_clear_repair_issues(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Delete all TendrilGrow repair issues for an entry (on unload)."""
     for key in _ALL_ISSUES:
         ir.async_delete_issue(hass, DOMAIN, _issue_id(entry.entry_id, key))
+
+
+@callback
+def async_raise_timelapse_allowlist_issue(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    capture_path: str,
+) -> None:
+    """Create/refresh a timelapse repair issue with the required allow-list path."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _issue_id(entry.entry_id, ISSUE_TIMELAPSE_NOT_ALLOWLISTED),
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_TIMELAPSE_NOT_ALLOWLISTED,
+        translation_placeholders={
+            "grow_space": entry.title,
+            "path": capture_path,
+        },
+        learn_more_url=_DOCS_URL,
+    )
+
+
+@callback
+def async_clear_timelapse_allowlist_issue(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+) -> None:
+    """Clear the timelapse allow-list repair issue for an entry."""
+    ir.async_delete_issue(
+        hass,
+        DOMAIN,
+        _issue_id(entry.entry_id, ISSUE_TIMELAPSE_NOT_ALLOWLISTED),
+    )

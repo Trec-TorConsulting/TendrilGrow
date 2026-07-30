@@ -21,7 +21,11 @@ from homeassistant.util import slugify
 from .ai.health_checks import AIHealthState, load_history, run_ai_health_check
 from .const import (
     CONF_AI_HEALTH_INTERVAL_HOURS,
+    CONF_TIMELAPSE_ENABLED,
+    CONF_TIMELAPSE_INTERVAL_HOURS,
     DEFAULT_AI_HEALTH_INTERVAL_HOURS,
+    DEFAULT_TIMELAPSE_ENABLED,
+    DEFAULT_TIMELAPSE_INTERVAL_HOURS,
     DOMAIN,
     PUMP_CONTROL_ROLES,
 )
@@ -32,7 +36,13 @@ from .flush import (
     load_flush_state,
 )
 from .models.grow import GrowSpace
-from .repairs import async_clear_repair_issues, async_evaluate_repair_issues
+from .repairs import (
+    async_clear_repair_issues,
+    async_clear_timelapse_allowlist_issue,
+    async_evaluate_repair_issues,
+    async_raise_timelapse_allowlist_issue,
+)
+from .timelapse import async_build_timelapse_video, async_capture_frame
 
 LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[str] = [
@@ -51,6 +61,8 @@ SERVICE_REBUILD_AUTOMAP = "rebuild_automap"
 SERVICE_RUN_AI_HEALTH_CHECK = "run_ai_health_check"
 SERVICE_SET_PUMP = "set_pump"
 SERVICE_MARK_FLUSH = "mark_flush"
+SERVICE_CAPTURE_TIMELAPSE_FRAME = "capture_timelapse_frame"
+SERVICE_BUILD_TIMELAPSE = "build_timelapse"
 ATTR_ENTRY_ID = "entry_id"
 ATTR_REASON = "reason"
 ATTR_PUMP = "pump"
@@ -83,6 +95,8 @@ class RuntimeData:
     flush_state: FlushState
     flush_store: Any
     unsubscribe_flush_ticker: Any
+    unsubscribe_timelapse_scheduler: Any
+    timelapse_scheduler_paused: bool
 
 
 class _EphemeralStore:
@@ -222,9 +236,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         flush_state=flush_state,
         flush_store=flush_store,
         unsubscribe_flush_ticker=unsubscribe_flush_ticker,
+        unsubscribe_timelapse_scheduler=None,
+        timelapse_scheduler_paused=False,
     )
     hass.data[DOMAIN][entry.entry_id] = runtime
     entry.runtime_data = runtime
+
+    if bool(merged_config.get(CONF_TIMELAPSE_ENABLED, DEFAULT_TIMELAPSE_ENABLED)):
+        runtime.unsubscribe_timelapse_scheduler = _async_start_timelapse_scheduler(
+            hass,
+            entry,
+            merged_config,
+        )
 
     _migrate_ai_entity_ids(hass, entry)
     try:
@@ -267,6 +290,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     if unsubscribe_flush_ticker:
         unsubscribe_flush_ticker()
+    unsubscribe_timelapse_scheduler = (
+        getattr(runtime, "unsubscribe_timelapse_scheduler", None) if runtime else None
+    )
+    if unsubscribe_timelapse_scheduler:
+        unsubscribe_timelapse_scheduler()
     await _async_maybe_unregister_services(hass)
     LOGGER.info("Unloaded grow space entry '%s' (%s)", entry.title, entry.entry_id)
     return unload_ok
@@ -275,6 +303,126 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update by reloading only the changed entry."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+def _entry_merged_config(entry: ConfigEntry) -> dict[str, Any]:
+    """Return merged entry config with options overriding data."""
+    merged_config = dict(entry.data)
+    merged_config.update(getattr(entry, "options", {}))
+    return merged_config
+
+
+def _async_stop_timelapse_scheduler(runtime: RuntimeData) -> None:
+    unsubscribe = getattr(runtime, "unsubscribe_timelapse_scheduler", None)
+    if unsubscribe:
+        unsubscribe()
+    runtime.unsubscribe_timelapse_scheduler = None
+
+
+def _async_start_timelapse_scheduler(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    merged_config: dict[str, Any],
+):
+    """Start periodic timelapse capture for one entry when enabled."""
+    runtime = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if runtime is None or runtime.timelapse_scheduler_paused:
+        return None
+
+    interval_hours = int(
+        merged_config.get(
+            CONF_TIMELAPSE_INTERVAL_HOURS,
+            DEFAULT_TIMELAPSE_INTERVAL_HOURS,
+        )
+        or DEFAULT_TIMELAPSE_INTERVAL_HOURS
+    )
+
+    async def _async_timelapse_tick(_now) -> None:
+        await _async_capture_timelapse_frame(hass, entry, reason="scheduled")
+
+    try:
+        return async_track_time_interval(
+            hass,
+            _async_timelapse_tick,
+            timedelta(hours=max(1, interval_hours)),
+        )
+    except Exception:  # noqa: BLE001
+        LOGGER.debug("Unable to start timelapse scheduler", exc_info=True)
+        return None
+
+
+async def _async_capture_timelapse_frame(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    *,
+    reason: str,
+) -> bool:
+    """Capture one timelapse frame and manage allow-list repairs/scheduler state."""
+    runtime = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if runtime is None:
+        return False
+
+    merged_config = _entry_merged_config(entry)
+    enabled = bool(merged_config.get(CONF_TIMELAPSE_ENABLED, DEFAULT_TIMELAPSE_ENABLED))
+    if reason == "scheduled" and not enabled:
+        return False
+
+    result = await async_capture_frame(hass, entry, runtime.grow_space, merged_config)
+    if result.success:
+        if runtime.timelapse_scheduler_paused:
+            runtime.timelapse_scheduler_paused = False
+            async_clear_timelapse_allowlist_issue(hass, entry)
+        else:
+            async_clear_timelapse_allowlist_issue(hass, entry)
+
+        if (
+            enabled
+            and runtime.unsubscribe_timelapse_scheduler is None
+            and not runtime.timelapse_scheduler_paused
+        ):
+            runtime.unsubscribe_timelapse_scheduler = _async_start_timelapse_scheduler(
+                hass,
+                entry,
+                merged_config,
+            )
+        LOGGER.debug(
+            "Timelapse capture succeeded for %s via %s",
+            entry.entry_id,
+            reason,
+        )
+        return True
+
+    if result.allowlist_error:
+        runtime.timelapse_scheduler_paused = True
+        _async_stop_timelapse_scheduler(runtime)
+        async_raise_timelapse_allowlist_issue(hass, entry, str(result.capture_dir))
+        LOGGER.warning(
+            "Timelapse capture paused for %s: add %s to allowlist_external_dirs (%s)",
+            entry.entry_id,
+            result.capture_dir,
+            result.error,
+        )
+        return False
+
+    LOGGER.warning(
+        "Timelapse capture failed for %s (%s): %s",
+        entry.entry_id,
+        reason,
+        result.error,
+    )
+    return False
+
+
+async def _async_build_timelapse(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+) -> None:
+    """Build a timelapse video for one entry if possible."""
+    runtime = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if runtime is None:
+        return
+    merged_config = _entry_merged_config(entry)
+    await async_build_timelapse_video(hass, entry, runtime.grow_space, merged_config)
 
 
 def _parse_mobile_action(action: str) -> tuple[str, str] | None:
@@ -495,6 +643,73 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         await async_record_flush(hass, entry, runtime)
         LOGGER.info("Recorded reservoir flush via service for entry %s", entry_id)
 
+    async def _async_handle_capture_timelapse_frame(call: ServiceCall) -> None:
+        requested_entry_id = str(call.data.get(ATTR_ENTRY_ID, "")).strip()
+        loaded_entries = [
+            entry_id
+            for entry_id in hass.data.get(DOMAIN, {})
+            if not str(entry_id).startswith("_")
+        ]
+
+        if requested_entry_id:
+            if requested_entry_id not in loaded_entries:
+                raise HomeAssistantError(
+                    f"TendrilGrow entry not loaded: {requested_entry_id}"
+                )
+            target_entries = [requested_entry_id]
+        else:
+            target_entries = loaded_entries
+
+        for entry_id in target_entries:
+            entry = None
+            if hasattr(hass.config_entries, "async_get_entry"):
+                entry = hass.config_entries.async_get_entry(entry_id)
+            if entry is None:
+                entry = next(
+                    (
+                        loaded
+                        for loaded in getattr(
+                            hass.config_entries, "async_entries", lambda _domain: []
+                        )(DOMAIN)
+                        if loaded.entry_id == entry_id
+                    ),
+                    None,
+                )
+            if entry is None:
+                continue
+            await _async_capture_timelapse_frame(
+                hass,
+                entry,
+                reason="manual_service",
+            )
+
+    async def _async_handle_build_timelapse(call: ServiceCall) -> None:
+        entry_id = str(call.data.get(ATTR_ENTRY_ID, "")).strip()
+        if not entry_id:
+            raise HomeAssistantError("entry_id is required")
+
+        if entry_id not in hass.data.get(DOMAIN, {}):
+            raise HomeAssistantError(f"TendrilGrow entry not loaded: {entry_id}")
+
+        entry = None
+        if hasattr(hass.config_entries, "async_get_entry"):
+            entry = hass.config_entries.async_get_entry(entry_id)
+        if entry is None:
+            entry = next(
+                (
+                    loaded
+                    for loaded in getattr(
+                        hass.config_entries, "async_entries", lambda _domain: []
+                    )(DOMAIN)
+                    if loaded.entry_id == entry_id
+                ),
+                None,
+            )
+        if entry is None:
+            raise HomeAssistantError(f"TendrilGrow entry not found: {entry_id}")
+
+        await _async_build_timelapse(hass, entry)
+
     hass.services.async_register(
         DOMAIN, SERVICE_REBUILD_AUTOMAP, _async_handle_rebuild_automap
     )
@@ -512,6 +727,16 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         DOMAIN,
         SERVICE_MARK_FLUSH,
         _async_handle_mark_flush,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CAPTURE_TIMELAPSE_FRAME,
+        _async_handle_capture_timelapse_frame,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_BUILD_TIMELAPSE,
+        _async_handle_build_timelapse,
     )
 
     async def _async_handle_mobile_action(event: Any) -> None:
@@ -557,6 +782,8 @@ async def _async_maybe_unregister_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_RUN_AI_HEALTH_CHECK)
     hass.services.async_remove(DOMAIN, SERVICE_SET_PUMP)
     hass.services.async_remove(DOMAIN, SERVICE_MARK_FLUSH)
+    hass.services.async_remove(DOMAIN, SERVICE_CAPTURE_TIMELAPSE_FRAME)
+    hass.services.async_remove(DOMAIN, SERVICE_BUILD_TIMELAPSE)
     unsub = domain_data.pop("_mobile_action_unsub", None)
     if unsub:
         try:

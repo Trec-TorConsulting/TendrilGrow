@@ -33,6 +33,10 @@ CONF_AI_HEALTH_INTERVAL_HOURS = "ai_health_interval_hours"
 CONF_AI_SEVERE_THRESHOLD = "ai_severe_threshold"
 CONF_AI_NOTIFY_SERVICE = "ai_notify_service"
 CONF_AI_RESULT_RETENTION_DAYS = "ai_result_retention_days"
+CONF_TIMELAPSE_ENABLED = "timelapse_enabled"
+CONF_TIMELAPSE_INTERVAL_HOURS = "timelapse_interval_hours"
+CONF_TIMELAPSE_RETENTION_FRAMES = "timelapse_retention_frames"
+CONF_TIMELAPSE_DIR = "timelapse_dir"
 
 CONF_TUYA_ENABLED = "tuya_enabled"
 CONF_TUYA_ACCESS_ID = "tuya_access_id"
@@ -119,6 +123,9 @@ SENSOR_ROLES_TUYA_OPTIONAL: tuple[str, ...] = (
 DEFAULT_AI_HEALTH_INTERVAL_HOURS = 12
 DEFAULT_AI_SEVERE_THRESHOLD = 20
 DEFAULT_AI_RESULT_RETENTION_DAYS = 30
+DEFAULT_TIMELAPSE_ENABLED = False
+DEFAULT_TIMELAPSE_INTERVAL_HOURS = 24
+DEFAULT_TIMELAPSE_RETENTION_FRAMES = 120
 
 # Grow cultivation context (editable helper entities) used to enrich AI reports.
 CTX_STAGE = "ctx_stage"
