@@ -24,6 +24,7 @@ Editable helpers that ground the AI advisor. Set them to match your grow.
 - Feed Interval (days)
 - Lights On (hours)
 - Runoff Target (%)
+- Electricity Price (per kWh)
 
 **Text**
 
@@ -36,8 +37,16 @@ Editable helpers that ground the AI advisor. Set them to match your grow.
 
 - **VPD** (kPa) — computed from the mapped air temperature and humidity. Created
   when both air roles are available.
+- **Dew Point** (°C) — from the mapped air temperature and humidity.
+- **DLI** (mol/m²/day, estimated) — from the mapped PPFD and the configured
+  photoperiod (Lights On).
 - **Stage Projection** — days remaining in the current stage plus projected
   stage-end, harvest, and ready dates.
+
+## Calendar
+
+- **Grow Timeline** (calendar) — projected stage-end, harvest, and ready dates
+  plus the next reservoir flush due date, surfaced as calendar events.
 
 ## AI health (created when AI is configured)
 
@@ -63,6 +72,8 @@ Editable helpers that ground the AI advisor. Set them to match your grow.
 - One **switch** per mapped pump (`rdwc_pump`, `chiller_pump`, `air_pump`).
 - One **Power** sensor per pump (from an explicit power mapping or auto-discovery).
 - **Total Pump Power** (sensor).
+- **Pump Daily Cost** (estimated) — total pump power over 24 h × the Electricity
+  Price helper, in your Home Assistant currency.
 
 ## Tuya water sensors (created when Tuya is enabled)
 
