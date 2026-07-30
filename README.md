@@ -167,6 +167,12 @@ spaces.
 	`./.venv/bin/python scripts/import_dashboard.py <url_path>` — dry-run by
 	default (add `--apply` to save). It backs up the live config first, warns on
 	any referenced entity ids that don't exist, and never prints the token.
+- Auto-generate the dashboard from your live grow spaces:
+	`./.venv/bin/python scripts/generate_dashboard.py` — builds an Executive
+	overview plus one tab per configured grow space (hub) from the live entity
+	registry and role mappings, so adding a hub and re-running adds its tab and
+	refreshes the overview. Dry-run by default; add `--apply` to push (a live
+	backup is written first, and the token is never printed).
 
 ## Configuration model
 
