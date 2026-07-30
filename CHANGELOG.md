@@ -6,6 +6,24 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+### Friendly Release Notes Template
+
+Use this structure for each new release section to keep updates easy to scan:
+
+- Start with a one-line plain-language summary.
+- Add a short "Quick Start" list for HACS users when setup steps changed.
+- List "What You Get" in simple feature bullets.
+- Add "Important Notes" for prerequisites, caveats, or repairs.
+- Keep technical validation short (`ruff`, `pytest`, OpenSpec when relevant).
+
+Suggested headings:
+
+- `Quick Start (HACS Users)`
+- `What Is New`
+- `Important Notes`
+- `Services Added` (if any)
+- `Validation`
+
 ## [0.3.0] - 2026-07-30
 
 ### Added
