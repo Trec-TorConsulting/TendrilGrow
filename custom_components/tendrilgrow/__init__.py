@@ -277,6 +277,17 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
 
 
+def _parse_mobile_action(action: str) -> tuple[str, str] | None:
+    """Parse a TendrilGrow mobile-notification action into (verb, entry_id)."""
+    prefix = "TENDRILGROW_"
+    if not action.startswith(prefix) or ":" not in action:
+        return None
+    verb, entry_id = action[len(prefix) :].split(":", 1)
+    if not verb or not entry_id:
+        return None
+    return verb, entry_id
+
+
 async def _async_register_services(hass: HomeAssistant) -> None:
     domain_data = hass.data.setdefault(DOMAIN, {})
     if domain_data.get(_SERVICES_REGISTERED_KEY):
@@ -502,6 +513,31 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         SERVICE_MARK_FLUSH,
         _async_handle_mark_flush,
     )
+
+    async def _async_handle_mobile_action(event: Any) -> None:
+        parsed = _parse_mobile_action(str(event.data.get("action", "")))
+        if parsed is None:
+            return
+        verb, entry_id = parsed
+        if verb == "MARK_FLUSH":
+            await hass.services.async_call(
+                DOMAIN, SERVICE_MARK_FLUSH, {ATTR_ENTRY_ID: entry_id}, blocking=False
+            )
+        elif verb == "RUN_CHECK":
+            await hass.services.async_call(
+                DOMAIN,
+                SERVICE_RUN_AI_HEALTH_CHECK,
+                {ATTR_ENTRY_ID: entry_id},
+                blocking=False,
+            )
+
+    try:
+        domain_data["_mobile_action_unsub"] = hass.bus.async_listen(
+            "mobile_app_notification_action", _async_handle_mobile_action
+        )
+    except Exception:  # noqa: BLE001
+        LOGGER.debug("Unable to register mobile action listener", exc_info=True)
+
     domain_data[_SERVICES_REGISTERED_KEY] = True
 
 
@@ -521,6 +557,12 @@ async def _async_maybe_unregister_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_RUN_AI_HEALTH_CHECK)
     hass.services.async_remove(DOMAIN, SERVICE_SET_PUMP)
     hass.services.async_remove(DOMAIN, SERVICE_MARK_FLUSH)
+    unsub = domain_data.pop("_mobile_action_unsub", None)
+    if unsub:
+        try:
+            unsub()
+        except Exception:  # noqa: BLE001
+            LOGGER.debug("Unable to remove mobile action listener", exc_info=True)
     domain_data[_SERVICES_REGISTERED_KEY] = False
 
 

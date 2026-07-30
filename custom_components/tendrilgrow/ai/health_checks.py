@@ -508,6 +508,14 @@ async def run_ai_health_check(
                     {
                         "title": f"TendrilGrow critical health risk: {grow_space.name}",
                         "message": f"Score {result.score}. {result.summary}",
+                        "data": {
+                            "actions": [
+                                {
+                                    "action": f"TENDRILGROW_RUN_CHECK:{entry.entry_id}",
+                                    "title": "Run check",
+                                }
+                            ]
+                        },
                     },
                     blocking=False,
                 )

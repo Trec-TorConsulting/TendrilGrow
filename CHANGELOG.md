@@ -20,6 +20,9 @@ The format is inspired by Keep a Changelog and semantic versioning.
   due, stage change approaching, and critical AI health alerts).
 - AI Weekly Journal sensor summarizing the last 7 days of recorded AI health
   checks (count, average score, trend, and notable issues) as markdown.
+- Actionable mobile notifications: flush-overdue and critical-AI alerts sent via
+  a notify service now include action buttons ("Mark flushed" / "Run check")
+  that call the matching service when tapped.
 
 ## [0.1.6] - 2026-07-30
 

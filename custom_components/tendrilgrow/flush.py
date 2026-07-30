@@ -206,7 +206,19 @@ async def async_check_flush_due(
             await hass.services.async_call(
                 domain,
                 service,
-                {"title": title, "message": message},
+                {
+                    "title": title,
+                    "message": message,
+                    "data": {
+                        "tag": flush_notification_id(entry.entry_id),
+                        "actions": [
+                            {
+                                "action": f"TENDRILGROW_MARK_FLUSH:{entry.entry_id}",
+                                "title": "Mark flushed",
+                            }
+                        ],
+                    },
+                },
                 blocking=False,
             )
         except Exception:  # noqa: BLE001
