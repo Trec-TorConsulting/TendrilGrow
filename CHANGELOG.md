@@ -6,6 +6,25 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-30
+
+### Added
+- Full lifecycle growth stages: `mother`, `clone`, `harvest`, `dry`, `cure`, and
+  `ready` added to the growth-stage select (alongside seedling, vegetative,
+  early/mid/late flower, and flush), with human-readable dropdown labels. The
+  default stage remains `vegetative`.
+- Stage-aware AI health objective: mother plants are assessed as permanent
+  vegetative stock that are never flowered, clones on rooting, flowering stages
+  on quality, and post-harvest stages (dry/cure) on drying/curing rather than
+  reservoir chemistry. Added `mother` and `clone` reservoir targets.
+- Per-grow-space stage-projection sensor (`sensor.<grow>_stage_projection`):
+  days remaining in the current stage plus projected stage-end, harvest, and
+  ready dates derived from the stage and week-in-stage (default stage durations
+  verified against published grow timelines).
+- `scripts/import_dashboard.py` to push a repo dashboard to a live Home
+  Assistant (counterpart to `export_dashboard.py`), and a "Grow Timeline" card
+  in the bundled `dashboards/tendrial_grow.yaml`.
+
 ## [0.1.2] - 2026-07-29
 
 ### Changed
