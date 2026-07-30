@@ -45,6 +45,7 @@ from .const import (
     DEFAULT_AI_RESULT_RETENTION_DAYS,
     DEFAULT_AI_SEVERE_THRESHOLD,
     DOMAIN,
+    GROW_TYPE_OPTIONS,
     PROVIDER_GEMINI,
     PROVIDER_NONE,
     PROVIDER_OLLAMA,
@@ -166,8 +167,9 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_GROW_SPACE_NAME): str,
                 vol.Required(CONF_GROW_TYPE, default="rdwc"): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=["rdwc", "soil", "coco", "other"],
+                        options=list(GROW_TYPE_OPTIONS),
                         mode=selector.SelectSelectorMode.DROPDOWN,
+                        custom_value=True,
                     )
                 ),
                 vol.Optional(CONF_GROW_SIZE, default=""): str,
@@ -550,7 +552,13 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
         fields: dict[Any, Any] = {
             vol.Required(
                 CONF_GROW_TYPE, default=current.get(CONF_GROW_TYPE, "rdwc")
-            ): str,
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(GROW_TYPE_OPTIONS),
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    custom_value=True,
+                )
+            ),
             vol.Optional(CONF_GROW_SIZE, default=current.get(CONF_GROW_SIZE, "")): str,
         }
 

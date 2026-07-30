@@ -6,6 +6,14 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-07-30
+
+### Added
+- Grow-type field now offers an `aeroponic` preset (e.g. a Clone King cloner)
+  alongside `rdwc`, `dwc`, `soil`, `coco`, and `other`. The options/edit flow
+  uses the same dropdown as the create flow, and custom values are still
+  allowed, so any other method can be typed in.
+
 ## [0.1.3] - 2026-07-30
 
 ### Added

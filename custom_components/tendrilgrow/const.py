@@ -8,6 +8,17 @@ CONF_GROW_SPACE_ID = "grow_space_id"
 CONF_GROW_SPACE_NAME = "grow_space_name"
 CONF_GROW_TYPE = "grow_type"
 CONF_GROW_SIZE = "grow_size"
+
+# Preset grow-type/method options offered in the config flow. custom_value is
+# enabled, so operators may also type any other method (e.g. "Clone King").
+GROW_TYPE_OPTIONS: tuple[str, ...] = (
+    "rdwc",
+    "dwc",
+    "aeroponic",
+    "soil",
+    "coco",
+    "other",
+)
 CONF_SITES = "sites"
 CONF_SENSOR_MAPPINGS = "sensor_mappings"
 CONF_CONTROL_MAPPINGS = "control_mappings"
