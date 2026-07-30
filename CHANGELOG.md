@@ -14,6 +14,8 @@ The format is inspired by Keep a Changelog and semantic versioning.
   "Electricity Price" (per kWh) helper.
 - Grow Timeline calendar entity exposing projected stage-end, harvest, and ready
   dates and the next reservoir flush due date.
+- Home Assistant repair issues that flag when an AI provider is selected but no
+  camera or model is configured.
 
 ## [0.1.6] - 2026-07-30
 

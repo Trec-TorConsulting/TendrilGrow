@@ -159,5 +159,15 @@
         }
       }
     }
+  },
+  "issues": {
+    "ai_no_camera": {
+      "title": "TendrilGrow: map a camera for AI health checks",
+      "description": "An AI provider is selected for {grow_space}, but no camera entity is mapped. Map a camera in the TendrilGrow options so AI vision health checks can run."
+    },
+    "ai_no_model": {
+      "title": "TendrilGrow: choose an AI model",
+      "description": "An AI provider is selected for {grow_space}, but no model is chosen. Open the TendrilGrow options and pick a model (or enter one manually) so AI health checks can run."
+    }
   }
 }

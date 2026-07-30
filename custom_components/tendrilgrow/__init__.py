@@ -32,6 +32,7 @@ from .flush import (
     load_flush_state,
 )
 from .models.grow import GrowSpace
+from .repairs import async_clear_repair_issues, async_evaluate_repair_issues
 
 LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[str] = [
@@ -225,6 +226,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.runtime_data = runtime
 
     _migrate_ai_entity_ids(hass, entry)
+    try:
+        async_evaluate_repair_issues(hass, entry, merged_config, grow_space)
+    except Exception:  # noqa: BLE001
+        LOGGER.debug("Unable to evaluate repair issues", exc_info=True)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     # Schedule the initial check as a proper coroutine job so HA runs it on the
     # event loop (a plain lambda is treated as an executor job where
@@ -244,6 +249,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    try:
+        async_clear_repair_issues(hass, entry)
+    except Exception:  # noqa: BLE001
+        LOGGER.debug("Unable to clear repair issues", exc_info=True)
     runtime = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if runtime and runtime.unsubscribe_update_listener:
         runtime.unsubscribe_update_listener()
