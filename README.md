@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="TendrilGrow" width="520">
+  <img src="https://raw.githubusercontent.com/Trec-TorConsulting/TendrilGrow/main/docs/assets/logo.png" alt="TendrilGrow" width="520">
 </p>
 
 # TendrilGrow
