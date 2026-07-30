@@ -12,6 +12,9 @@
   "loggers": [
     "custom_components.tendrilgrow"
   ],
+  "dependencies": [
+    "ffmpeg"
+  ],
   "requirements": [],
   "version": "0.3.0"
 }
