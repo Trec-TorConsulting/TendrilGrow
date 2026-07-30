@@ -6,6 +6,12 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-07-30
+
+### Fixed
+- README logo now uses an absolute image URL so it renders in the HACS README
+  viewer (which does not resolve repository-relative image paths).
+
 ## [0.1.5] - 2026-07-30
 
 ### Added
