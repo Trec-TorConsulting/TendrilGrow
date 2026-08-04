@@ -59,6 +59,49 @@ def _coerce_metric_float(value: Any) -> float | None:
         return None
 
 
+# Keywords that identify GH Flora series in operator-provided context text.
+_GH_FLORA_KEYWORDS = (
+    "flora",
+    "general hydro",
+    "gh flora",
+    "floramicro",
+    "floragro",
+    "florabloom",
+)
+
+
+def _build_nutrient_reference(nutrient_line: str, base_nutrients: str) -> str:
+    """Return an EC-calibrated reference table when a known line is detected.
+
+    Sources: GH official feed chart hub (generalhydroponics.com/pages/feedcharts)
+    and GrowWeedEasy Flora Trio guide (featured in High Times, Ed Rosenthal).
+    """
+    combined = f"{nutrient_line} {base_nutrients}".lower()
+    if any(kw in combined for kw in _GH_FLORA_KEYWORDS):
+        return (
+            "\nNutrient reference — GH Flora Series, recirculating DWC/RDWC "
+            "(sources: GH official feed chart hub + GrowWeedEasy Flora Trio "
+            "guide):\n"
+            "EC-calibrated ml/gal for recirculating systems "
+            "(NOT drain-to-waste max rates — those are 2-3x higher "
+            "and yield 2.5-3.0 mS/cm, causing nutrient burn):\n"
+            "  Seedling:   Micro 1.25 ml, Gro 1.25 ml, Bloom 1.25 ml"
+            " -> est. 0.5-0.7 mS/cm\n"
+            "  Veg:        Micro 2.5 ml,  Gro 2.5 ml,  Bloom 2.5 ml "
+            " -> est. 1.0-1.2 mS/cm\n"
+            "  Transition: Micro 5.0 ml,  Gro 5.0 ml,  Bloom 5.0 ml "
+            " -> est. 1.6-2.0 mS/cm\n"
+            "  Flowering:  Micro 5.0 ml,  Gro 2.5 ml,  Bloom 7.5 ml "
+            " -> est. 1.4-1.8 mS/cm\n"
+            "  CaliMagic:  5 ml/gal for RO/soft water; optional with tap\n"
+            "  Hydroguard: 2 ml/gal preventative; 5 ml/gal if root rot\n"
+            "Mixing order: CaliMagic -> Micro -> Gro -> Bloom; pH LAST.\n"
+            "Hydro pH target: 5.5-6.5 (ideal 5.8-6.2).\n"
+            "Interpolate rows to hit operator target EC exactly.\n"
+        )
+    return ""
+
+
 @dataclass(slots=True)
 class AIHealthResult:
     """Single AI health-check result for one grow entry."""
@@ -205,10 +248,32 @@ def _build_prompt(
 
     reservoir_volume = str(context.get("reservoir_volume_gal", "")).strip()
     site_count = str(context.get("site_count_plants", "")).strip()
+    target_ec = str(context.get("target_ec_ms_cm", "")).strip()
+    target_ph = str(context.get("target_ph", "")).strip()
+    nutrient_line = str(context.get("nutrient_line", ""))
+    base_nutrients = str(context.get("base_nutrients", ""))
+    nutrient_ref = _build_nutrient_reference(nutrient_line, base_nutrients)
     sites_clause = (
         f" The system has {site_count} plant sites/buckets sharing one "
         "circulating reservoir."
         if site_count
+        else ""
+    )
+    ec_constraint = (
+        f" OPERATOR TARGET EC IS {target_ec} mS/cm — you MUST calibrate "
+        "per-gallon rates to achieve this post-mix EC, NOT manufacturer-maximum "
+        "rates (which overshoot the target and cause nutrient burn). "
+        "Back-calculate nutrient rates from this target EC; do NOT default to "
+        "full-label rates unless the target EC explicitly requires it. "
+        "Include your estimated post-mix EC alongside each recipe so the "
+        "operator can verify it matches the target before mixing."
+        if target_ec
+        else ""
+    )
+    ph_constraint = (
+        f" OPERATOR TARGET pH IS {target_ph} — adjust pH to this value after "
+        "all nutrients are fully mixed."
+        if target_ph
         else ""
     )
     dosing_line = (
@@ -217,11 +282,11 @@ def _build_prompt(
         "volume (all buckets + control reservoir + connecting lines combined), "
         "NOT a single bucket. Compute TOTAL nutrient and additive amounts for "
         f"this full volume (per-gallon rate x {reservoir_volume} gallons) and "
-        f"label them clearly as 'TOTAL for {reservoir_volume} gal system'. If "
-        "you recommend a fresh reservoir fill, dose for this same total volume, "
-        "not a smaller assumed fill. If this volume looks implausibly small for "
-        "the stated site count, flag it and ask the operator to confirm the "
-        "total system volume."
+        f"label them clearly as 'TOTAL for {reservoir_volume} gal system'."
+        f"{ec_constraint}{ph_constraint} If you recommend a fresh reservoir "
+        "fill, dose for this same total volume, not a smaller assumed fill. "
+        "If this volume looks implausibly small for the stated site count, "
+        "flag it and ask the operator to confirm the total system volume."
         if reservoir_volume
         else (
             "Reservoir volume not provided; give per-gallon rates and note "
@@ -247,10 +312,10 @@ def _build_prompt(
         "- observations: array of short visual findings from the image\n"
         "- issues: array of short problem statements\n"
         "- recommended_actions: array of short, quality-first corrective actions\n"
-        "- feeding_schedule: array of short strings; a dynamic feeding plan tuned "
-        "for highest-quality yield, each entry covering timing plus target EC, "
-        "target pH, and TOTAL amounts of each nutrient/additive for the "
-        "reservoir\n\n"
+        "- feeding_schedule: array of short strings; a dynamic feeding plan "
+        "EC-calibrated to the operator's target EC (not manufacturer max rates), "
+        "each entry covering timing, estimated post-mix EC, target pH, and TOTAL "
+        "ml amounts of each nutrient/additive for the full system volume\n\n"
         "Scoring calibration (score against these stage target ranges):\n"
         f"{full_target_table}\n"
         f"{stage_target_line}\n\n"
@@ -263,7 +328,8 @@ def _build_prompt(
         "- Use symptom location plus pH-driven lockout ranges to distinguish "
         "true deficiency from lockout.\n\n"
         "Dosing rule:\n"
-        f"- {dosing_line}\n\n"
+        f"- {dosing_line}"
+        f"{nutrient_ref}\n\n"
         "Grounding rules:\n"
         "- If the image is unusable or missing, set confidence low and say so; "
         "do not fabricate.\n"
