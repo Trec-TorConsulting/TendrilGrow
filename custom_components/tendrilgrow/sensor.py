@@ -414,7 +414,18 @@ def _compose_feeding_schedule_md(latest) -> str:
     schedule = getattr(latest, "feeding_schedule", None) or []
     if not schedule:
         return "_No feeding schedule generated yet. Run an AI health check._"
-    return "\n".join(f"- {item}" for item in schedule)
+    parts: list[str] = []
+    for i, item in enumerate(schedule, 1):
+        # Promote the phase label (text before first '|') as a bold header.
+        if "|" in item:
+            header, _, rest = item.partition("|")
+            header = header.strip()
+            body = rest.strip()
+            entry = f"**{i}. {header}**\n{body}"
+        else:
+            entry = f"**{i}.** {item}"
+        parts.append(entry)
+    return "\n\n---\n\n".join(parts)
 
 
 class TendrilGrowVpdSensor(SensorEntity):
