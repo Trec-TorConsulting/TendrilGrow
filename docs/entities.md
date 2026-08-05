@@ -13,6 +13,8 @@ Editable helpers that ground the AI advisor. Set them to match your grow.
 - Growth Stage — one of: `seedling`, `mother`, `clone`, `vegetative`,
   `early_flower`, `mid_flower`, `late_flower`, `flush`, `harvest`, `dry`, `cure`,
   `ready` (default `vegetative`).
+- Water Type — makeup water for fills/flushes: `tap`, `ro`, `filtered`,
+  `bottled`, `rain`, `well`, `distilled`, `spring`, `mixed` (default `tap`).
 
 **Numbers**
 

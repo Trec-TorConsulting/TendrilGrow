@@ -142,6 +142,7 @@ CTX_NUTRIENT_LINE = "ctx_nutrient_line"
 CTX_BASE_NUTRIENTS = "ctx_base_nutrients"
 CTX_ADDITIVES = "ctx_additives"
 CTX_PRICE_PER_KWH = "ctx_price_per_kwh"
+CTX_WATER_TYPE = "ctx_water_type"
 
 # Reservoir full-flush tracking. Suffixes are appended to the entry id to form
 # entity unique ids. Suffixes MUST NOT be a suffix of one another so the AI
@@ -172,6 +173,20 @@ STAGE_OPTIONS: tuple[str, ...] = (
     "dry",
     "cure",
     "ready",
+)
+
+# Makeup / source water for reservoir fills and flushes.
+DEFAULT_WATER_TYPE = "tap"
+WATER_TYPE_OPTIONS: tuple[str, ...] = (
+    "tap",
+    "ro",
+    "filtered",
+    "bottled",
+    "rain",
+    "well",
+    "distilled",
+    "spring",
+    "mixed",
 )
 
 # Per-stage reservoir target ranges used to calibrate AI scoring. Operator can
@@ -275,6 +290,7 @@ GROW_CONTEXT_LABELS: dict[str, str] = {
     CTX_NUTRIENT_LINE: "nutrient_line",
     CTX_BASE_NUTRIENTS: "base_nutrients",
     CTX_ADDITIVES: "additives",
+    CTX_WATER_TYPE: "water_type",
     # Flush cadence context (collision-safe suffixes only; see note above).
     CTX_FLUSH_INTERVAL_DAYS: "flush_interval_days",
     FLUSH_DAYS_SINCE_SUFFIX: "days_since_last_flush",

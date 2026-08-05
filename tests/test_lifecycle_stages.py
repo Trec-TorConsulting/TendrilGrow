@@ -10,13 +10,15 @@ from types import SimpleNamespace
 from custom_components.tendrilgrow.ai.health_checks import _build_prompt
 from custom_components.tendrilgrow.const import (
     DEFAULT_STAGE,
+    DEFAULT_WATER_TYPE,
     STAGE_DURATIONS_DAYS,
     STAGE_OPTIONS,
     STAGE_PIPELINE,
     STAGE_TARGETS,
+    WATER_TYPE_OPTIONS,
 )
 from custom_components.tendrilgrow.models.grow import GrowSpace
-from custom_components.tendrilgrow.select import GrowStageSelect
+from custom_components.tendrilgrow.select import GrowStageSelect, GrowWaterTypeSelect
 from custom_components.tendrilgrow.sensor import compute_stage_projection
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,11 +55,26 @@ def test_stage_invariants() -> None:
             assert stage in STAGE_PIPELINE
 
 
+def test_water_type_invariants() -> None:
+    labels = _STRINGS["entity"]["select"]["water_type"]["state"]
+    for water_type in WATER_TYPE_OPTIONS:
+        assert water_type in labels, f"missing i18n label for {water_type}"
+    assert DEFAULT_WATER_TYPE in WATER_TYPE_OPTIONS
+    assert DEFAULT_WATER_TYPE == "tap"
+
+
 def test_select_default_is_vegetative_regardless_of_order() -> None:
     entry = SimpleNamespace(entry_id="abc123", title="Tent A")
     select = GrowStageSelect(entry)
     assert select.current_option == "vegetative"
     assert DEFAULT_STAGE == "vegetative"
+
+
+def test_water_type_select_defaults_to_tap() -> None:
+    entry = SimpleNamespace(entry_id="abc123", title="Tent A")
+    select = GrowWaterTypeSelect(entry)
+    assert select.current_option == "tap"
+    assert set(select.options) == set(WATER_TYPE_OPTIONS)
 
 
 def test_prompt_objective_is_stage_aware() -> None:

@@ -102,6 +102,32 @@ def _build_nutrient_reference(nutrient_line: str, base_nutrients: str) -> str:
     return ""
 
 
+def _water_source_guidance(water_type: str) -> str:
+    """Brief makeup-water grounding for dosing when water_type is set."""
+    if not water_type:
+        return ""
+    if water_type in {"ro", "distilled", "rain"}:
+        return (
+            f" Makeup water type is '{water_type}' (near-zero mineral "
+            "baseline). Prioritize Cal-Mag / calcium-magnesium "
+            "supplementation and do not assume municipal mineral content."
+        )
+    if water_type in {"tap", "well", "spring"}:
+        return (
+            f" Makeup water type is '{water_type}'. Account for baseline "
+            "minerals and possible chlorine/chloramine; prefer resting or "
+            "carbon-filtering before mix when chlorine is a concern, and "
+            "reduce Cal-Mag if source water is already hard."
+        )
+    if water_type in {"filtered", "bottled", "mixed"}:
+        return (
+            f" Makeup water type is '{water_type}'. Treat mineral content as "
+            "intermediate/unknown unless source EC or hardness is provided; "
+            "ask for clarification rather than assuming full RO or hard tap."
+        )
+    return f" Makeup water type is '{water_type}'."
+
+
 @dataclass(slots=True)
 class AIHealthResult:
     """Single AI health-check result for one grow entry."""
@@ -253,6 +279,8 @@ def _build_prompt(
     nutrient_line = str(context.get("nutrient_line", ""))
     base_nutrients = str(context.get("base_nutrients", ""))
     nutrient_ref = _build_nutrient_reference(nutrient_line, base_nutrients)
+    water_type = str(context.get("water_type", "")).strip().lower()
+    water_source_clause = _water_source_guidance(water_type)
     sites_clause = (
         f" The system has {site_count} plant sites/buckets sharing one "
         "circulating reservoir."
@@ -335,6 +363,7 @@ def _build_prompt(
         "true deficiency from lockout.\n\n"
         "Dosing rule:\n"
         f"- {dosing_line}"
+        f"{water_source_clause}"
         f"{nutrient_ref}\n\n"
         "Grounding rules:\n"
         "- If the image is unusable or missing, set confidence low and say so; "
@@ -351,7 +380,7 @@ def _build_prompt(
         f"Configured Targets: {json.dumps(targets, sort_keys=True)}\n"
         f"History Retention Window: {retention_days} days\n"
         "Cultivation context (operator-provided; includes strain, week-in-stage, "
-        "reservoir volume, feed and nutrient plan):\n"
+        "reservoir volume, feed, nutrient plan, and makeup water type):\n"
         f"{context_lines if context_lines else '- none provided'}\n"
         "Current telemetry metrics:\n"
         f"{metric_lines if metric_lines else '- no telemetry available'}"

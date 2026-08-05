@@ -198,6 +198,20 @@
           "cure": "Cure",
           "ready": "Ready"
         }
+      },
+      "water_type": {
+        "name": "Water Type",
+        "state": {
+          "tap": "Tap",
+          "ro": "RO",
+          "filtered": "Filtered",
+          "bottled": "Bottled",
+          "rain": "Rain",
+          "well": "Well",
+          "distilled": "Distilled",
+          "spring": "Spring",
+          "mixed": "Mixed"
+        }
       }
     }
   },

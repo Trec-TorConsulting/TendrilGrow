@@ -30,6 +30,7 @@ def test_build_prompt_includes_context_and_metrics() -> None:
             "strain_genetics": "OG Kush",
             "week_in_stage": "3",
             "reservoir_volume_gal": "13",
+            "water_type": "ro",
         },
         retention_days=30,
     )
@@ -40,6 +41,9 @@ def test_build_prompt_includes_context_and_metrics() -> None:
     assert "growth_stage: mid_flower" in prompt
     assert "nutrient_line: Brand X" in prompt
     assert "strain_genetics: OG Kush" in prompt
+    assert "water_type: ro" in prompt
+    assert "near-zero mineral baseline" in prompt
+    assert "Cal-Mag" in prompt
     assert "pH: 5.9" in prompt
     assert "Air Temperature: 72 \u00b0F" in prompt
     assert "Air Humidity: 65 %" in prompt

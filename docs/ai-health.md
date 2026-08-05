@@ -63,9 +63,9 @@ stages fall back to best-practice guidance.
 ## Grounding with cultivation context
 
 The advisor is grounded by the editable cultivation-context helpers (strain,
-week in stage, targets, reservoir volume, nutrients, flush status, and more).
-Keeping these accurate improves the quality of the advice. See
-[Entities](entities.md).
+week in stage, targets, reservoir volume, makeup water type, nutrients, flush
+status, and more). Keeping these accurate improves the quality of the advice.
+See [Entities](entities.md).
 
 ## History and retention
 
