@@ -64,6 +64,7 @@ SNAPSHOT_ROLES = ("ph", "ec", "cf", "tds", "orp", "water_temperature", "humidity
 CTX_ORDER = (
     "ctx_strain",
     "ctx_stage",
+    "ctx_water_type",
     "ctx_week_in_stage",
     "ctx_site_count",
     "ctx_reservoir_volume_gal",

@@ -202,6 +202,7 @@ views:
     entities:
     - text.3x3_mothers_tent_strain_genetics
     - select.3x3_mothers_tent_growth_stage
+    - select.3x3_mothers_tent_water_type
     - number.3x3_mothers_tent_week_in_stage
     - number.3x3_mothers_tent_sites_plants
     - number.3x3_mothers_tent_reservoir_volume
@@ -305,6 +306,7 @@ views:
     entities:
     - text.4x4_full_cycle_tent_strain_genetics
     - select.4x4_full_cycle_tent_growth_stage
+    - select.4x4_full_cycle_tent_water_type
     - number.4x4_full_cycle_tent_week_in_stage
     - number.4x4_full_cycle_tent_sites_plants
     - number.4x4_full_cycle_tent_reservoir_volume
