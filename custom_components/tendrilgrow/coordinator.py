@@ -19,6 +19,7 @@ from .const import (
     CONF_TUYA_REGION,
     CONF_TUYA_SCAN_INTERVAL,
     CONF_TUYA_UID,
+    DEFAULT_TUYA_SCAN_INTERVAL,
 )
 from .tuya_client import TuyaCloudClient, normalize_tuya_statuses
 
@@ -57,7 +58,14 @@ class TendrilGrowTuyaCoordinator(DataUpdateCoordinator[dict[str, dict[str, float
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self._entry = entry
         cfg = _entry_merged_config(entry)
-        scan_interval = max(30, int(cfg.get(CONF_TUYA_SCAN_INTERVAL, 60) or 60))
+        raw_interval = cfg.get(
+            CONF_TUYA_SCAN_INTERVAL,
+            DEFAULT_TUYA_SCAN_INTERVAL,
+        )
+        scan_interval = max(
+            30,
+            int(raw_interval or DEFAULT_TUYA_SCAN_INTERVAL),
+        )
 
         super().__init__(
             hass,

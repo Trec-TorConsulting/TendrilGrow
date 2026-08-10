@@ -64,7 +64,7 @@
 	- Flush status folded into the AI advisor's cultivation context
 - Unit-aware derived VPD (°F→°C) exposed as a per-grow-space VPD sensor,
 	computed from the mapped air temperature and air humidity
-- Optional Tuya cloud water-monitoring: signed OpenAPI polling, datapoint
+- Optional Tuya cloud water-monitoring: signed OpenAPI polling (default **600s**), datapoint
 	normalization, per-device sensors, and automatic sensor-role mapping
 - Camera-based AI health checks: quality-first agronomy scoring, observations,
 	issues, recommended actions, and a dynamic feeding schedule

@@ -39,7 +39,8 @@ During the **Map entities** step (or later in Options), enable Tuya and provide:
 - Region
 - Optional user UID
 - Device IDs (comma-separated)
-- Poll interval (seconds)
+- Poll interval (seconds; **default 600** / 10 minutes — keep at least this
+  high on Tuya Trial to avoid suspending the monthly basic resource pack)
 
 ## Re-running auto-map
 

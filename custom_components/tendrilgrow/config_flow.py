@@ -51,6 +51,7 @@ from .const import (
     DEFAULT_TIMELAPSE_ENABLED,
     DEFAULT_TIMELAPSE_INTERVAL_HOURS,
     DEFAULT_TIMELAPSE_RETENTION_FRAMES,
+    DEFAULT_TUYA_SCAN_INTERVAL,
     DOMAIN,
     GROW_TYPE_OPTIONS,
     PROVIDER_GEMINI,
@@ -226,7 +227,7 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 str(user_input.get(CONF_TUYA_DEVICE_IDS, ""))
             )
             self._data[CONF_TUYA_SCAN_INTERVAL] = int(
-                user_input.get(CONF_TUYA_SCAN_INTERVAL, 60)
+                user_input.get(CONF_TUYA_SCAN_INTERVAL, DEFAULT_TUYA_SCAN_INTERVAL)
             )
             self._data[CONF_AI_HEALTH_INTERVAL_HOURS] = int(
                 user_input.get(
@@ -297,7 +298,12 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         fields[vol.Optional(CONF_TUYA_REGION, default="us")] = vol.In(TUYA_REGIONS)
         fields[vol.Optional(CONF_TUYA_UID)] = str
         fields[vol.Optional(CONF_TUYA_DEVICE_IDS)] = str
-        fields[vol.Optional(CONF_TUYA_SCAN_INTERVAL, default=60)] = vol.All(
+        fields[
+            vol.Optional(
+                CONF_TUYA_SCAN_INTERVAL,
+                default=DEFAULT_TUYA_SCAN_INTERVAL,
+            )
+        ] = vol.All(
             vol.Coerce(int),
             vol.Range(min=30, max=3600),
         )
@@ -469,7 +475,10 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data[CONF_TUYA_REGION] = self._data.get(CONF_TUYA_REGION, "us")
         data[CONF_TUYA_UID] = self._data.get(CONF_TUYA_UID, "")
         data[CONF_TUYA_DEVICE_IDS] = self._data.get(CONF_TUYA_DEVICE_IDS, [])
-        data[CONF_TUYA_SCAN_INTERVAL] = self._data.get(CONF_TUYA_SCAN_INTERVAL, 60)
+        data[CONF_TUYA_SCAN_INTERVAL] = self._data.get(
+            CONF_TUYA_SCAN_INTERVAL,
+            DEFAULT_TUYA_SCAN_INTERVAL,
+        )
         data[CONF_AI_HEALTH_INTERVAL_HOURS] = self._data.get(
             CONF_AI_HEALTH_INTERVAL_HOURS,
             DEFAULT_AI_HEALTH_INTERVAL_HOURS,
@@ -567,7 +576,10 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                         str(user_input.get(CONF_TUYA_DEVICE_IDS, ""))
                     ),
                     CONF_TUYA_SCAN_INTERVAL: int(
-                        user_input.get(CONF_TUYA_SCAN_INTERVAL, 60)
+                        user_input.get(
+                            CONF_TUYA_SCAN_INTERVAL,
+                            DEFAULT_TUYA_SCAN_INTERVAL,
+                        )
                     ),
                     CONF_AI_HEALTH_INTERVAL_HOURS: int(
                         user_input.get(
@@ -693,7 +705,10 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
         fields[
             vol.Optional(
                 CONF_TUYA_SCAN_INTERVAL,
-                default=current.get(CONF_TUYA_SCAN_INTERVAL, 60),
+                default=current.get(
+                    CONF_TUYA_SCAN_INTERVAL,
+                    DEFAULT_TUYA_SCAN_INTERVAL,
+                ),
             )
         ] = vol.All(vol.Coerce(int), vol.Range(min=30, max=3600))
         fields[
