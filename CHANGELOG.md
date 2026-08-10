@@ -6,6 +6,11 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+### Changed
+- Default Tuya cloud poll interval is now **600 seconds** (10 minutes) to
+  stay within Tuya Trial IoT Core API quotas; existing entries keep their
+  configured interval until Options are saved.
+
 ### Friendly Release Notes Template
 
 Use this structure for each new release section to keep updates easy to scan:

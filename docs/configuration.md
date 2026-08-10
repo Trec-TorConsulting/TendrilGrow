@@ -102,7 +102,7 @@ from the Tuya cloud. You will provide:
 - Region
 - Optional user UID
 - Device IDs (comma-separated)
-- Poll interval (seconds)
+- Poll interval (seconds; default **600**)
 
 When enabled, water-quality sensors are created and **auto-mapped** into the
 matching sensor roles. You still map the **air** temperature/humidity and camera

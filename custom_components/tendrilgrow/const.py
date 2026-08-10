@@ -45,6 +45,8 @@ CONF_TUYA_REGION = "tuya_region"
 CONF_TUYA_UID = "tuya_uid"
 CONF_TUYA_DEVICE_IDS = "tuya_device_ids"
 CONF_TUYA_SCAN_INTERVAL = "tuya_scan_interval"
+# Default 600s (~10 min) stays within Tuya Trial IoT Core API quotas.
+DEFAULT_TUYA_SCAN_INTERVAL = 600
 
 PROVIDER_NONE = "none"
 PROVIDER_GEMINI = "gemini"
