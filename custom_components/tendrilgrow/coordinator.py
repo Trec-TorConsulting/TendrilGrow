@@ -58,9 +58,13 @@ class TendrilGrowTuyaCoordinator(DataUpdateCoordinator[dict[str, dict[str, float
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self._entry = entry
         cfg = _entry_merged_config(entry)
+        raw_interval = cfg.get(
+            CONF_TUYA_SCAN_INTERVAL,
+            DEFAULT_TUYA_SCAN_INTERVAL,
+        )
         scan_interval = max(
             30,
-            int(cfg.get(CONF_TUYA_SCAN_INTERVAL, DEFAULT_TUYA_SCAN_INTERVAL) or DEFAULT_TUYA_SCAN_INTERVAL),
+            int(raw_interval or DEFAULT_TUYA_SCAN_INTERVAL),
         )
 
         super().__init__(
