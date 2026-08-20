@@ -20,7 +20,8 @@ data:
 
 ## `tendrilgrow.rebuild_automap`
 
-Reload TendrilGrow entries to rebuild Tuya auto-mapped sensor roles.
+Reload TendrilGrow entries to rebuild local-device and Tuya cloud auto-mapped
+sensor roles.
 
 | Field | Required | Description |
 | --- | --- | --- |

@@ -91,13 +91,18 @@ Editable helpers that ground the AI advisor. Set them to match your grow.
 - **Pump Daily Cost** (estimated) — total pump power over 24 h × the Electricity
   Price helper, in your Home Assistant currency.
 
-## Tuya water sensors (created when Tuya is enabled)
+## Water sensors
 
-Per device, as reported and normalized:
+**Preferred:** bind a LocalTuya / Tuya Local device; TendrilGrow auto-maps its
+pH, EC, CF, TDS, ORP, and water-temperature entities onto grow-space roles
+(canopy air temp/humidity stay operator-mapped for VPD).
+
+**Cloud fallback** (only when no local device is bound and cloud polling is
+enabled): TendrilGrow creates per-device sensors as reported and normalized:
 
 - pH, EC, CF, TDS, ORP
 - Water Temperature
-- Humidity
+- Humidity (probe ambient; not canopy RH)
 - Battery
 - Last Updated (diagnostic)
 

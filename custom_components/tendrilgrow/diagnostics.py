@@ -9,7 +9,8 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import SENSITIVE_KEYS
+from .const import CONF_WATER_MONITOR_DEVICE_ID, SENSITIVE_KEYS
+from .local_water_source import effective_water_source, stored_water_monitor_device_id
 
 
 def _safe_redact(value: Any) -> Any:
@@ -49,11 +50,20 @@ async def async_get_config_entry_diagnostics(
                 "latest": latest,
             }
 
+    water_source = "none"
+    bound_device_id = stored_water_monitor_device_id(entry)
+    try:
+        water_source = effective_water_source(hass, entry)
+    except Exception:  # noqa: BLE001
+        water_source = "none"
+
     return {
         "entry_id": entry.entry_id,
         "title": entry.title,
         "data": _safe_redact(entry.data),
         "options": _safe_redact(entry.options),
+        "water_source": water_source,
+        CONF_WATER_MONITOR_DEVICE_ID: bound_device_id,
         "runtime": {
             "auto_mapped_sensor_roles": auto_mapped,
             "effective_sensor_mappings": effective_sensor_mappings,

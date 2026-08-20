@@ -17,11 +17,13 @@ Google Gemini, OpenAI, and Ollama. After you enter credentials, TendrilGrow
 discovers available models so you can pick one. See
 [AI health checks](ai-health.md).
 
-## Do I need Tuya?
+## Do I need Tuya / LocalTuya?
 
-No. Tuya cloud water monitoring is optional. If you already have water sensors in
-Home Assistant, map them directly instead. See
-[Tuya water monitoring](tuya-water.md).
+No. Prefer LocalTuya (or Tuya Local) when you have a Tuya Wi-Fi water probe —
+TendrilGrow binds that HA device and skips cloud polling. Cloud OpenAPI
+polling is optional fallback only. If you already have water sensors in Home
+Assistant, map them directly. See
+[Tuya / LocalTuya water monitoring](tuya-water.md).
 
 ## Does it require internet access?
 

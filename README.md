@@ -5,7 +5,8 @@
 # TendrilGrow
 
 > Home Assistant custom integration for indoor cultivation — unify grow-space
-> configuration, sensor/control mapping, Tuya water monitoring, and camera-based
+> configuration, sensor/control mapping, LocalTuya-preferred water monitoring,
+> and camera-based
 > AI health checks in a single HACS package.
 
 [![lint & test](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/lint-test.yml/badge.svg)](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/lint-test.yml)
@@ -64,8 +65,8 @@
 	- Flush status folded into the AI advisor's cultivation context
 - Unit-aware derived VPD (°F→°C) exposed as a per-grow-space VPD sensor,
 	computed from the mapped air temperature and air humidity
-- Optional Tuya cloud water-monitoring: signed OpenAPI polling (default **600s**), datapoint
-	normalization, per-device sensors, and automatic sensor-role mapping
+- LocalTuya-preferred water monitoring (bind a LocalTuya / Tuya Local device;
+	cloud OpenAPI polling is fallback-only, default poll **600s**)
 - Camera-based AI health checks: quality-first agronomy scoring, observations,
 	issues, recommended actions, and a dynamic feeding schedule
 - Scheduled and on-demand checks with persistent history and retention
@@ -96,7 +97,8 @@
 Included now:
 - Integration foundation, config flow, options flow, model abstraction,
 	governance and CI
-- Tuya cloud water-monitoring with normalized water-quality sensors
+- LocalTuya-preferred water monitoring with optional cloud OpenAPI fallback
+  and normalized water-quality sensors
 - Camera-based AI grow-health checks, scoring, and dynamic feeding schedules
 - Cultivation-context helper entities and AI health entities/services
 - Pump control and monitoring: RDWC, chiller, and air pump switches with
@@ -141,7 +143,8 @@ Main runtime modules:
 - Home Assistant with HACS installed
 - Companion integrations already configured if you use them:
 	- Vivosun HACS integration (controllers)
-	- Tuya HACS integration (water monitors)
+	- LocalTuya (preferred) or Tuya Local for water monitors; IoT Core for
+	  one-time local-key extraction only
 	- Camera integration (required for AI vision health checks)
 
 ### Install steps
@@ -169,9 +172,9 @@ Changes in `custom_components` are not applied until restart.
 For each grow space (one entry per space):
 
 1. Enter grow-space name and type.
-2. Map sensor and control entities (optional mappings supported). Optionally
-	enable Tuya cloud polling and enter Tuya credentials and device IDs; when
-	enabled, water-quality sensors are provided and mapped automatically.
+2. Map sensor and control entities (optional mappings supported). Prefer
+	binding a LocalTuya / Tuya Local water-monitor device; optionally enable
+	cloud Tuya polling as fallback and enter credentials and device IDs.
 3. Set AI health options (check interval, critical-score threshold, optional
 	notify service, result retention).
 4. Pick AI provider (`None`, `Gemini`, `OpenAI`, or `Ollama`).

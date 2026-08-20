@@ -7,6 +7,9 @@ The format is inspired by Keep a Changelog and semantic versioning.
 ## [Unreleased]
 
 ### Changed
+- Prefer **LocalTuya** (then Tuya Local) as the water-metric source per grow
+  space; Tuya cloud OpenAPI polling is fallback-only and is skipped while a
+  local device is bound. New entries still default cloud polling off.
 - Default Tuya cloud poll interval is now **600 seconds** (10 minutes) to
   stay within Tuya Trial IoT Core API quotas; existing entries keep their
   configured interval until Options are saved.

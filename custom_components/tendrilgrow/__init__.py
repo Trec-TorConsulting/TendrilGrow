@@ -35,6 +35,7 @@ from .flush import (
     async_record_flush,
     load_flush_state,
 )
+from .local_water_source import async_prepare_local_water_source
 from .models.grow import GrowSpace
 from .repairs import (
     async_clear_repair_issues,
@@ -241,6 +242,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     hass.data[DOMAIN][entry.entry_id] = runtime
     entry.runtime_data = runtime
+
+    # Prefer LocalTuya / Tuya Local: bind + auto-map before platforms load.
+    try:
+        await async_prepare_local_water_source(
+            hass,
+            entry,
+            grow_space,
+            runtime.auto_mapped_sensor_roles,
+        )
+    except Exception:  # noqa: BLE001
+        LOGGER.debug(
+            "Unable to prepare local water source for %s",
+            entry.entry_id,
+            exc_info=True,
+        )
 
     if bool(merged_config.get(CONF_TIMELAPSE_ENABLED, DEFAULT_TIMELAPSE_ENABLED)):
         runtime.unsubscribe_timelapse_scheduler = _async_start_timelapse_scheduler(

@@ -6,9 +6,9 @@
 
 TendrilGrow is a [Home Assistant](https://www.home-assistant.io/) custom
 integration for indoor cultivation. It unifies grow-space configuration,
-sensor and control mapping, optional Tuya cloud water monitoring, and
-camera-based AI health checks into a single [HACS](https://hacs.xyz/)-installable
-package.
+sensor and control mapping, LocalTuya-preferred water monitoring (cloud Tuya as
+fallback), and camera-based AI health checks into a single
+[HACS](https://hacs.xyz/)-installable package.
 
 / One config entry per grow space. No hardcoded entity IDs. Bring your own
 sensors, controllers, cameras, and AI provider. /
@@ -26,8 +26,9 @@ sensors, controllers, cameras, and AI provider. /
   dashboard or automations, with real-time per-pump and total power tracking.
 - **Reservoir flush tracking** — one-press "Flush Now", editable interval, and
   days-since / days-until / next-due sensors with an overdue reminder.
-- **Optional Tuya cloud water monitoring** — signed OpenAPI polling, datapoint
-  normalization, per-device sensors, and automatic sensor-role mapping.
+- **LocalTuya-preferred water monitoring** — bind a LocalTuya or Tuya Local
+  device per grow space for LAN water metrics; cloud OpenAPI polling is
+  fallback-only.
 - **Camera-based AI health checks** — quality-first agronomy scoring,
   observations, issues, recommended actions, and a dynamic feeding schedule.
 - **Pluggable AI providers** — Google Gemini, OpenAI, or Ollama, with dynamic

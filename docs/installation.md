@@ -10,7 +10,9 @@ TendrilGrow is distributed as a HACS custom integration.
   example:
     - A controller integration for lights/fans (the maintainer uses the Vivosun
       HACS integration).
-    - The Tuya HACS integration for reservoir water monitors (optional).
+    - **LocalTuya** (preferred) or **Tuya Local** for reservoir water monitors;
+      IoT Core is only needed to extract local keys. Cloud OpenAPI polling in
+      TendrilGrow is an optional fallback.
     - A camera integration (required for AI vision health checks).
 
 !!! info "No hardcoded entities"
@@ -49,8 +51,9 @@ Add one integration entry **per grow space** (tent, room, or zone). The setup
 flow walks you through:
 
 1. Grow-space name and type.
-2. Mapping sensor and control entities (all mappings are optional). You can also
-   enable Tuya cloud polling here.
+2. Mapping sensor and control entities (all mappings are optional). Prefer
+   binding a LocalTuya / Tuya Local water-monitor device; cloud Tuya polling is
+   an optional fallback.
 3. AI health options (check interval, critical-score threshold, optional notify
    service, result retention).
 4. AI provider selection (`None`, `Gemini`, `OpenAI`, or `Ollama`).

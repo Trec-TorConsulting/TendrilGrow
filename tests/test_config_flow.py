@@ -33,6 +33,7 @@ from custom_components.tendrilgrow.const import (
     CONF_TUYA_ENABLED,
     CONF_TUYA_REGION,
     CONF_TUYA_SCAN_INTERVAL,
+    CONF_WATER_MONITOR_DEVICE_ID,
     DEFAULT_TIMELAPSE_INTERVAL_HOURS,
     DEFAULT_TIMELAPSE_RETENTION_FRAMES,
     PROVIDER_NONE,
@@ -96,6 +97,8 @@ async def test_create_entry_with_optional_mappings_skipped() -> None:
     assert result["title"] == "Tent B"
     assert result["data"]["sensor_mappings"] == {}
     assert result["data"]["control_mappings"] == {}
+    assert result["data"][CONF_TUYA_ENABLED] is False
+    assert result["data"].get(CONF_WATER_MONITOR_DEVICE_ID, "") == ""
     assert result["data"][CONF_TIMELAPSE_ENABLED] is False
     assert (
         result["data"][CONF_TIMELAPSE_INTERVAL_HOURS]
@@ -210,6 +213,7 @@ async def test_entity_mapping_form_includes_water_quality_roles() -> None:
     assert SENSOR_ROLE_CF in schema_keys
     assert SENSOR_ROLE_ORP in schema_keys
     assert SENSOR_ROLE_TDS in schema_keys
+    assert CONF_WATER_MONITOR_DEVICE_ID in schema_keys
     assert CONF_TUYA_ENABLED in schema_keys
     assert CONF_TUYA_ACCESS_ID in schema_keys
     assert CONF_TUYA_REGION in schema_keys
@@ -230,7 +234,43 @@ async def test_entity_mapping_form_hides_sensor_roles_when_tuya_enabled() -> Non
     assert SENSOR_ROLE_ORP not in schema_keys
     assert SENSOR_ROLE_TDS not in schema_keys
     assert SENSOR_ROLE_CAMERA in schema_keys
+    assert CONF_WATER_MONITOR_DEVICE_ID in schema_keys
     assert CONF_TUYA_ENABLED in schema_keys
+
+
+@pytest.mark.asyncio
+async def test_entity_mapping_keeps_water_roles_when_local_device_bound() -> None:
+    flow = TendrilGrowConfigFlow()
+    _patch_show_form(flow)
+    flow._data[CONF_TUYA_ENABLED] = True
+    flow._data[CONF_WATER_MONITOR_DEVICE_ID] = "ha-device-1"
+
+    result = await flow.async_step_entity_mapping()
+
+    schema_keys = {key.schema for key in result["data_schema"].schema}
+    assert SENSOR_ROLE_PH in schema_keys
+    assert SENSOR_ROLE_EC in schema_keys
+    assert CONF_WATER_MONITOR_DEVICE_ID in schema_keys
+
+
+@pytest.mark.asyncio
+async def test_entity_mapping_persists_water_monitor_device() -> None:
+    flow = TendrilGrowConfigFlow()
+    _patch_show_form(flow)
+    _patch_create_entry(flow)
+    flow._async_current_entries = Mock(return_value=[])
+
+    await flow.async_step_user(
+        {CONF_GROW_SPACE_NAME: "Tent Local", CONF_GROW_TYPE: "rdwc", CONF_GROW_SIZE: ""}
+    )
+    await flow.async_step_entity_mapping(
+        {CONF_WATER_MONITOR_DEVICE_ID: "ha-device-99", CONF_TUYA_ENABLED: False}
+    )
+    result = await flow.async_step_ai_provider({CONF_AI_PROVIDER: PROVIDER_NONE})
+
+    assert result["type"] == "create_entry"
+    assert result["data"][CONF_WATER_MONITOR_DEVICE_ID] == "ha-device-99"
+    assert result["data"][CONF_TUYA_ENABLED] is False
 
 
 @pytest.mark.asyncio

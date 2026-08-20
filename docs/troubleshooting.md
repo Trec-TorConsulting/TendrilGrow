@@ -27,13 +27,18 @@ water probe. If VPD is off:
 
 See [Configuration](configuration.md#sensor-roles).
 
-## Tuya sensors are missing
+## Tuya / LocalTuya sensors are missing
 
-1. Confirm Tuya is enabled and the access ID, access secret, region, and device
-   IDs are correct.
-2. Call [`tendrilgrow.rebuild_automap`](services.md#tendrilgrowrebuild_automap)
+1. Prefer LocalTuya (or Tuya Local): confirm the probe device exists in HA and
+   is selected as this grow space’s **Local water monitor**.
+2. For cloud fallback only: confirm Tuya is enabled and the access ID, access
+   secret, region, and device IDs are correct; keep the poll interval at least
+   600s on Trial projects.
+3. Call [`tendrilgrow.rebuild_automap`](services.md#tendrilgrowrebuild_automap)
    to reload and rebuild auto-mapped roles.
-3. Check the logs for the `custom_components.tendrilgrow` logger.
+4. Check the logs for the `custom_components.tendrilgrow` logger.
+5. If you just left cloud polling, dashboard entity ids may still point at
+   `sensor.*_tuya_*` — regenerate with `scripts/generate_dashboard.py`.
 
 ## Entities are unavailable after an update
 

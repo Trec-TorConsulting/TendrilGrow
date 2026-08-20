@@ -48,6 +48,17 @@ CONF_TUYA_SCAN_INTERVAL = "tuya_scan_interval"
 # Default 600s (~10 min) stays within Tuya Trial IoT Core API quotas.
 DEFAULT_TUYA_SCAN_INTERVAL = 600
 
+# Local LAN water-monitor companions (preferred over cloud polling).
+CONF_WATER_MONITOR_DEVICE_ID = "water_monitor_device_id"
+LOCALTUYA_DOMAIN = "localtuya"
+TUYA_LOCAL_DOMAIN = "tuya_local"
+LOCAL_WATER_DOMAINS: tuple[str, ...] = (LOCALTUYA_DOMAIN, TUYA_LOCAL_DOMAIN)
+
+WATER_SOURCE_LOCALTUYA = "localtuya"
+WATER_SOURCE_TUYA_LOCAL = "tuya_local"
+WATER_SOURCE_CLOUD = "cloud"
+WATER_SOURCE_NONE = "none"
+
 PROVIDER_NONE = "none"
 PROVIDER_GEMINI = "gemini"
 PROVIDER_OPENAI = "openai"
@@ -114,12 +125,24 @@ SENSOR_ROLES_CONFIGURABLE: tuple[str, ...] = (
     SENSOR_ROLE_AIR_PUMP_POWER,
 )
 
-# Under Tuya, water metrics come from the cloud; the operator still maps canopy
-# AIR temperature/humidity (for VPD) and the camera here.
+# When cloud Tuya is the effective water source (no local device bound), water
+# roles are auto-mapped from cloud sensors; the operator still maps canopy AIR
+# temperature/humidity (for VPD) and the camera here.
 SENSOR_ROLES_TUYA_OPTIONAL: tuple[str, ...] = (
     SENSOR_ROLE_TEMPERATURE,
     SENSOR_ROLE_HUMIDITY,
     SENSOR_ROLE_CAMERA,
+)
+
+# Water-quality roles auto-mapped from a bound LocalTuya / Tuya Local device.
+# Excludes canopy air temperature/humidity (those stay operator-mapped for VPD).
+SENSOR_ROLES_LOCAL_WATER_AUTOMAP: tuple[str, ...] = (
+    SENSOR_ROLE_PH,
+    SENSOR_ROLE_EC,
+    SENSOR_ROLE_CF,
+    SENSOR_ROLE_ORP,
+    SENSOR_ROLE_TDS,
+    SENSOR_ROLE_WATER_TEMPERATURE,
 )
 
 DEFAULT_AI_HEALTH_INTERVAL_HOURS = 12

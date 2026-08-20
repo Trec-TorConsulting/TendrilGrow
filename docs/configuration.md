@@ -10,7 +10,7 @@ The onboarding flow has the following steps:
 | Step | Purpose |
 | --- | --- |
 | **Create grow space** | Name, grow type, and size/descriptor. |
-| **Map entities** | Map your Home Assistant entities to grow roles; optionally enable Tuya. |
+| **Map entities** | Bind a LocalTuya/Tuya Local water monitor; map other HA entities; optionally enable cloud Tuya fallback. |
 | **AI provider** | Choose `None`, `Gemini`, `OpenAI`, or `Ollama`. |
 | **Provider credentials** | Enter the API key or endpoint for the chosen provider. |
 | **Choose model** | Pick a discovered model (or enter one manually if discovery fails). |
@@ -93,20 +93,20 @@ Default frame directory:
     Repair issue and pauses scheduled captures until the path is allow-listed
     and one capture succeeds.
 
-## Tuya cloud water monitoring (optional)
+## Water monitoring (LocalTuya preferred)
 
-Enable Tuya during the **Map entities** step to poll reservoir water monitors
-from the Tuya cloud. You will provide:
+Prefer a **LocalTuya** or **Tuya Local** device as the water-metric source for
+each grow space. Pick it under **Local water monitor** during the **Map
+entities** step (or later in Options). TendrilGrow auto-maps water roles from
+that device and does not poll Tuya OpenAPI while it is bound.
 
-- Access ID and access secret
-- Region
-- Optional user UID
-- Device IDs (comma-separated)
-- Poll interval (seconds; default **600**)
+Cloud OpenAPI polling remains an optional fallback when no local device is
+bound. You will provide access ID/secret, region, optional UID, device IDs, and
+poll interval (default **600** seconds). See
+[Tuya / LocalTuya water monitoring](tuya-water.md).
 
-When enabled, water-quality sensors are created and **auto-mapped** into the
-matching sensor roles. You still map the **air** temperature/humidity and camera
-yourself. See [Tuya water monitoring](tuya-water.md).
+You still map **air** temperature/humidity and the camera yourself for VPD and
+AI vision.
 
 ## Cultivation context
 

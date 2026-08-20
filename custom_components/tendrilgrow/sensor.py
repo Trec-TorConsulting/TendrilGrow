@@ -58,13 +58,9 @@ from .const import (
     SENSOR_ROLE_WATER_TEMPERATURE,
     STAGE_DURATIONS_DAYS,
     STAGE_PIPELINE,
+    WATER_SOURCE_CLOUD,
 )
-from .coordinator import (
-    TendrilGrowTuyaCoordinator,
-    has_tuya_credentials,
-    tuya_device_ids,
-    tuya_enabled,
-)
+from .coordinator import TendrilGrowTuyaCoordinator, tuya_device_ids
 from .entity import grow_device_info
 from .flush import flush_dispatcher_signal, flush_status
 from .insights import (
@@ -74,6 +70,7 @@ from .insights import (
     compute_dli,
     estimate_daily_cost,
 )
+from .local_water_source import effective_water_source
 from .models.grow import GrowSpace
 from .timelapse import (
     list_frame_files,
@@ -84,6 +81,8 @@ from .timelapse import (
 
 LOGGER = logging.getLogger(__name__)
 
+# Cloud Tuya metrics that auto-map onto water roles. Probe ambient humidity must
+# NOT bind to the canopy humidity role used for VPD.
 _METRIC_TO_ROLE: dict[str, str] = {
     "ph": SENSOR_ROLE_PH,
     "ec": SENSOR_ROLE_EC,
@@ -91,7 +90,6 @@ _METRIC_TO_ROLE: dict[str, str] = {
     "orp": SENSOR_ROLE_ORP,
     "tds": SENSOR_ROLE_TDS,
     "water_temp_c": SENSOR_ROLE_WATER_TEMPERATURE,
-    "ambient_humidity": SENSOR_ROLE_HUMIDITY,
 }
 
 
@@ -166,20 +164,21 @@ async def async_setup_entry(
     """Set up TendrilGrow sensors for one config entry."""
     entities: list[SensorEntity] = []
 
-    # Tuya-dependent sensors (only if Tuya enabled and has credentials).
-    if tuya_enabled(entry) and has_tuya_credentials(entry):
-        device_ids = tuya_device_ids(entry)
-        entities.extend(
-            [
-                AIHealthScoreSensor(hass, entry),
-                AIHealthSummarySensor(hass, entry),
-                AIFeedingScheduleSensor(hass, entry),
-                AIHealthLastCheckSensor(hass, entry),
-                AIWeeklyJournalSensor(hass, entry),
-                TendrilGrowVpdSensor(hass, entry),
-            ]
-        )
+    # VPD and AI health sensors are independent of Tuya cloud polling.
+    entities.extend(
+        [
+            AIHealthScoreSensor(hass, entry),
+            AIHealthSummarySensor(hass, entry),
+            AIFeedingScheduleSensor(hass, entry),
+            AIHealthLastCheckSensor(hass, entry),
+            AIWeeklyJournalSensor(hass, entry),
+            TendrilGrowVpdSensor(hass, entry),
+        ]
+    )
 
+    # Cloud Tuya metric sensors only when cloud is the effective water source.
+    if effective_water_source(hass, entry) == WATER_SOURCE_CLOUD:
+        device_ids = tuya_device_ids(entry)
         if device_ids:
             coordinator = TendrilGrowTuyaCoordinator(hass, entry)
             await coordinator.async_refresh()
