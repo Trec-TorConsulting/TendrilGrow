@@ -231,10 +231,20 @@ def validate_space(
     if payload:
         r.ok(
             f"grow_type={data.get('grow_type')} "
+            f"water_source={payload.get('water_source', 'n/a')} "
             f"tuya_enabled={data.get('tuya_enabled')} "
             f"ai_provider={data.get('ai_provider')} "
             f"ai_model={data.get('ai_model') or 'n/a'}"
         )
+        water_source = str(payload.get("water_source") or "")
+        bound = payload.get("water_monitor_device_id")
+        if water_source in ("localtuya", "tuya_local"):
+            r.ok(f"local water monitor bound ({water_source}) device={bound}")
+        elif data.get("tuya_device_ids"):
+            r.warn(
+                "stored Tuya device ids but water_source="
+                f"{water_source or 'none'}; bind a LocalTuya/Tuya Local device"
+            )
     else:
         r.warn("Diagnostics unavailable; validating from registry/states only")
 
@@ -260,9 +270,14 @@ def validate_space(
 
     temp = check_mapped("temperature")
     hum = check_mapped("humidity")
+    water_roles_present = 0
     for role in ("water_temperature", "ph", "ec", "cf", "orp", "tds", "light_ppfd"):
         if mappings.get(role):
             check_mapped(role)
+            if role != "light_ppfd":
+                water_roles_present += 1
+    if data.get("tuya_device_ids") and water_roles_present == 0:
+        r.fail("water-quality roles unmapped despite stored Tuya device ids")
 
     temp_entity_id = mappings.get("temperature")
     temp_unit = ""

@@ -14,9 +14,12 @@ from custom_components.tendrilgrow.const import (
     CONF_TUYA_ENABLED,
     CONF_WATER_MONITOR_DEVICE_ID,
     LOCALTUYA_DOMAIN,
+    SENSOR_ROLE_CF,
     SENSOR_ROLE_EC,
     SENSOR_ROLE_HUMIDITY,
+    SENSOR_ROLE_ORP,
     SENSOR_ROLE_PH,
+    SENSOR_ROLE_TDS,
     SENSOR_ROLE_TEMPERATURE,
     SENSOR_ROLE_WATER_TEMPERATURE,
     TUYA_LOCAL_DOMAIN,
@@ -107,6 +110,29 @@ def test_find_unique_local_match_none() -> None:
         assert find_unique_local_match(hass, ["tuya-1"]) is None
 
 
+def test_find_unique_local_match_tolerates_triple_identifiers() -> None:
+    """HA 2026 device identifiers can be 3-tuples; matching must not unpack-crash."""
+    devices = {
+        "other": SimpleNamespace(
+            id="other",
+            identifiers={("hue", "bridge", "extra")},
+        ),
+        "dev-a": SimpleNamespace(
+            id="dev-a",
+            identifiers={(TUYA_LOCAL_DOMAIN, "tuya-1", "extra")},
+        ),
+    }
+    hass = SimpleNamespace()
+    with patch(
+        "custom_components.tendrilgrow.local_water_source.dr.async_get",
+        return_value=SimpleNamespace(devices=devices, async_get=devices.get),
+    ):
+        assert find_unique_local_match(hass, ["tuya-1"]) == (
+            "dev-a",
+            TUYA_LOCAL_DOMAIN,
+        )
+
+
 def test_classify_local_water_sensors_by_class_unit_and_name() -> None:
     entities = {
         "sensor.ph": _entity(
@@ -170,6 +196,68 @@ def test_classify_local_water_sensors_by_class_unit_and_name() -> None:
     assert SENSOR_ROLE_HUMIDITY not in classified
     assert SENSOR_ROLE_TEMPERATURE not in classified
     assert "number.ph_cal" not in classified.values()
+
+
+def test_classify_tuya_local_probe_entity_names() -> None:
+    """Tuya Local uses long OEM names and a generic Temperature sensor."""
+    entities = {
+        "sensor.3x3_water_monitor_ph": _entity(
+            "sensor.3x3_water_monitor_ph", "dev-1", name="pH"
+        ),
+        "sensor.3x3_water_monitor_electrical_conductivity": _entity(
+            "sensor.3x3_water_monitor_electrical_conductivity",
+            "dev-1",
+            name="Electrical conductivity",
+        ),
+        "sensor.3x3_water_monitor_cf": _entity(
+            "sensor.3x3_water_monitor_cf", "dev-1", name="CF"
+        ),
+        "sensor.3x3_water_monitor_total_dissolved_solids": _entity(
+            "sensor.3x3_water_monitor_total_dissolved_solids",
+            "dev-1",
+            name="Total dissolved solids",
+        ),
+        "sensor.3x3_water_monitor_oxidation_reduction_potential": _entity(
+            "sensor.3x3_water_monitor_oxidation_reduction_potential",
+            "dev-1",
+            name="Oxidation reduction potential",
+        ),
+        "sensor.3x3_water_monitor_temperature": _entity(
+            "sensor.3x3_water_monitor_temperature",
+            "dev-1",
+            name="Temperature",
+            device_class="temperature",
+        ),
+        "sensor.3x3_water_monitor_humidity": _entity(
+            "sensor.3x3_water_monitor_humidity",
+            "dev-1",
+            name="Humidity",
+            device_class="humidity",
+        ),
+        "sensor.3x3_water_monitor_battery": _entity(
+            "sensor.3x3_water_monitor_battery",
+            "dev-1",
+            name="Battery",
+            device_class="battery",
+        ),
+    }
+    hass = SimpleNamespace(
+        states=SimpleNamespace(get=lambda _entity_id: None)
+    )
+    with patch(
+        "custom_components.tendrilgrow.local_water_source.er.async_get",
+        return_value=SimpleNamespace(entities=entities),
+    ):
+        classified = classify_local_water_sensors(hass, "dev-1")
+
+    assert classified == {
+        SENSOR_ROLE_PH: "sensor.3x3_water_monitor_ph",
+        SENSOR_ROLE_EC: "sensor.3x3_water_monitor_electrical_conductivity",
+        SENSOR_ROLE_CF: "sensor.3x3_water_monitor_cf",
+        SENSOR_ROLE_TDS: "sensor.3x3_water_monitor_total_dissolved_solids",
+        SENSOR_ROLE_ORP: "sensor.3x3_water_monitor_oxidation_reduction_potential",
+        SENSOR_ROLE_WATER_TEMPERATURE: "sensor.3x3_water_monitor_temperature",
+    }
 
 
 def test_apply_local_water_automap_preserves_existing() -> None:

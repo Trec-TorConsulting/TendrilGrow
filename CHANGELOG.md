@@ -14,6 +14,12 @@ The format is inspired by Keep a Changelog and semantic versioning.
   stay within Tuya Trial IoT Core API quotas; existing entries keep their
   configured interval until Options are saved.
 
+### Fixed
+- Local water-monitor matching no longer crashes on Home Assistant 2026 device
+  identifiers (3-tuples). Tuya Local probes that use long names such as
+  "Total dissolved solids" / "Oxidation reduction potential" are classified
+  even before units are available.
+
 ### Friendly Release Notes Template
 
 Use this structure for each new release section to keep updates easy to scan:
