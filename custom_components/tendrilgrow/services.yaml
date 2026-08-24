@@ -1,6 +1,6 @@
 rebuild_automap:
   name: Rebuild auto-map
-  description: Reload TendrilGrow entries to rebuild Tuya auto-mapped sensor roles.
+  description: Reload TendrilGrow entries to rebuild local-device and Tuya auto-mapped sensor roles.
   fields:
     entry_id:
       name: Config entry ID

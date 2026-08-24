@@ -50,9 +50,23 @@ def stored_water_monitor_device_id(entry: ConfigEntry) -> str | None:
     return device_id or None
 
 
+def _iter_identifiers(device: dr.DeviceEntry):
+    """Yield ``(domain, ident)`` pairs from a device registry entry.
+
+    Home Assistant 2026+ can store 3-tuples in ``identifiers``; unpacking as
+    ``domain, ident = item`` then crashes the sensor platform.
+    """
+    for item in getattr(device, "identifiers", None) or ():
+        if not item:
+            continue
+        domain = str(item[0])
+        ident = str(item[1]) if len(item) > 1 else ""
+        yield domain, ident
+
+
 def _device_local_domain(device: dr.DeviceEntry) -> str | None:
     """Return localtuya or tuya_local if the device identifiers include that domain."""
-    domains = {str(domain) for domain, _id in device.identifiers}
+    domains = {domain for domain, _ident in _iter_identifiers(device)}
     if LOCALTUYA_DOMAIN in domains:
         return LOCALTUYA_DOMAIN
     if TUYA_LOCAL_DOMAIN in domains:
@@ -61,8 +75,8 @@ def _device_local_domain(device: dr.DeviceEntry) -> str | None:
 
 
 def _identifier_matches_tuya_id(device: dr.DeviceEntry, tuya_ids: set[str]) -> bool:
-    for _domain, ident in device.identifiers:
-        if str(ident) in tuya_ids:
+    for _domain, ident in _iter_identifiers(device):
+        if ident in tuya_ids:
             return True
     return False
 
@@ -89,11 +103,14 @@ def find_unique_local_match(
 
     matches: list[tuple[str, str]] = []
     for device in registry.devices.values():
-        domain = _device_local_domain(device)
-        if domain is None:
+        try:
+            domain = _device_local_domain(device)
+            if domain is None:
+                continue
+            if _identifier_matches_tuya_id(device, cleaned):
+                matches.append((device.id, domain))
+        except Exception:  # noqa: BLE001
             continue
-        if _identifier_matches_tuya_id(device, cleaned):
-            matches.append((device.id, domain))
 
     if not matches:
         return None
@@ -292,7 +309,8 @@ def classify_local_water_sensors(
             break
     if SENSOR_ROLE_TDS not in result:
         for entity in candidates:
-            if "tds" in _entity_text(entity) and _claim(entity):
+            text = _entity_text(entity)
+            if ("tds" in text or "dissolved" in text) and _claim(entity):
                 result[SENSOR_ROLE_TDS] = entity.entity_id
                 break
 
@@ -304,7 +322,10 @@ def classify_local_water_sensors(
             break
     if SENSOR_ROLE_ORP not in result:
         for entity in candidates:
-            if "orp" in _entity_text(entity) and _claim(entity):
+            text = _entity_text(entity)
+            if (
+                "orp" in text or "redox" in text or "oxidation" in text
+            ) and _claim(entity):
                 result[SENSOR_ROLE_ORP] = entity.entity_id
                 break
 

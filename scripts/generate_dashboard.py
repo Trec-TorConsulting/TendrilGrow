@@ -133,7 +133,13 @@ def _entities_card(title: str, rows: list, **extra: Any) -> dict:
     return card
 
 
-def classify(entry_id: str, title: str, registry: list, eff_sensors: dict) -> dict:
+def classify(
+    entry_id: str,
+    title: str,
+    registry: list,
+    eff_sensors: dict,
+    states: dict[str, dict] | None = None,
+) -> dict:
     """Bucket a grow space's entities into the parts each card needs."""
     reg: dict[str, str] = {}
     last_updated: str | None = None
@@ -148,6 +154,10 @@ def classify(entry_id: str, title: str, registry: list, eff_sensors: dict) -> di
         reg[suffix] = entity_id
         if suffix.endswith("_last_updated"):
             last_updated = entity_id
+    if last_updated and states is not None:
+        state = (states.get(last_updated) or {}).get("state")
+        if state in (None, "unavailable", "unknown"):
+            last_updated = None
     return {
         "entry_id": entry_id,
         "title": title,
@@ -413,6 +423,17 @@ async def main() -> int:
     print(f"Connecting to {url} (token never printed) [{mode}]")
 
     async with aiohttp.ClientSession() as session:
+        headers = {"Authorization": f"Bearer {token}"}
+        states: dict[str, dict] = {}
+        try:
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with session.get(
+                f"{url}/api/states", headers=headers, ssl=ssl_ctx, timeout=timeout
+            ) as resp:
+                if resp.status == 200:
+                    states = {s["entity_id"]: s for s in await resp.json()}
+        except (aiohttp.ClientError, ValueError):
+            states = {}
         async with session.ws_connect(
             ws_url, ssl=ssl_ctx, timeout=aiohttp.ClientTimeout(total=30)
         ) as ws:
@@ -440,7 +461,7 @@ async def main() -> int:
                 entry_id = entry["entry_id"]
                 eff = await fetch_diagnostics(session, url, token, entry_id, ssl_ctx)
                 title = str(entry.get("title") or entry_id)
-                spaces.append(classify(entry_id, title, registry, eff))
+                spaces.append(classify(entry_id, title, registry, eff, states))
 
             config = {
                 "title": DEFAULT_TITLE,

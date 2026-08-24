@@ -1,6 +1,6 @@
 # Tasks: prefer-localtuya
 
-> Implementation complete except live HA verification (6.3). TendrilGrow consumes
+> Implementation complete, including live HA verification (6.3). TendrilGrow consumes
 > LocalTuya / Tuya Local entities; it does not speak the Tuya LAN protocol.
 
 ## 1. Constants and source helpers
@@ -44,4 +44,4 @@
 
 - [x] 6.1 Full test pass for resolver, auto-map, config flow, and diagnostics
 - [x] 6.2 `ruff check .` clean
-- [ ] 6.3 Live check: bind each tent's LocalTuya (or Tuya Local) probe; confirm pH/EC/TDS/water temp map correctly, VPD still uses canopy air sensors, and no OpenAPI polls appear in logs for those entries
+- [x] 6.3 Live check: bind each tent's LocalTuya (or Tuya Local) probe; confirm pH/EC/TDS/water temp map correctly, VPD still uses canopy air sensors, and no OpenAPI polls appear in logs for those entries
