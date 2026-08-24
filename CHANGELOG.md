@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-24
+
 ### Changed
 - Prefer **LocalTuya** (then Tuya Local) as the water-metric source per grow
   space; Tuya cloud OpenAPI polling is fallback-only and is skipped while a
