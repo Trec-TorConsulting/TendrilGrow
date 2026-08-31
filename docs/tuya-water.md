@@ -65,8 +65,8 @@ entries and rebuild local and cloud auto-mapped roles.
 
 When you switch from cloud Tuya sensors to LocalTuya entities, dashboard
 references such as `sensor.*_tuya_*` go stale. Regenerate the Lovelace
-dashboard with [`scripts/generate_dashboard.py`](../scripts/generate_dashboard.py)
-(or update entity ids manually).
+dashboard with `scripts/generate_dashboard.py` (see [Dashboards](dashboards.md)),
+or update entity ids manually.
 
 ## Security
 
