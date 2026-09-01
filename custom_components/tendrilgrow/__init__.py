@@ -24,6 +24,7 @@ from .const import (
     CONF_AI_HEALTH_INTERVAL_HOURS,
     CONF_TIMELAPSE_ENABLED,
     CONF_TIMELAPSE_INTERVAL_HOURS,
+    CTX_STAGE_STARTED,
     CTX_WEEK_IN_STAGE,
     DEFAULT_AI_HEALTH_INTERVAL_HOURS,
     DEFAULT_TIMELAPSE_ENABLED,
@@ -31,6 +32,7 @@ from .const import (
     DOMAIN,
     PUMP_CONTROL_ROLES,
 )
+from .entity import grow_object_id_prefix, prefix_from_entity_id
 from .flush import (
     FlushState,
     async_check_flush_due,
@@ -102,6 +104,8 @@ class RuntimeData:
     unsubscribe_timelapse_scheduler: Any
     timelapse_scheduler_paused: bool
     migrated_stage_started: date | None = None
+    grow_object_prefix: str | None = None
+    legacy_week_entity_id: str | None = None
 
 
 class _EphemeralStore:
@@ -178,6 +182,12 @@ def _seed_stage_started_from_week_number(
     )
     if not week_id:
         return None
+    runtime = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    prefix = prefix_from_entity_id(week_id, "week_in_stage")
+    if runtime is not None:
+        runtime.legacy_week_entity_id = week_id
+        if prefix:
+            runtime.grow_object_prefix = prefix
     week_state = None
     current = hass.states.get(week_id)
     if current is not None and current.state not in (
@@ -213,6 +223,223 @@ def _seed_stage_started_from_week_number(
     except (TypeError, ValueError):
         return None
     return dt_util.now().date() - timedelta(days=max(0, int(round(weeks * 7))))
+
+
+_STAGE_CLOCK_ENTITY_IDS: tuple[tuple[str, str, str], ...] = (
+    ("date", CTX_STAGE_STARTED, "stage_started"),
+    ("sensor", CTX_WEEK_IN_STAGE, "week_in_stage"),
+)
+
+_LOVELACE_STAGE_CLOCK_SCHEDULED = "_lovelace_stage_clock_scheduled"
+
+
+def _migrate_stage_clock_entity_ids(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> dict[str, str]:
+    """Rename Stage Started / Week In Stage ids to match Cultivation Plan cards.
+
+    First-load ids are often ``date.stage_started`` / ``date.stage_started_2``
+    because the device is not attached yet. Dashboards use
+    ``date.<grow_prefix>_stage_started`` like the Growth Stage select.
+    """
+    renamed: dict[str, str] = {}
+    prefix = grow_object_id_prefix(hass, entry)
+    if not prefix:
+        return renamed
+    try:
+        registry = er.async_get(hass)
+    except Exception:  # noqa: BLE001
+        return renamed
+
+    for domain, uid_suffix, obj_suffix in _STAGE_CLOCK_ENTITY_IDS:
+        unique_id = f"{entry.entry_id}_{uid_suffix}"
+        current = registry.async_get_entity_id(domain, DOMAIN, unique_id)
+        if not current:
+            continue
+        desired = f"{domain}.{prefix}_{obj_suffix}"
+        renamed[current] = desired
+        if current == desired:
+            continue
+        current_object = current.split(".", 1)[1]
+        generic = current_object == obj_suffix or bool(
+            re.fullmatch(rf"{re.escape(obj_suffix)}_\d+", current_object)
+        )
+        device_prefixed = current_object.endswith(f"_{obj_suffix}")
+        if not generic and not device_prefixed:
+            continue
+        if registry.async_get(desired) is not None:
+            continue
+        try:
+            registry.async_update_entity(current, new_entity_id=desired)
+            LOGGER.info(
+                "Migrated stage-clock entity %s -> %s for %s",
+                current,
+                desired,
+                entry.entry_id,
+            )
+        except (ValueError, KeyError):
+            LOGGER.debug("Could not migrate %s -> %s", current, desired, exc_info=True)
+    return renamed
+
+
+def rewrite_lovelace_stage_clock(
+    config: Any,
+    list_replacements: dict[str, list[str]],
+    string_replacements: dict[str, str],
+) -> tuple[Any, bool]:
+    """Swap retired week-in-stage number ids for Stage Started + Week In Stage."""
+    ordered_strings = sorted(string_replacements, key=len, reverse=True)
+
+    def _swap_text(value: str) -> tuple[str, bool]:
+        updated = value
+        for old in ordered_strings:
+            updated = updated.replace(old, string_replacements[old])
+        return updated, updated != value
+
+    def _entity_id_of(item: Any) -> str | None:
+        if isinstance(item, str):
+            return item
+        if isinstance(item, dict):
+            entity = item.get("entity")
+            if isinstance(entity, str):
+                return entity
+        return None
+
+    def _walk(value: Any) -> tuple[Any, bool]:
+        if isinstance(value, dict):
+            changed = False
+            out: dict[Any, Any] = {}
+            for key, child in value.items():
+                if key == "entities" and isinstance(child, list):
+                    rewritten, child_changed = _rewrite_entities(child)
+                else:
+                    rewritten, child_changed = _walk(child)
+                out[key] = rewritten
+                changed = changed or child_changed
+            return out, changed
+        if isinstance(value, list):
+            changed = False
+            out_list = []
+            for child in value:
+                rewritten, child_changed = _walk(child)
+                out_list.append(rewritten)
+                changed = changed or child_changed
+            return out_list, changed
+        if isinstance(value, str):
+            return _swap_text(value)
+        return value, False
+
+    def _rewrite_entities(rows: list[Any]) -> tuple[list[Any], bool]:
+        present: set[str] = set()
+        for item in rows:
+            eid = _entity_id_of(item)
+            if eid:
+                present.add(eid)
+        out: list[Any] = []
+        changed = False
+        for item in rows:
+            eid = _entity_id_of(item)
+            replacements = list_replacements.get(eid or "")
+            if replacements:
+                changed = True
+                for new_id in replacements:
+                    if new_id in present:
+                        continue
+                    out.append(new_id)
+                    present.add(new_id)
+                continue
+            rewritten, child_changed = _walk(item)
+            new_eid = _entity_id_of(rewritten)
+            if new_eid and new_eid in present and new_eid != eid:
+                changed = True
+                continue
+            out.append(rewritten)
+            changed = changed or child_changed
+        return out, changed
+
+    return _walk(config)
+
+
+def _stage_clock_lovelace_replacements(
+    hass: HomeAssistant,
+) -> tuple[dict[str, list[str]], dict[str, str]]:
+    """Map retired/guessed Cultivation Plan ids to the live registry ids."""
+    list_replacements: dict[str, list[str]] = {}
+    string_replacements: dict[str, str] = {}
+    try:
+        registry = er.async_get(hass)
+        entries = hass.config_entries.async_entries(DOMAIN)
+    except Exception:  # noqa: BLE001
+        return list_replacements, string_replacements
+
+    for entry in entries:
+        prefix = grow_object_id_prefix(hass, entry)
+        date_id = registry.async_get_entity_id(
+            "date", DOMAIN, f"{entry.entry_id}_{CTX_STAGE_STARTED}"
+        )
+        sensor_id = registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{entry.entry_id}_{CTX_WEEK_IN_STAGE}"
+        )
+        runtime = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+        legacy = getattr(runtime, "legacy_week_entity_id", None)
+        old_number = legacy or (f"number.{prefix}_week_in_stage" if prefix else None)
+        replacements = [eid for eid in (date_id, sensor_id) if eid]
+        if old_number and replacements:
+            list_replacements[old_number] = replacements
+            string_replacements[old_number] = sensor_id or date_id or old_number
+        if prefix and date_id:
+            guessed = f"date.{prefix}_stage_started"
+            if guessed != date_id:
+                string_replacements[guessed] = date_id
+                list_replacements[guessed] = [date_id]
+        if prefix and sensor_id:
+            guessed = f"sensor.{prefix}_week_in_stage"
+            if guessed != sensor_id:
+                string_replacements[guessed] = sensor_id
+                list_replacements[guessed] = [sensor_id]
+    return list_replacements, string_replacements
+
+
+async def _async_migrate_lovelace_stage_clock(hass: HomeAssistant) -> None:
+    """Rewrite storage-mode dashboards that still reference deleted number ids."""
+    lovelace = hass.data.get("lovelace")
+    dashboards = getattr(lovelace, "dashboards", None)
+    if dashboards is None and isinstance(lovelace, dict):
+        dashboards = lovelace.get("dashboards")
+    if not isinstance(dashboards, dict) or not dashboards:
+        return
+    list_replacements, string_replacements = _stage_clock_lovelace_replacements(hass)
+    if not list_replacements and not string_replacements:
+        return
+    for url_path, dash in dashboards.items():
+        if (
+            dash is None
+            or not hasattr(dash, "async_load")
+            or not hasattr(dash, "async_save")
+        ):
+            continue
+        try:
+            config = await dash.async_load(False)
+        except Exception:  # noqa: BLE001
+            LOGGER.debug(
+                "Could not load Lovelace dashboard %s", url_path, exc_info=True
+            )
+            continue
+        new_config, changed = rewrite_lovelace_stage_clock(
+            config, list_replacements, string_replacements
+        )
+        if not changed:
+            continue
+        try:
+            await dash.async_save(new_config)
+            LOGGER.info(
+                "Updated Cultivation Plan entities on Lovelace dashboard %s",
+                url_path,
+            )
+        except Exception:  # noqa: BLE001
+            LOGGER.debug(
+                "Could not save Lovelace dashboard %s", url_path, exc_info=True
+            )
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -324,14 +551,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     _migrate_ai_entity_ids(hass, entry)
-    runtime.migrated_stage_started = _seed_stage_started_from_week_number(
-        hass, entry
-    )
+    runtime.migrated_stage_started = _seed_stage_started_from_week_number(hass, entry)
     try:
         async_evaluate_repair_issues(hass, entry, merged_config, grow_space)
     except Exception:  # noqa: BLE001
         LOGGER.debug("Unable to evaluate repair issues", exc_info=True)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    _migrate_stage_clock_entity_ids(hass, entry)
+    try:
+        if not hass.data[DOMAIN].get(_LOVELACE_STAGE_CLOCK_SCHEDULED):
+            hass.data[DOMAIN][_LOVELACE_STAGE_CLOCK_SCHEDULED] = True
+
+            async def _async_lovelace_stage_clock(_now) -> None:
+                await _async_migrate_lovelace_stage_clock(hass)
+
+            async_call_later(hass, 15, _async_lovelace_stage_clock)
+    except Exception:  # noqa: BLE001
+        LOGGER.debug("Unable to schedule Lovelace stage-clock migration", exc_info=True)
     # Schedule the initial check as a proper coroutine job so HA runs it on the
     # event loop (a plain lambda is treated as an executor job where
     # async_create_task never awaits the coroutine).

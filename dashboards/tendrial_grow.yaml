@@ -234,9 +234,9 @@ views:
     entities:
     - text.3x3_mothers_tent_strain_genetics
     - select.3x3_mothers_tent_growth_stage
-    - select.3x3_mothers_tent_water_type
     - date.3x3_mothers_tent_stage_started
     - sensor.3x3_mothers_tent_week_in_stage
+    - select.3x3_mothers_tent_water_type
     - number.3x3_mothers_tent_sites_plants
     - number.3x3_mothers_tent_reservoir_volume
     - number.3x3_mothers_tent_target_ph
@@ -339,9 +339,9 @@ views:
     entities:
     - text.4x4_full_cycle_tent_strain_genetics
     - select.4x4_full_cycle_tent_growth_stage
-    - select.4x4_full_cycle_tent_water_type
     - date.4x4_full_cycle_tent_stage_started
     - sensor.4x4_full_cycle_tent_week_in_stage
+    - select.4x4_full_cycle_tent_water_type
     - number.4x4_full_cycle_tent_sites_plants
     - number.4x4_full_cycle_tent_reservoir_volume
     - number.4x4_full_cycle_tent_target_ph
@@ -428,9 +428,9 @@ views:
     entities:
     - text.clone_strain_genetics
     - select.clone_growth_stage
-    - select.basement_clone_water_type
     - date.clone_stage_started
     - sensor.clone_week_in_stage
+    - select.basement_clone_water_type
     - number.clone_sites_plants
     - number.clone_total_system_volume
     - number.clone_target_ph

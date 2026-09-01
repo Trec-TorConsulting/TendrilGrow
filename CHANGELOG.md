@@ -6,6 +6,12 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+### Fixed
+- Cultivation Plan no longer shows **Entity not found** after the Stage Started
+  change. Stage Started and Week In Stage now reuse each grow space's existing
+  id prefix (same as Growth Stage), and storage dashboards that still point at
+  the old Week In Stage number are rewritten on reload.
+
 ## [0.3.2] - 2026-09-01
 
 ### Changed
