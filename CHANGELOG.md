@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-01
+
 ### Changed
 - Cultivation Plan now uses a **Stage Started** date. Weeks in stage are
   computed from that date (and feed AI dosing and timeline math). Changing
