@@ -1,57 +1,66 @@
 # FAQ
 
-## Is TendrilGrow only for one type of plant?
+## Is this only for cannabis?
 
 No. It is a generic indoor-cultivation integration. Grow types include `rdwc`,
-`dwc`, `aeroponic`, `soil`, `coco`, and `other`, and you can type a custom value.
+`dwc`, `aeroponic`, `soil`, `coco`, and `other`, plus custom text.
 
-## Does it control my equipment automatically?
+## Does it control equipment by itself?
 
-No. Control (pumps, and any actuation) is manual and opt-in. TendrilGrow exposes
-switches and services; you build automations yourself and are responsible for
-validating them. See [Pump control and monitoring](pumps.md).
+No. Switches and services are opt-in. You write automations and you own the
+risk. See [Pumps](pumps.md) and [Examples](examples.md).
 
-## Which AI providers are supported?
+## Which AI providers work?
 
-Google Gemini, OpenAI, and Ollama. After you enter credentials, TendrilGrow
-discovers available models so you can pick one. See
-[AI health checks](ai-health.md).
+Google Gemini, OpenAI, and Ollama. Credentials first, then pick a **vision**
+model. [AI health](ai-health.md).
 
-## Do I need Tuya / LocalTuya?
+## Do I need Tuya or LocalTuya?
 
-No. Prefer LocalTuya (or Tuya Local) when you have a Tuya Wi-Fi water probe —
-TendrilGrow binds that HA device and skips cloud polling. Cloud OpenAPI
-polling is optional fallback only. If you already have water sensors in Home
-Assistant, map them directly. See
-[Tuya / LocalTuya water monitoring](tuya-water.md).
+No. Bind LocalTuya/Tuya Local when you have that probe. Or map any pH/EC
+entities you already have. Cloud OpenAPI is optional fallback.
+[Tuya / LocalTuya](tuya-water.md).
 
-## Does it require internet access?
+## Does it need internet?
 
-Cloud AI providers (Gemini, OpenAI) and Tuya cloud polling require internet.
-Ollama can run locally on your network. The rest of the integration works
-locally.
+Cloud AI and Tuya cloud polling do. Ollama and LocalTuya can stay on LAN.
+Helpers, VPD, flush tracking, and pumps work without a cloud AI.
 
-## Can I run multiple tents or rooms?
+## Multiple tents?
 
-Yes. Add one config entry per grow space; each has its own mappings, settings,
-and AI provider.
+Yes. One config entry per grow space. Each has its own mappings, helpers, and
+AI provider.
 
-## Are my API keys safe?
+## Are API keys stored safely?
 
-Keys and the Tuya access secret are treated as sensitive and are redacted in
-diagnostics and logs. Never paste real keys into issues or discussions.
+They live in the config entry like other HA credentials. Diagnostics redact
+them. Never paste keys into GitHub.
 
 ## Will AI checks cost money?
 
-That depends on your provider. Cloud providers bill per usage according to their
-own pricing; Ollama is self-hosted. Tune the check interval to control frequency.
+Cloud providers bill per usage. Interval default is 12 hours. Ollama is
+self-hosted.
 
-## What Home Assistant version is required?
+## What Home Assistant version?
 
-Home Assistant **2026.2.0** or newer.
+**2026.2.0** or newer.
+
+## Week In Stage is not editable
+
+Correct. Set **Stage Started** (or change Growth Stage, then backdate).
+[Cultivation plan](cultivation.md#stage-started-and-week-in-stage).
+
+## HACS does not show TendrilGrow
+
+Add the **custom repository** first, category **Integration**.
+[Installation](installation.md).
+
+## Where is the official docs site?
+
+<https://trec-torconsulting.github.io/TendrilGrow/>
 
 ## How do I get help?
 
-Start a thread in
-[Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions), or
-open an [issue](https://github.com/Trec-TorConsulting/TendrilGrow/issues/new/choose).
+[Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions) or
+an [issue](https://github.com/Trec-TorConsulting/TendrilGrow/issues/new/choose).
+Security: [SECURITY.md](https://github.com/Trec-TorConsulting/TendrilGrow/blob/main/SECURITY.md).

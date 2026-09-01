@@ -1,13 +1,15 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Trec-TorConsulting/TendrilGrow/main/docs/assets/logo.png" alt="TendrilGrow" width="520">
+  <img src="https://raw.githubusercontent.com/Trec-TorConsulting/TendrilGrow/main/docs/assets/logo.svg" alt="TendrilGrow" width="520">
 </p>
 
 # TendrilGrow
 
-> Home Assistant custom integration for indoor cultivation — unify grow-space
-> configuration, sensor/control mapping, LocalTuya-preferred water monitoring,
-> and camera-based
-> AI health checks in a single HACS package.
+Home Assistant custom integration for indoor cultivation. One grow space per
+config entry — sensors, pumps, reservoir chemistry, cultivation stage, and
+camera-based AI health checks in a single [HACS](https://hacs.xyz) package.
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Trec-TorConsulting&repository=TendrilGrow&category=integration)
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=tendrilgrow)
 
 [![lint & test](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/lint-test.yml/badge.svg)](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/lint-test.yml)
 [![hassfest](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/hassfest.yml/badge.svg)](https://github.com/Trec-TorConsulting/TendrilGrow/actions/workflows/hassfest.yml)
@@ -16,269 +18,114 @@
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.2.0%2B-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/)
 [![Release](https://img.shields.io/github/v/release/Trec-TorConsulting/TendrilGrow?sort=semver)](https://github.com/Trec-TorConsulting/TendrilGrow/releases)
 [![License: MIT](https://img.shields.io/github/license/Trec-TorConsulting/TendrilGrow)](LICENSE)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 **[Documentation](https://trec-torconsulting.github.io/TendrilGrow/) ·
-[Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions) ·
+[Quick start](https://trec-torconsulting.github.io/TendrilGrow/quick-start/) ·
 [Changelog](CHANGELOG.md) ·
+[Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions) ·
 [Report a bug](https://github.com/Trec-TorConsulting/TendrilGrow/issues/new/choose)**
 
-## Contents
+## What it does
 
-- [Status](#status)
-- [Core capabilities](#core-capabilities)
-- [Current scope and non-goals](#current-scope-and-non-goals)
-- [Architecture overview](#architecture-overview)
-- [Installation via HACS](#installation-via-hacs)
-- [Configuration model](#configuration-model)
-- [Dashboards](#dashboards)
-- [Security and secrets](#security-and-secrets)
-- [Quality gates](#quality-gates)
-- [Local development](#local-development)
-- [Documentation and community](#documentation-and-community)
+TendrilGrow does **not** replace your lights, sensors, or cameras. It groups
+them into a grow space, tracks cultivation context, and (optionally) asks a
+vision model to score plant health.
 
-## Status
+| You map | TendrilGrow adds |
+| --- | --- |
+| Canopy temp + humidity | VPD and dew point |
+| Reservoir pH / EC / ORP / temp | Role-mapped chemistry + AI context |
+| Circulation / chiller / air pumps | Switches, power, estimated daily cost |
+| A camera + vision model | Health score, issues, mix-order feeding card |
+| Nothing extra | Growth stage, Stage Started date, Week In Stage, flush cadence, timeline calendar, tasks |
 
-- **Maturity:** Foundation release (actively developed)
-- **Distribution:** HACS custom integration
-- **Config model:** One Home Assistant config entry per grow space
-- **Minimum Home Assistant:** 2026.2.0
-- **License:** MIT
+Control stays **manual and opt-in**. You build automations; TendrilGrow does not
+actuate pumps or valves on its own.
 
-## Core capabilities
+## Install with HACS
 
-- One grow-space config entry per tent/room/zone
-- Flexible grow-space model: sites, mapped sensors, mapped controls, targets,
-	schedules
-- Extensible role mappings: **air** temperature/humidity (canopy, for VPD), a
-	distinct water/reservoir temperature, light, pH, EC, CF, ORP, TDS, cameras,
-	lights, fans, inline fans
-- **Pump control and monitoring** (RDWC, chiller, air pumps):
-	- Toggle pumps on/off via dashboard switches or automation services
-	- Real-time power consumption monitoring per pump and total
-	- RDWC pump integration for safe header-bucket dosing workflow
-	- Optional explicit power sensor mapping or automatic sensor discovery
-- **Reservoir flush tracking** (7-10 day RDWC cadence):
-	- One-press "Flush Now" button records each full flush/refill
-	- Editable per-space flush interval and days-since / days-until / next-due sensors
-	- Overdue "flush due" indicator with a de-duplicated reminder notification
-	- Flush status folded into the AI advisor's cultivation context
-- Unit-aware derived VPD (°F→°C) exposed as a per-grow-space VPD sensor,
-	computed from the mapped air temperature and air humidity
-- LocalTuya-preferred water monitoring (bind a LocalTuya / Tuya Local device;
-	cloud OpenAPI polling is fallback-only, default poll **600s**)
-- Camera-based AI health checks: quality-first agronomy scoring, observations,
-	issues, recommended actions, and a dynamic feeding schedule
-- Scheduled and on-demand checks with persistent history and retention
-- Critical-score notifications (persistent notification plus optional notify service)
-- Editable cultivation-context helpers (growth stage, strain, targets,
-	reservoir volume, nutrients) that ground AI advice
-- Full lifecycle growth stages (seedling, mother, clone, vegetative,
-	early/mid/late flower, flush, harvest, dry, cure, ready) with stage-aware AI
-	objectives (mothers judged on health/structure, clones on rooting, flowering
-	on quality, dry/cure on drying) plus a per-space stage-projection sensor
-	(days remaining and projected stage-end/harvest/ready dates)
-- AI health entities (score, summary, feeding schedule, last check, critical
-	alert) and a run button
-- Camera timelapse (opt-in): scheduled/on-demand frame capture, frame retention,
-	frame-count and last-frame sensors, and ffmpeg video build service
-- Services: `run_ai_health_check`, `rebuild_automap`, `set_pump`, `mark_flush`,
-	`capture_timelapse_frame`, and `build_timelapse`
-- Pluggable AI provider selection:
-	- Google Gemini
-	- OpenAI
-	- Ollama
-- Dynamic model discovery after provider credentials are entered
-- Secrets-safe diagnostics and logging (API keys are redacted)
-- More grow insights and extras: dew point, estimated Daily Light Integral (DLI), estimated daily pump energy cost, a Grow Timeline calendar, an auto-generated Grow Tasks to-do list, a weekly AI journal, actionable mobile notifications, and Home Assistant Repairs prompts for common misconfigurations
+**Requirements:** Home Assistant **2026.2.0** or newer, and [HACS](https://hacs.xyz/).
 
-## Current scope and non-goals
+1. Click **HACS** → **Custom repositories** (or use the badge above).
+2. Repository:
+   `https://github.com/Trec-TorConsulting/TendrilGrow`
+3. Category: **Integration**.
+4. Download **TendrilGrow**, then **restart Home Assistant**.
+5. **Settings → Devices & Services → Add Integration → TendrilGrow**
+   (or the “start setup” badge above).
 
-Included now:
-- Integration foundation, config flow, options flow, model abstraction,
-	governance and CI
-- LocalTuya-preferred water monitoring with optional cloud OpenAPI fallback
-  and normalized water-quality sensors
-- Camera-based AI grow-health checks, scoring, and dynamic feeding schedules
-- Cultivation-context helper entities and AI health entities/services
-- Pump control and monitoring: RDWC, chiller, and air pump switches with
-	dashboard control and real-time power consumption tracking
-- Reservoir flush tracking: record button, interval, status sensors, overdue
-	reminder, and AI-context awareness for the 7-10 day RDWC flush cadence
+Add **one integration entry per tent, room, or zone**.
 
-Planned in future changes:
-- Bundled Lovelace dashboard cards
-- Automation orchestration engine (safety-first, opt-in control actuation)
-- Additional AI providers (Anthropic, Azure OpenAI, OpenAI-compatible)
+Manual install (no HACS): unzip `tendrilgrow.zip` from the
+[latest release](https://github.com/Trec-TorConsulting/TendrilGrow/releases)
+into `/config/custom_components/tendrilgrow` and restart.
 
-## Architecture overview
+Full walkthrough with example values:
+[Quick start](https://trec-torconsulting.github.io/TendrilGrow/quick-start/).
 
-Main runtime modules:
+## First grow space (5 minutes)
 
-- `custom_components/tendrilgrow/__init__.py`
-	- Config entry lifecycle (setup/unload/reload)
-	- Per-entry runtime data
-- `custom_components/tendrilgrow/config_flow.py`
-	- Onboarding flow and options flow
-	- Entity mapping, provider selection, credential handling, model selection
-- `custom_components/tendrilgrow/models/grow.py`
-	- Grow-space domain model, serialization, VPD computation
-- `custom_components/tendrilgrow/coordinator.py`
-	- Per-entry Tuya cloud polling coordinator
-- `custom_components/tendrilgrow/tuya_client.py`
-	- Signed Tuya OpenAPI client and datapoint normalization
-- `custom_components/tendrilgrow/ai/providers.py`
-	- Provider abstraction, model discovery, and vision report generation
-- `custom_components/tendrilgrow/ai/health_checks.py`
-	- Camera-based health-check runtime, prompt, scoring, persistence, notifications
-- `custom_components/tendrilgrow/{sensor,binary_sensor,button,number,select,text}.py`
-	- Tuya metric sensors, AI health entities, and cultivation-context helpers
-- `custom_components/tendrilgrow/diagnostics.py`
-	- Redacted diagnostics payloads for supportability
+During setup you will:
 
-## Installation via HACS
+1. Name the space (`4x4 Flower`) and pick a grow type (`rdwc`, `dwc`, `soil`, …).
+2. Map what you have. Skip anything you do not own. Prefer a **LocalTuya** /
+   **Tuya Local** water probe; cloud Tuya polling is fallback-only.
+3. Optionally enable AI (Gemini, OpenAI, or Ollama) and map a **camera**.
+4. After setup, fill **Cultivation Plan** on the device: strain, Growth Stage,
+   **Stage Started** (calendar date), makeup water, targets, nutrients,
+   additives (include **Hydroguard** if the reservoir is live).
 
-### Prerequisites
-
-- Home Assistant with HACS installed
-- Companion integrations already configured if you use them:
-	- Vivosun HACS integration (controllers)
-	- LocalTuya (preferred) or Tuya Local for water monitors; IoT Core for
-	  one-time local-key extraction only
-	- Camera integration (required for AI vision health checks)
-
-### Install steps
-
-1. Open HACS in Home Assistant.
-2. Navigate to menu -> Custom repositories.
-3. Add this GitHub repository URL.
-4. Select category: `Integration`.
-5. Install `TendrilGrow` from HACS.
-6. Restart Home Assistant.
-7. Go to Settings -> Devices & Services -> Add Integration.
-8. Add `TendrilGrow`.
-
-During install in HACS, you will see behavior similar to:
-
-- `TendrilGrow`
-- `Commit <sha> will be downloaded`
-- Installed path: `/config/custom_components/tendrilgrow`
-
-Home Assistant restart is required after downloading custom integrations.
-Changes in `custom_components` are not applied until restart.
-
-### First-time setup flow
-
-For each grow space (one entry per space):
-
-1. Enter grow-space name and type.
-2. Map sensor and control entities (optional mappings supported). Prefer
-	binding a LocalTuya / Tuya Local water-monitor device; optionally enable
-	cloud Tuya polling as fallback and enter credentials and device IDs.
-3. Set AI health options (check interval, critical-score threshold, optional
-	notify service, result retention).
-4. Pick AI provider (`None`, `Gemini`, `OpenAI`, or `Ollama`).
-5. Enter provider credentials/endpoint.
-6. Select discovered model or use manual model fallback if discovery fails.
-
-To run AI health checks, map a `camera` entity and select a vision-capable
-provider and model. Checks run on a schedule, on demand via the run button, or
-through the `tendrilgrow.run_ai_health_check` service.
-
-To use camera timelapse capture, also add the capture directory to
-`homeassistant.allowlist_external_dirs` (default:
-`/config/www/tendrilgrow/<grow_slug>/timelapse/`). Frame capture pauses and a
-Repair issue is raised if the path is not allow-listed. The
-`tendrilgrow.build_timelapse` service requires ffmpeg to be available.
+Week In Stage is computed from Stage Started. Changing Growth Stage resets
+Stage Started to today; you can backdate it.
 
 ## Dashboards
 
-An example multi-tab Lovelace dashboard is tracked at
-[dashboards/tendrial_grow.yaml](dashboards/tendrial_grow.yaml): an executive
-overview plus a per-zone tab, with camera snapshots, reservoir chemistry,
-trends, AI health, the cultivation plan, and a **Reservoir Flush** card (the
-Flush Now button, flush interval, days-since / days-until / next-due, and the
-flush-due alert).
+Tracked example: [`dashboards/tendrial_grow.yaml`](dashboards/tendrial_grow.yaml)
+(executive overview + one tab per zone). Entity IDs in that file are examples —
+replace prefixes, or generate from your live registry:
 
-Entity ids in the file are specific to the maintainer's grow spaces
-(`3x3_mothers_tent_*`, `4x4_full_cycle_tent_*`); adjust the prefixes for your own
-spaces.
+```bash
+./.venv/bin/python scripts/generate_dashboard.py          # dry run
+./.venv/bin/python scripts/generate_dashboard.py --apply  # push to HA
+```
 
-- Reuse it: open the dashboard's **Raw configuration editor** in Home Assistant
-	and paste the file contents, or add individual cards via **Add card → Manual**.
-- Re-export a live dashboard into the repo:
-	`./.venv/bin/python scripts/export_dashboard.py <url_path>` — reads read-only
-	`HA_URL`/`HA_TOKEN` from `.env`; the token is never printed or logged.
-- Push a repo dashboard back to the live server:
-	`./.venv/bin/python scripts/import_dashboard.py <url_path>` — dry-run by
-	default (add `--apply` to save). It backs up the live config first, warns on
-	any referenced entity ids that don't exist, and never prints the token.
-- Auto-generate the dashboard from your live grow spaces:
-	`./.venv/bin/python scripts/generate_dashboard.py` — builds an Executive
-	overview plus one tab per configured grow space (hub) from the live entity
-	registry and role mappings, so adding a hub and re-running adds its tab and
-	refreshes the overview. Dry-run by default; add `--apply` to push (a live
-	backup is written first, and the token is never printed).
+Copy-paste cards (no Python required):
+[Dashboards](https://trec-torconsulting.github.io/TendrilGrow/dashboards/) and
+[Examples](https://trec-torconsulting.github.io/TendrilGrow/examples/).
 
-## Configuration model
+## Documentation
 
-Each grow-space entry stores:
+| Topic | Link |
+| --- | --- |
+| Install + update | [Installation](https://trec-torconsulting.github.io/TendrilGrow/installation/) |
+| Worked 4×4 RDWC example | [Quick start](https://trec-torconsulting.github.io/TendrilGrow/quick-start/) |
+| Config flow fields | [Configuration](https://trec-torconsulting.github.io/TendrilGrow/configuration/) |
+| Stage, date, feeding | [Cultivation plan](https://trec-torconsulting.github.io/TendrilGrow/cultivation/) |
+| AI scoring | [AI health](https://trec-torconsulting.github.io/TendrilGrow/ai-health/) |
+| Water probes | [LocalTuya / Tuya](https://trec-torconsulting.github.io/TendrilGrow/tuya-water/) |
+| Entities & services | [Entities](https://trec-torconsulting.github.io/TendrilGrow/entities/), [Services](https://trec-torconsulting.github.io/TendrilGrow/services/) |
+| Automations | [Examples](https://trec-torconsulting.github.io/TendrilGrow/examples/) |
+| Something broke | [Troubleshooting](https://trec-torconsulting.github.io/TendrilGrow/troubleshooting/) |
 
-- Identity and grow descriptors
-- Site definitions
-- Sensor and control role mappings
-- Targets and schedules
-- AI provider, credential references, selected model
+## Security
 
-No hardcoded entity IDs are required.
+API keys and Tuya secrets are redacted in diagnostics. Do not paste them into
+issues. See [SECURITY.md](SECURITY.md).
 
-## Security and secrets
-
-- Credentials are treated as sensitive data.
-- API keys are redacted in diagnostics.
-- Avoid posting real keys or internal endpoint details in issues.
-- See `SECURITY.md` for reporting process.
-
-## Quality gates
-
-CI workflows include:
-
-- Home Assistant `hassfest`
-- HACS validation action
-- Ruff lint and pytest
-
-## Local development
-
-### Quick start
+## Development
 
 ```bash
 python3 -m venv .venv
-./.venv/bin/python -m pip install --upgrade pip
-./.venv/bin/pip install -r requirements-test.txt
+./.venv/bin/python -m pip install -r requirements-test.txt
 ./.venv/bin/ruff check .
 ./.venv/bin/pytest -q
 ```
 
-### Local manual install into Home Assistant
-
-Copy `custom_components/tendrilgrow` into your Home Assistant config at:
-
-`/config/custom_components/tendrilgrow`
-
-Then restart Home Assistant and add the integration from Devices & Services.
-
-## Documentation and community
-
-- **Documentation site:** <https://trec-torconsulting.github.io/TendrilGrow/>
-- **Questions and discussion:** [GitHub Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions)
-- **Bugs and features:** [GitHub Issues](https://github.com/Trec-TorConsulting/TendrilGrow/issues/new/choose)
-- **Usage/support:** See [SUPPORT.md](SUPPORT.md)
-- **Security reporting:** See [SECURITY.md](SECURITY.md)
-- **Contribution guide:** See [CONTRIBUTING.md](CONTRIBUTING.md)
-- **Community standards:** See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+See [CONTRIBUTING.md](CONTRIBUTING.md). CI runs hassfest, HACS validation, Ruff,
+and pytest.
 
 ## Disclaimer
 
 TendrilGrow assists monitoring and decision support. It does not replace safe
-electrical, environmental, or horticultural practices. Validate automations and
-control actions before production use.
+electrical, environmental, or horticultural practice. Validate every automation
+before you rely on it.

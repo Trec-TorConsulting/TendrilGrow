@@ -67,6 +67,8 @@ This repository uses OpenSpec for planning and implementation tracking.
 
 - This project follows [Conventional Commits](https://www.conventionalcommits.org/)
   (for example, `feat(sensor): ...`, `fix(config): ...`, `docs: ...`).
+- Keep the **README** HACS-friendly (install first, internals last). User docs
+  live under `docs/` and must stay accurate when entities or flows change.
 - Keep PRs small and focused, and fill in the pull request template.
 - Add or update tests for behavior changes, and update docs for user-visible
   changes.

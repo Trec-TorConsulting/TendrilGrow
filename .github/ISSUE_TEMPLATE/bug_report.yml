@@ -19,7 +19,7 @@ body:
           required: true
         - label: I am running the latest TendrilGrow release.
           required: true
-        - label: I reviewed the documentation and troubleshooting guide.
+        - label: I reviewed the [documentation](https://trec-torconsulting.github.io/TendrilGrow/) and [troubleshooting](https://trec-torconsulting.github.io/TendrilGrow/troubleshooting/) guides.
           required: false
   - type: textarea
     id: summary
@@ -35,6 +35,8 @@ body:
       label: Affected area
       options:
         - Config / options flow
+        - Cultivation plan / stage clock
+        - Dashboards / Lovelace
         - AI health checks
         - Tuya water monitoring
         - Pumps (control / power)

@@ -5,7 +5,7 @@ contact_links:
     about: Ask questions, share your grow setup, and get help from the community.
   - name: Documentation
     url: https://trec-torconsulting.github.io/TendrilGrow/
-    about: Installation, configuration, and troubleshooting guides.
+    about: Installation, quick start, configuration, and troubleshooting.
   - name: Report a security vulnerability
     url: https://github.com/Trec-TorConsulting/TendrilGrow/security/advisories/new
     about: Privately report a security issue with a GitHub security advisory.

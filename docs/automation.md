@@ -4,6 +4,9 @@ TendrilGrow exposes services and entities you can use in your own Home Assistant
 automations, scripts, and dashboards. Control is **manual and opt-in** — you
 decide what to automate, and you are responsible for validating it.
 
+Ready-to-paste YAML (Cultivation Plan, flush, AI, pumps) lives in
+[Examples](examples.md). This page explains the building blocks.
+
 !!! warning "Safety"
     Automating pumps and other hardware carries real electrical and water risk.
     Test thoroughly, add your own guardrails, and never rely on this as a safety

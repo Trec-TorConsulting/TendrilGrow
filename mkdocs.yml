@@ -1,8 +1,8 @@
 site_name: TendrilGrow
 site_description: >-
-  Home Assistant custom integration (HACS) for indoor cultivation: per-grow-space
-  configuration, sensor and control role mapping, Tuya water monitoring, and
-  camera-based AI health checks.
+  Home Assistant custom integration (HACS) for indoor cultivation: one grow
+  space per config entry, LocalTuya-preferred water chemistry, cultivation
+  stage clock, pumps, flush tracking, and camera-based AI health checks.
 site_url: https://trec-torconsulting.github.io/TendrilGrow/
 repo_url: https://github.com/Trec-TorConsulting/TendrilGrow
 repo_name: Trec-TorConsulting/TendrilGrow
@@ -66,8 +66,11 @@ nav:
   - Home: index.md
   - Getting started:
       - Installation: installation.md
+      - Quick start: quick-start.md
       - Configuration: configuration.md
+      - Upgrading: upgrade.md
   - Features:
+      - Cultivation plan: cultivation.md
       - AI health checks: ai-health.md
       - Tuya water monitoring: tuya-water.md
       - Pump control and monitoring: pumps.md
@@ -76,6 +79,7 @@ nav:
   - Reference:
       - Entities: entities.md
       - Services: services.md
+      - Examples: examples.md
       - Automating TendrilGrow: automation.md
       - Troubleshooting: troubleshooting.md
       - FAQ: faq.md

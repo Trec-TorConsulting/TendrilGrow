@@ -6,6 +6,10 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+### Changed
+- Operator docs rewritten for HACS: Quick start with a 4×4 RDWC example,
+  Cultivation Plan, upgrade notes, and copy-paste Lovelace/automation YAML.
+
 ## [0.3.3] - 2026-09-01
 
 ### Fixed

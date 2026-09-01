@@ -1,65 +1,80 @@
 # Troubleshooting
 
-## AI health entities are missing
+## Entity not found on Cultivation Plan
 
-AI health entities are only created when AI is fully configured:
+After 0.3.2, Week In Stage is a **sensor** and Stage Started is a **date**.
+Dashboards that still list `number.*_week_in_stage`, or that guessed the wrong
+prefix (`date.stage_started` vs `date.4x4_flower_stage_started`), show
+**Entity not found** on every grow-space tab.
 
-1. Map a `camera` entity for the grow space.
-2. Select a provider (`Gemini`, `OpenAI`, or `Ollama`) — not `None`.
-3. Choose a **vision-capable** model.
+1. Update to **0.3.3 or newer** and **restart** Home Assistant.
+2. Wait ~15 seconds (storage dashboards are rewritten on reload).
+3. Confirm IDs on the grow-space **device** entity list.
+4. YAML-mode dashboards are not auto-edited — paste IDs by hand or
+   `scripts/generate_dashboard.py --apply`.
 
-Re-open **Options** and confirm all three, then reload the integration.
+See [Upgrading](upgrade.md#upgrade-033).
+
+## AI health entities are missing {#ai-health-entities-are-missing}
+
+Created only when all three are true:
+
+1. A `camera` is mapped.
+2. Provider is `Gemini`, `OpenAI`, or `Ollama` — not `None`.
+3. The model is **vision-capable**.
+
+**Configure** the entry, then reload TendrilGrow.
 
 ## Model discovery failed
 
-If the provider's model list cannot be fetched (network, credentials, or
-endpoint issues), you can enter a model name manually on the model-selection
-step. Verify the API key/endpoint and that the account has access to a
-vision-capable model.
+Network, key, or endpoint issue. Enter the model name manually. Confirm the
+account can use a vision model.
 
 ## VPD looks wrong
 
-VPD is computed from the **air** temperature and humidity (canopy), not the
-water probe. If VPD is off:
+VPD uses **canopy air** temp + humidity, not the water probe.
 
-- Confirm `temperature`/`humidity` are mapped to **air/canopy** sensors.
-- Confirm the water probe is mapped to `water_temperature`, not the air role.
+- Map tent air to `temperature` / `humidity`.
+- Map the reservoir probe to `water_temperature`.
 
-See [Configuration](configuration.md#sensor-roles).
+## Tuya / LocalTuya sensors missing
 
-## Tuya / LocalTuya sensors are missing
+1. Probe exists in HA and is selected as **Local water monitor**.
+2. Do not run LocalTuya and Tuya Local on the **same** physical device.
+3. Cloud fallback: access ID/secret/region/device IDs; poll ≥ 600 s on Trial.
+4. Call [`tendrilgrow.rebuild_automap`](services.md#tendrilgrowrebuild_automap).
+5. Logger: `custom_components.tendrilgrow`.
+6. After leaving cloud sensors, regenerate the dashboard so cards are not still
+   on `sensor.*_tuya_*`.
 
-1. Prefer LocalTuya (or Tuya Local): confirm the probe device exists in HA and
-   is selected as this grow space’s **Local water monitor**.
-2. For cloud fallback only: confirm Tuya is enabled and the access ID, access
-   secret, region, and device IDs are correct; keep the poll interval at least
-   600s on Trial projects.
-3. Call [`tendrilgrow.rebuild_automap`](services.md#tendrilgrowrebuild_automap)
-   to reload and rebuild auto-mapped roles.
-4. Check the logs for the `custom_components.tendrilgrow` logger.
-5. If you just left cloud polling, dashboard entity ids may still point at
-   `sensor.*_tuya_*` — regenerate with `scripts/generate_dashboard.py`.
+## Entities unavailable after an update
 
-## Entities are unavailable after an update
+Restart Home Assistant after HACS updates. New platforms (date, etc.) load
+only then.
 
-Custom integrations require a Home Assistant **restart** to load new code.
-After updating in HACS, restart Home Assistant.
+## Timelapse capture paused / Repair issue
 
-## Dashboards reference old entity IDs
+Add the capture dir to `allowlist_external_dirs` and restart.
+[Installation](installation.md#allow-list-for-timelapse-optional). Then capture
+one frame so the scheduler resumes.
 
-If you renamed grow spaces or updated across a version that changed entity IDs,
-storage-mode (UI-managed) dashboards keep the old IDs. Update the affected cards,
-or regenerate the dashboard from live entities with
-`scripts/generate_dashboard.py` (see [Dashboards](dashboards.md)).
+## Flush Due never clears
+
+**Flush Now** (or `tendrilgrow.mark_flush`) records a completed dump/refill.
+TendrilGrow does not drain the reservoir for you.
+
+## AI says sterile but you run Hydroguard
+
+Put Hydroguard in **Additives**. Do not list H₂O₂ / HOCl / UC Roots on the
+same space. Grow type should be `rdwc` or `dwc` if that is the system.
 
 ## Collecting diagnostics
 
-Download redacted diagnostics from **Settings → Devices & Services →
-TendrilGrow → the entry → ⋯ → Download diagnostics**. API keys and the Tuya
-access secret are redacted, so it is safe to attach to a discussion or issue.
+**Settings → Devices & Services → TendrilGrow → entry → ⋮ → Download
+diagnostics**. Keys and Tuya secrets are redacted.
 
 ## Still stuck?
 
-- Ask in [Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions).
-- File a [bug report](https://github.com/Trec-TorConsulting/TendrilGrow/issues/new/choose)
-  with your Home Assistant version, TendrilGrow version, and sanitized logs.
+- [Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions)
+- [Bug report](https://github.com/Trec-TorConsulting/TendrilGrow/issues/new/choose)
+  with HA version, TendrilGrow version, install type, and sanitized logs.
