@@ -6,6 +6,8 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-09-01
+
 ### Fixed
 - Cultivation Plan no longer shows **Entity not found** after the Stage Started
   change. Stage Started and Week In Stage now reuse each grow space's existing
