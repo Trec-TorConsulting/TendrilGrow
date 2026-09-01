@@ -1,115 +1,103 @@
 # Configuration
 
 TendrilGrow uses one Home Assistant config entry **per grow space**. Each entry
-owns its own equipment, mappings, targets, schedules, and AI provider.
+owns mappings, AI credentials, and helper entities for that tent or room.
 
-## Config flow (initial setup)
+Re-open settings anytime:
+**Settings → Devices & Services → TendrilGrow → Configure** (options flow).
 
-The onboarding flow has the following steps:
+## Config flow
 
-| Step | Purpose |
+| Step | What you do |
 | --- | --- |
-| **Create grow space** | Name, grow type, and size/descriptor. |
-| **Map entities** | Bind a LocalTuya/Tuya Local water monitor; map other HA entities; optionally enable cloud Tuya fallback. |
-| **AI provider** | Choose `None`, `Gemini`, `OpenAI`, or `Ollama`. |
-| **Provider credentials** | Enter the API key or endpoint for the chosen provider. |
-| **Choose model** | Pick a discovered model (or enter one manually if discovery fails). |
+| **Create grow space** | Name, grow type, size/descriptor. |
+| **Map entities** | Optional LocalTuya/Tuya Local device, HA sensors/controls, optional cloud Tuya fallback, AI interval, timelapse. |
+| **AI provider** | `None`, `Gemini`, `OpenAI`, or `Ollama`. |
+| **Provider credentials** | API key and/or endpoint. |
+| **Choose model** | Pick a discovered **vision** model, or type a name if discovery fails. |
 
-You can re-run mapping and settings at any time from the **Options** flow
-(**Settings → Devices & Services → TendrilGrow → Configure**).
+A worked example with values: [Quick start](quick-start.md).
 
 ## Grow type
 
-The grow type is a preset dropdown that also accepts a custom value:
+Dropdown plus custom text:
 
-`rdwc`, `dwc`, `aeroponic`, `soil`, `coco`, `other` — or type your own (for
-example, a specific cloner model).
+`rdwc`, `dwc`, `aeroponic`, `soil`, `coco`, `other` — or e.g. `Clone King`.
+
+Grow type feeds live vs sterile chemistry rules for RDWC/DWC
+([AI health](ai-health.md#live-vs-sterile-reservoirs)).
 
 ## Sensor roles
 
-All sensor mappings are optional. Map only what you have.
+All optional. Map only what exists.
 
-| Role | Description |
-| --- | --- |
-| `temperature` | **Air** temperature (canopy) — used for VPD. |
-| `humidity` | **Air** humidity (canopy) — used for VPD. |
-| `water_temperature` | Water/reservoir temperature probe. |
-| `light_ppfd` | PPFD/light sensor. |
-| `ph` | Reservoir pH. |
-| `ec` | Reservoir EC. |
-| `cf` | Reservoir CF. |
-| `orp` | Reservoir ORP. |
-| `tds` | Reservoir TDS. |
-| `camera` | Camera entity (required for AI vision checks). |
-| `rdwc_pump_power` | Optional explicit power sensor for the RDWC pump. |
-| `chiller_pump_power` | Optional explicit power sensor for the chiller pump. |
-| `air_pump_power` | Optional explicit power sensor for the air pump. |
+| Role | UI label | Maps to |
+| --- | --- | --- |
+| `temperature` | Air temperature sensor (canopy, used for VPD) | Tent air, **not** reservoir |
+| `humidity` | Air humidity sensor (canopy, used for VPD) | Tent RH |
+| `water_temperature` | Water/reservoir temperature sensor | Probe in the mix |
+| `light_ppfd` | PPFD/light sensor | For estimated DLI |
+| `ph` / `ec` / `cf` / `orp` / `tds` | Reservoir chemistry | Auto-filled if you bind a local water monitor |
+| `camera` | Camera entity | Required for AI vision |
+| `rdwc_pump_power` / `chiller_pump_power` / `air_pump_power` | Optional W sensors | Else auto-discovery |
 
-!!! warning "Air vs. water temperature"
-    `temperature`/`humidity` are the **canopy air** roles used for VPD.
-    Reservoir temperature is a separate `water_temperature` role. If you map a
-    water probe into the air role, VPD will be wrong.
+!!! warning "Air vs water temperature"
+    If the reservoir probe is mapped as canopy air, **VPD will be wrong**.
 
 ## Control roles
 
-| Role | Description |
+| Role | UI label |
 | --- | --- |
-| `lights` | Grow lights. |
-| `fans` | Circulation fans. |
-| `inline_fans` | Inline/exhaust fans. |
-| `rdwc_pump` | RDWC circulation pump (run before any header-bucket dosing). |
-| `chiller_pump` | Chiller pump (optional). |
-| `air_pump` | Air pump (optional). |
+| `lights` | Lights control |
+| `fans` | Fans control |
+| `inline_fans` | Inline fans control |
+| `rdwc_pump` | RDWC circulation pump (run before header-bucket dosing) |
+| `chiller_pump` | Chiller pump (optional) |
+| `air_pump` | Air pump (optional) |
 
-See [Pump control and monitoring](pumps.md) for the pump switches, power
-sensors, and the `set_pump` service.
+See [Pumps](pumps.md).
 
 ## AI health settings
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| Check interval (hours) | `12` | How often scheduled checks run. |
-| Critical score threshold | `20` | Scores at or below this trigger a critical alert. |
-| Notify service | _none_ | Optional `notify.*` service for critical alerts. |
-| Result retention (days) | `30` | How long health-check history is kept. |
+| Check interval (hours) | `12` | Scheduled vision checks |
+| Critical score threshold | `20` | At or below → critical alert |
+| Notify service | _none_ | Optional `notify.*` |
+| Result retention (days) | `30` | History window |
 
-See [AI health checks](ai-health.md) for provider details and scoring.
+See [AI health checks](ai-health.md).
 
 ## Camera timelapse settings
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| Timelapse enabled | `false` | Turns periodic camera frame capture on/off. |
-| Capture interval (hours) | `24` | How often scheduled frame capture runs. |
-| Frame retention | `120` | Max frames kept per grow space (oldest pruned first). |
-| Capture directory override | _empty_ | Optional absolute/relative path override for frame storage. |
+| Timelapse enabled | `false` | Periodic snapshots |
+| Capture interval (hours) | `24` | Schedule |
+| Frame retention | `120` | Oldest pruned first |
+| Capture directory override | empty | Optional path |
 
-Default frame directory:
+Default directory:
 `/config/www/tendrilgrow/<grow_slug>/timelapse/`.
 
-!!! warning "One-time Home Assistant allow-list step"
-    Snapshot writes require the target directory in
-    `homeassistant.allowlist_external_dirs`. If missing, TendrilGrow raises a
-    Repair issue and pauses scheduled captures until the path is allow-listed
-    and one capture succeeds.
+The path must be in `homeassistant.allowlist_external_dirs` or captures pause
+and a Repair issue is raised ([Installation](installation.md#allow-list-for-timelapse-optional)).
 
-## Water monitoring (LocalTuya preferred)
+## Water monitoring
 
-Prefer a **LocalTuya** or **Tuya Local** device as the water-metric source for
-each grow space. Pick it under **Local water monitor** during the **Map
-entities** step (or later in Options). TendrilGrow auto-maps water roles from
-that device and does not poll Tuya OpenAPI while it is bound.
+Prefer **Local water monitor** (LocalTuya or Tuya Local device). TendrilGrow
+auto-maps pH, EC, CF, ORP, TDS, and water temperature and **does not** call
+Tuya OpenAPI while that device is bound.
 
-Cloud OpenAPI polling remains an optional fallback when no local device is
-bound. You will provide access ID/secret, region, optional UID, device IDs, and
-poll interval (default **600** seconds). See
-[Tuya / LocalTuya water monitoring](tuya-water.md).
+Cloud polling (access ID/secret, region, device IDs, interval default **600** s)
+is fallback-only. See [Tuya / LocalTuya](tuya-water.md).
 
-You still map **air** temperature/humidity and the camera yourself for VPD and
-AI vision.
+Still map **canopy** air temp/humidity yourself for VPD.
 
 ## Cultivation context
 
-TendrilGrow exposes editable helper entities (growth stage, strain, week in
-stage, reservoir volume, targets, and more) that ground the AI advisor. See
-[Entities](entities.md) for the full list.
+Helpers are created for every grow space (Growth Stage, Stage Started, Week In
+Stage, water type, volumes, targets, nutrient text). They are not part of the
+config flow — edit them on the device or a dashboard.
+
+See [Cultivation plan](cultivation.md) and [Entities](entities.md).

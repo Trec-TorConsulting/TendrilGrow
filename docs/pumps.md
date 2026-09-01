@@ -49,3 +49,5 @@ the `rdwc_pump` and switch it on before dosing.
     Pump control is manual and opt-in. TendrilGrow does not automate pump
     actuation for you — you build any automations yourself and are responsible
     for validating them. Always confirm safe electrical and water practices.
+
+Copy-paste circulate-before-dose script: [Examples](examples.md#script-circulate-before-dosing-rdwc).

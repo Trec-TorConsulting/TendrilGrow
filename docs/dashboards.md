@@ -1,54 +1,78 @@
 # Dashboards
 
-An example multi-tab Lovelace dashboard is tracked in the repository at
-[`dashboards/tendrial_grow.yaml`](https://github.com/Trec-TorConsulting/TendrilGrow/blob/main/dashboards/tendrial_grow.yaml).
-It includes an executive overview plus a per-zone tab with camera snapshots,
-reservoir chemistry, trends, AI health, the cultivation plan, a grow timeline,
-and a **Reservoir Flush** card.
+TendrilGrow does not inject a Lovelace dashboard by itself. You add cards, paste
+the example YAML, or generate tabs from the live entity registry.
+
+## What a complete tab includes
+
+1. Camera snapshot  
+2. Telemetry (pH, EC, ORP, temps, VPD)  
+3. Reservoir Flush  
+4. Grow Timeline (stage, Stage Started, weeks, projections)  
+5. AI Health + report + **AI Feeding Schedule** markdown  
+6. Cultivation Plan entities  
+
+Ready-made YAML: [Examples](examples.md). Cultivation Plan IDs:
+[Cultivation plan](cultivation.md).
+
+## Example file in the repo
+
+[`dashboards/tendrial_grow.yaml`](https://github.com/Trec-TorConsulting/TendrilGrow/blob/main/dashboards/tendrial_grow.yaml)
+is an executive overview plus per-zone tabs from a real install.
 
 !!! info "Entity IDs are examples"
-    The entity IDs in the file are specific to the maintainer's grow spaces
-    (`3x3_mothers_tent_*`, `4x4_full_cycle_tent_*`). Adjust the prefixes for your
-    own spaces, or generate a fresh dashboard from your live entities (below).
+    Prefixes such as `3x3_mothers_tent_` and `4x4_full_cycle_tent_` are
+    **that** install. Copy a card, then replace prefixes from
+    **Settings → Devices → your grow space → Entities**.
 
-## Reuse the example
+### Paste into Lovelace (no Python)
 
-- Open the dashboard's **Raw configuration editor** in Home Assistant and paste
-  the file contents, or
-- Add individual cards with **Add card → Manual**.
+1. **Settings → Dashboards → Add dashboard** (or open an existing one).
+2. **Edit dashboard → ⋮ → Raw configuration editor** (storage mode), or add
+   **Manual** cards.
+3. Paste a card from [Examples](examples.md) and fix entity IDs until no row
+   says Entity not found.
 
-## Helper scripts
+## Generate from live grow spaces
 
-The repository includes scripts that read `HA_URL`/`HA_TOKEN` from a local
-`.env`. They are read-safe by default and never print your token.
+On a machine with the repo, a venv, and a long-lived token in `.env`
+(`HA_URL`, `HA_TOKEN` — never commit the token):
 
 === "Generate from live grow spaces"
 
-    Build an Executive overview plus one tab per configured grow space from the
-    live entity registry and role mappings. Adding a hub and re-running adds its
-    tab and refreshes the overview.
+    Builds an Executive overview plus one tab per TendrilGrow config entry.
 
     ```bash
     ./.venv/bin/python scripts/generate_dashboard.py          # dry run
     ./.venv/bin/python scripts/generate_dashboard.py --apply  # push to HA
     ```
 
+    Default URL path: `tendrial-grow`. Override with
+    `--url-path your-dashboard`.
+
 === "Export live → repo"
 
     ```bash
-    ./.venv/bin/python scripts/export_dashboard.py <url_path>
+    ./.venv/bin/python scripts/export_dashboard.py
+    ./.venv/bin/python scripts/export_dashboard.py tendrial-grow
     ```
 
 === "Import repo → live"
 
-    Dry-run by default; add `--apply` to save. It backs up the live config first
-    and warns about any referenced entity IDs that do not exist.
+    Dry-run by default. `--apply` saves and writes a backup first. Warns if
+    referenced entity IDs do not exist.
 
     ```bash
-    ./.venv/bin/python scripts/import_dashboard.py <url_path>
-    ./.venv/bin/python scripts/import_dashboard.py <url_path> --apply
+    ./.venv/bin/python scripts/import_dashboard.py
+    ./.venv/bin/python scripts/import_dashboard.py tendrial-grow --apply
     ```
 
-!!! tip
-    `--apply` writes a backup of the live dashboard first, and the token is never
-    printed or logged.
+The token is never printed. `--apply` backups land under the system temp
+directory.
+
+## After an update
+
+If Cultivation Plan shows **Entity not found**, see [Upgrading](upgrade.md)
+(0.3.3 rewrites storage dashboards that still used `number.*_week_in_stage`).
+YAML-mode dashboards are not rewritten — update them by hand or generate
+again.

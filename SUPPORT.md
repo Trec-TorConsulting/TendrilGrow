@@ -3,30 +3,30 @@
 ## Getting help
 
 - **Documentation:** <https://trec-torconsulting.github.io/TendrilGrow/>
-- **Questions and discussion:** [GitHub Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions)
-- **Bugs and feature requests:** [GitHub Issues](https://github.com/Trec-TorConsulting/TendrilGrow/issues/new/choose)
+- **First tent walkthrough:** <https://trec-torconsulting.github.io/TendrilGrow/quick-start/>
+- **Questions:** [GitHub Discussions](https://github.com/Trec-TorConsulting/TendrilGrow/discussions)
+- **Bugs and features:** [GitHub Issues](https://github.com/Trec-TorConsulting/TendrilGrow/issues/new/choose)
 
 Before opening an issue:
 
-- Confirm you are on a recent Home Assistant release
-- Confirm TendrilGrow is the latest release
-- Review README setup steps
+- Confirm Home Assistant is **2026.2.0** or newer
+- Confirm TendrilGrow is the [latest release](https://github.com/Trec-TorConsulting/TendrilGrow/releases/latest)
+- Restart Home Assistant after HACS updates
+- Skim [Troubleshooting](https://trec-torconsulting.github.io/TendrilGrow/troubleshooting/)
 
 ## What to include
 
-- Home Assistant version
-- TendrilGrow version
-- Deployment type (HA OS / Container / Core)
-- Companion integrations in use (Vivosun, Tuya, camera)
-- Clear reproduction steps
-- Expected behavior vs actual behavior
-- Logs (sanitized)
+- Home Assistant version and install type (OS / Container / Core)
+- TendrilGrow version (`manifest.json` or HACS)
+- Companion integrations (LocalTuya, Tuya Local, camera, lights)
+- Reproduction steps, expected vs actual
+- Redacted diagnostics from the config entry (keys are stripped)
+- Sanitized logs for `custom_components.tendrilgrow`
 
 ## Security issues
 
-For vulnerabilities, follow `SECURITY.md` and avoid public disclosure first.
+Follow [SECURITY.md](SECURITY.md). Do not disclose in public issues first.
 
 ## Maintainer note
 
-At this stage, the project is maintained by a single developer. Response times
-may vary.
+The project is maintained by a small team. Response times vary.

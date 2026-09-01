@@ -102,6 +102,6 @@ data:
     untouched.
 
 !!! tip "Finding an entry ID"
-    Open **Settings → Devices & Services → TendrilGrow**, choose the entry, and
-    copy the ID from the browser URL, or use the entry picker in the visual
-    action editor.
+    **Settings → Devices & Services → TendrilGrow →** the grow space. The
+    visual **Actions** editor can pick the entry. The ID also appears in the
+    browser URL when that entry is open.

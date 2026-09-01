@@ -1,84 +1,107 @@
 # AI health checks
 
-TendrilGrow can analyze a camera snapshot of your plants with a vision-capable
-AI model and return an agronomy-style report.
+TendrilGrow can send a camera snapshot plus cultivation context to a
+vision-capable model and return an agronomy-style report.
 
 ## What a check produces
 
-Each check returns:
+- **Health score** 0–100 (quality-first; not “did the model see a plant”).
+- **Observations**, **issues**, **recommended actions**.
+- **Feeding schedule** as readable mix-order markdown
+  (`feeding_schedule_md` on the score entity).
 
-- A **health score** from 0–100 (quality-first agronomy scoring).
-- **Observations** about the plants and canopy.
-- **Issues** the model believes it sees.
-- **Recommended actions**.
-- A **dynamic feeding schedule** suggestion.
+Results fill the AI entities and are stored for the retention window
+(default 30 days).
 
-Results populate the AI health entities (score, summary, feeding schedule, last
-check, and a critical alert) and are stored with a retention window.
+## Requirements
+
+1. Map a **camera** on the grow space.
+2. Provider is not `None`.
+3. The selected model must accept **images**.
+
+If any of those are missing, AI entities are not created.
+[Troubleshooting](troubleshooting.md#ai-health-entities-are-missing).
 
 ## Providers
 
-Select a provider per grow space:
-
 | Provider | Notes |
 | --- | --- |
-| `None` | AI disabled for this grow space. |
-| `Gemini` | Google Gemini. |
-| `OpenAI` | OpenAI. |
-| `Ollama` | Self-hosted/local models via an Ollama endpoint. |
+| `None` | AI off for this space. |
+| `Gemini` | Google Gemini (API key). |
+| `OpenAI` | OpenAI (API key). |
+| `Ollama` | LAN/self-hosted; set the endpoint (e.g. `http://192.168.1.10:11434`). |
 
-After you enter credentials (API key or endpoint), TendrilGrow discovers the
-available models so you can pick one. If discovery fails, you can enter a model
-name manually.
+After credentials, TendrilGrow discovers models. If discovery fails, type a
+model name manually.
 
-!!! info "Requirements for vision checks"
-    You must map a `camera` entity and choose a **vision-capable** model. Without
-    a camera and a vision model, AI health entities are not created.
+Cloud providers bill per their own pricing. Lower the check interval to spend
+less. Ollama stays on your network.
 
-## Scheduling and on-demand runs
+## When checks run
 
-- **Scheduled:** checks run on the configured interval (default **12 hours**).
-- **On demand:** press the **Run AI Health Check** button, or call
+- **Scheduled:** default every **12 hours**.
+- **On demand:** **Run AI Health Check** button or
   [`tendrilgrow.run_ai_health_check`](services.md#tendrilgrowrun_ai_health_check).
+
+Example:
+
+```yaml
+action: tendrilgrow.run_ai_health_check
+data:
+  reason: After reservoir change
+```
 
 ## Critical alerts
 
-If a score is at or below the **critical threshold** (default **20**),
-TendrilGrow raises a persistent notification and, if configured, calls your
-`notify.*` service. Alerts are de-duplicated so you are not spammed.
+Score **at or below** the threshold (default **20**) → persistent notification
+and optional `notify.*`. Alerts are de-duplicated.
 
 ## Stage-aware objectives
 
-Scoring adapts to the grow stage set on the **Growth Stage** helper:
+Uses **Growth Stage** ([Cultivation plan](cultivation.md)):
 
-- **Mothers** are judged on health and structure (never flowered).
-- **Clones** are judged on rooting.
-- **Flowering** stages are judged on quality.
-- **Dry/cure** stages are judged on drying/curing rather than reservoir
-  chemistry.
+- **Mothers** — health and structure (never flowered).
+- **Clones** — rooting.
+- **Flower** — quality and finish.
+- **Dry / cure** — drying, not reservoir EC.
 
-Per-stage reservoir targets (pH, EC, VPD) calibrate the prompt; post-harvest
-stages fall back to best-practice guidance.
+Per-stage pH / EC / VPD bands calibrate the prompt.
 
-## Grounding with cultivation context
+## Live vs sterile reservoirs {#live-vs-sterile-reservoirs}
 
-The advisor is grounded by the editable cultivation-context helpers (strain,
-stage-started date, computed week in stage, targets, reservoir volume, makeup
-water type, nutrients, additives, flush status, and more). Keeping these
-accurate improves the quality of the advice. See [Entities](entities.md).
+The prompt classifies the reservoir from **grow type**, **Additives**, and
+**Base Nutrients**:
 
-Live RDWC/DWC systems (Hydroguard or other biologicals, or RDWC/DWC without a
-sterilant) are scored with live-reservoir chemistry: ORP is not treated as
-dissolved oxygen, 65–68 °F water is in-range, and sterile ORP targets
-(650–850 mV) are not applied. Sterile reservoirs that list an oxidizer
-(H₂O₂, HOCl, UC Roots) keep the disinfection ORP band.
+| Class | How | Chemistry |
+| --- | --- | --- |
+| **Live** | Hydroguard / Bacillus / biologicals, **or** grow type RDWC/DWC **without** a listed sterilant | ORP ~200–500 mV is not “critically low DO”. Water **65–68 °F** is in-range (concern from ~72 °F). Do not demand 650–850 mV disinfection ORP. |
+| **Sterile** | Additives list H₂O₂, HOCl, UC Roots, or similar oxidizer | Sterile ORP band still applies. Do not combine with Hydroguard. |
 
-## History and retention
+EC inside the nutrient-line **week band** is not diagnosed as underfeeding
+against a higher mix-to Target EC.
 
-Each result is persisted with its timestamp and kept for the configured
-retention period (default **30 days**).
+Vegetative VPD around **0.7–1.2 kPa** is treated as acceptable, not a
+nitpick vs 0.8–1.1.
 
-## Secrets safety
+## Grounding context
 
-API keys are treated as sensitive: they are redacted in diagnostics and logs.
-Never paste real keys into issues or discussions.
+Keep Cultivation Plan honest: strain, Stage Started, water type, volume,
+targets, nutrient line, additives, flush status. Garbage in, garbage out.
+
+## Feeding card
+
+Markdown is numbered mix order when the line looks like GH FloraSeries:
+Armor Si → CALiMAGic → Micro → Gro → Bloom → Hydroguard → pH last.
+See [Cultivation plan](cultivation.md#mix-order-feeding-card).
+
+Lovelace:
+
+```yaml
+type: markdown
+title: AI Feeding Schedule
+content: "{{ state_attr('sensor.4x4_flower_ai_health_score', 'feeding_schedule_md') }}"
+```
+
+## Secrets
+
+API keys are redacted in diagnostics and logs. Never paste them into issues.

@@ -31,5 +31,6 @@ is also folded into the AI advisor's cultivation context.
 
 !!! note "Recording only — no actuation"
     Flush tracking records that you performed a flush. It does not drain or fill
-    anything. There is no "fill" automation; "flush and fill" here means
-    recording a completed reservoir change.
+    anything.
+
+Dashboard YAML: [Examples](examples.md#lovelace-flush).
