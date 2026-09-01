@@ -155,6 +155,7 @@ DEFAULT_TIMELAPSE_RETENTION_FRAMES = 120
 # Grow cultivation context (editable helper entities) used to enrich AI reports.
 CTX_STAGE = "ctx_stage"
 CTX_STRAIN = "ctx_strain"
+CTX_STAGE_STARTED = "ctx_stage_started"
 CTX_WEEK_IN_STAGE = "ctx_week_in_stage"
 CTX_RESERVOIR_VOLUME = "ctx_reservoir_volume_gal"
 CTX_SITE_COUNT = "ctx_site_count"
@@ -220,8 +221,8 @@ WATER_TYPE_OPTIONS: tuple[str, ...] = (
 STAGE_TARGETS: dict[str, dict[str, str]] = {
     "clone": {"ph": "5.5-6.0", "ec_ms_cm": "0.0-0.4", "vpd_kpa": "0.4-0.8"},
     "seedling": {"ph": "5.8-6.2", "ec_ms_cm": "0.4-0.8", "vpd_kpa": "0.4-0.8"},
-    "mother": {"ph": "5.8-6.2", "ec_ms_cm": "1.0-1.6", "vpd_kpa": "0.8-1.1"},
-    "vegetative": {"ph": "5.6-6.0", "ec_ms_cm": "1.2-1.8", "vpd_kpa": "0.8-1.1"},
+    "mother": {"ph": "5.8-6.2", "ec_ms_cm": "1.0-1.6", "vpd_kpa": "0.7-1.2"},
+    "vegetative": {"ph": "5.6-6.0", "ec_ms_cm": "0.9-1.6", "vpd_kpa": "0.7-1.2"},
     "early_flower": {"ph": "5.8-6.1", "ec_ms_cm": "1.6-2.2", "vpd_kpa": "1.0-1.3"},
     "mid_flower": {"ph": "5.8-6.2", "ec_ms_cm": "1.8-2.4", "vpd_kpa": "1.2-1.5"},
     "late_flower": {"ph": "6.0-6.3", "ec_ms_cm": "1.4-2.0", "vpd_kpa": "1.3-1.6"},
@@ -304,6 +305,7 @@ STAGE_PIPELINE: tuple[str, ...] = (
 GROW_CONTEXT_LABELS: dict[str, str] = {
     CTX_STAGE: "growth_stage",
     CTX_STRAIN: "strain_genetics",
+    CTX_STAGE_STARTED: "stage_started_on",
     CTX_WEEK_IN_STAGE: "week_in_stage",
     CTX_RESERVOIR_VOLUME: "reservoir_volume_gal",
     CTX_SITE_COUNT: "site_count_plants",

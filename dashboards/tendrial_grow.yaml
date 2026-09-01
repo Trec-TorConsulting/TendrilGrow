@@ -189,8 +189,13 @@ views:
     show_header_toggle: false
   - type: markdown
     title: Grow Timeline
-    content: '**Stage:** {{ states(''select.3x3_mothers_tent_growth_stage'') }} (week
-      {{ states(''number.3x3_mothers_tent_week_in_stage'') }})
+    content: '**Stage:** {{ states(''select.3x3_mothers_tent_growth_stage'') }}
+
+
+      **Stage started:** {{ states(''date.3x3_mothers_tent_stage_started'') }}
+
+
+      **Weeks in stage:** {{ states(''sensor.3x3_mothers_tent_week_in_stage'') }}
 
 
       **Days left in stage:** {{ states(''sensor.3x3_mothers_tent_stage_projection'')
@@ -230,7 +235,8 @@ views:
     - text.3x3_mothers_tent_strain_genetics
     - select.3x3_mothers_tent_growth_stage
     - select.3x3_mothers_tent_water_type
-    - number.3x3_mothers_tent_week_in_stage
+    - date.3x3_mothers_tent_stage_started
+    - sensor.3x3_mothers_tent_week_in_stage
     - number.3x3_mothers_tent_sites_plants
     - number.3x3_mothers_tent_reservoir_volume
     - number.3x3_mothers_tent_target_ph
@@ -289,7 +295,12 @@ views:
   - type: markdown
     title: Grow Timeline
     content: '**Stage:** {{ states(''select.4x4_full_cycle_tent_growth_stage'') }}
-      (week {{ states(''number.4x4_full_cycle_tent_week_in_stage'') }})
+
+
+      **Stage started:** {{ states(''date.4x4_full_cycle_tent_stage_started'') }}
+
+
+      **Weeks in stage:** {{ states(''sensor.4x4_full_cycle_tent_week_in_stage'') }}
 
 
       **Days left in stage:** {{ states(''sensor.4x4_full_cycle_tent_stage_projection'')
@@ -329,7 +340,8 @@ views:
     - text.4x4_full_cycle_tent_strain_genetics
     - select.4x4_full_cycle_tent_growth_stage
     - select.4x4_full_cycle_tent_water_type
-    - number.4x4_full_cycle_tent_week_in_stage
+    - date.4x4_full_cycle_tent_stage_started
+    - sensor.4x4_full_cycle_tent_week_in_stage
     - number.4x4_full_cycle_tent_sites_plants
     - number.4x4_full_cycle_tent_reservoir_volume
     - number.4x4_full_cycle_tent_target_ph
@@ -372,8 +384,13 @@ views:
     show_header_toggle: false
   - type: markdown
     title: Grow Timeline
-    content: '**Stage:** {{ states(''select.clone_growth_stage'') }} (week {{ states(''number.clone_week_in_stage'')
-      }})
+    content: '**Stage:** {{ states(''select.clone_growth_stage'') }}
+
+
+      **Stage started:** {{ states(''date.clone_stage_started'') }}
+
+
+      **Weeks in stage:** {{ states(''sensor.clone_week_in_stage'') }}
 
 
       **Days left in stage:** {{ states(''sensor.clone_stage_projection'') }} d
@@ -412,7 +429,8 @@ views:
     - text.clone_strain_genetics
     - select.clone_growth_stage
     - select.basement_clone_water_type
-    - number.clone_week_in_stage
+    - date.clone_stage_started
+    - sensor.clone_week_in_stage
     - number.clone_sites_plants
     - number.clone_total_system_volume
     - number.clone_target_ph

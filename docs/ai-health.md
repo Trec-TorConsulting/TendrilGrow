@@ -63,9 +63,15 @@ stages fall back to best-practice guidance.
 ## Grounding with cultivation context
 
 The advisor is grounded by the editable cultivation-context helpers (strain,
-week in stage, targets, reservoir volume, makeup water type, nutrients, flush
-status, and more). Keeping these accurate improves the quality of the advice.
-See [Entities](entities.md).
+stage-started date, computed week in stage, targets, reservoir volume, makeup
+water type, nutrients, additives, flush status, and more). Keeping these
+accurate improves the quality of the advice. See [Entities](entities.md).
+
+Live RDWC/DWC systems (Hydroguard or other biologicals, or RDWC/DWC without a
+sterilant) are scored with live-reservoir chemistry: ORP is not treated as
+dissolved oxygen, 65–68 °F water is in-range, and sterile ORP targets
+(650–850 mV) are not applied. Sterile reservoirs that list an oxidizer
+(H₂O₂, HOCl, UC Roots) keep the disinfection ORP band.
 
 ## History and retention
 

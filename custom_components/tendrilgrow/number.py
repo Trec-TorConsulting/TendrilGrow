@@ -24,7 +24,6 @@ from .const import (
     CTX_SITE_COUNT,
     CTX_TARGET_EC,
     CTX_TARGET_PH,
-    CTX_WEEK_IN_STAGE,
     DEFAULT_FLUSH_INTERVAL_DAYS,
     DOMAIN,
 )
@@ -47,16 +46,6 @@ class GrowNumberDescription:
 
 
 NUMBERS: tuple[GrowNumberDescription, ...] = (
-    GrowNumberDescription(
-        CTX_WEEK_IN_STAGE,
-        "Week In Stage",
-        0.0,
-        20.0,
-        1.0,
-        "wk",
-        1.0,
-        "mdi:calendar-week",
-    ),
     GrowNumberDescription(
         CTX_SITE_COUNT,
         "Sites / Plants",

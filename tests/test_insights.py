@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 
 from custom_components.tendrilgrow.insights import (
@@ -12,7 +12,9 @@ from custom_components.tendrilgrow.insights import (
     compute_daily_energy_kwh,
     compute_dew_point_c,
     compute_dli,
+    days_in_stage,
     estimate_daily_cost,
+    weeks_in_stage,
 )
 
 
@@ -138,3 +140,12 @@ def test_compose_weekly_journal_empty_when_no_recent() -> None:
     ]
     assert compose_weekly_journal(old, now)["headline"].startswith("No AI checks")
     assert compose_weekly_journal([], now)["headline"].startswith("No AI checks")
+
+
+def test_days_in_stage_prefers_start_date() -> None:
+    now = datetime(2026, 7, 29, tzinfo=UTC)
+    assert days_in_stage(now, stage_started=date(2026, 7, 15)) == 14
+    assert days_in_stage(now, stage_started="2026-07-15") == 14
+    assert days_in_stage(now, week_in_stage="2") == 14
+    assert weeks_in_stage(14) == 2.0
+    assert days_in_stage(now, stage_started="2026-07-15", week_in_stage="9") == 14
