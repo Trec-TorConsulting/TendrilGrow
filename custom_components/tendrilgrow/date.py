@@ -15,7 +15,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.util import dt as dt_util
 
 from .const import CTX_STAGE, CTX_STAGE_STARTED, DOMAIN
-from .entity import grow_device_info
+from .entity import assign_prefixed_entity_id, grow_device_info
 
 
 async def async_setup_entry(
@@ -45,6 +45,7 @@ class GrowStageStartedDate(DateEntity, RestoreEntity):
         self._attr_unique_id = f"{entry.entry_id}_{CTX_STAGE_STARTED}"
         self._attr_native_value = dt_util.now().date()
         self._unsub_stage = None
+        assign_prefixed_entity_id(self, hass, entry, "date", "stage_started")
 
     @property
     def device_info(self):

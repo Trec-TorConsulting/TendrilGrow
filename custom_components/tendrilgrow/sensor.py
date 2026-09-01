@@ -62,7 +62,7 @@ from .const import (
     WATER_SOURCE_CLOUD,
 )
 from .coordinator import TendrilGrowTuyaCoordinator, tuya_device_ids
-from .entity import grow_device_info
+from .entity import assign_prefixed_entity_id, grow_device_info
 from .feeding import compose_feeding_schedule_md
 from .flush import flush_dispatcher_signal, flush_status
 from .insights import (
@@ -1408,6 +1408,7 @@ class TendrilGrowWeekInStageSensor(SensorEntity):
         self._attr_unique_id = f"{entry.entry_id}_{CTX_WEEK_IN_STAGE}"
         self._unsub_state: object | None = None
         self._unsub_timer: object | None = None
+        assign_prefixed_entity_id(self, hass, entry, "sensor", "week_in_stage")
 
     @property
     def device_info(self):

@@ -15,8 +15,10 @@ from custom_components.tendrilgrow import (
     SERVICE_RUN_AI_HEALTH_CHECK,
     SERVICE_SET_PUMP,
     _migrate_ai_entity_ids,
+    _migrate_stage_clock_entity_ids,
     async_setup_entry,
     async_unload_entry,
+    rewrite_lovelace_stage_clock,
 )
 
 
@@ -711,3 +713,116 @@ def test_migrate_ai_entity_ids_skips_customized_and_taken() -> None:
         _migrate_ai_entity_ids(SimpleNamespace(), entry)
 
     registry.async_update_entity.assert_not_called()
+
+
+def test_migrate_stage_clock_entity_ids_uses_growth_stage_prefix() -> None:
+    """Generic date.stage_started becomes date.<grow>_stage_started."""
+    current_ids = {
+        ("select", "tendrilgrow", "e1_ctx_stage"): "select.clone_growth_stage",
+        ("date", "tendrilgrow", "e1_ctx_stage_started"): "date.stage_started",
+        ("sensor", "tendrilgrow", "e1_ctx_week_in_stage"): "sensor.week_in_stage_2",
+    }
+    registry = Mock()
+    registry.async_get_entity_id.side_effect = lambda d, p, u: current_ids.get(
+        (d, p, u)
+    )
+    registry.async_get.return_value = None
+    registry.async_update_entity = Mock()
+
+    entry = SimpleNamespace(entry_id="e1", title="Basement Clone")
+    hass = SimpleNamespace(data={"tendrilgrow": {}})
+    with (
+        patch.object(tg.er, "async_get", return_value=registry),
+        patch(
+            "custom_components.tendrilgrow.entity.er.async_get",
+            return_value=registry,
+        ),
+    ):
+        _migrate_stage_clock_entity_ids(hass, entry)
+
+    renames = {
+        call.args[0]: call.kwargs["new_entity_id"]
+        for call in registry.async_update_entity.call_args_list
+    }
+    assert renames["date.stage_started"] == "date.clone_stage_started"
+    assert renames["sensor.week_in_stage_2"] == "sensor.clone_week_in_stage"
+
+
+def test_rewrite_lovelace_replaces_retired_week_number() -> None:
+    """Cultivation Plan number.week_in_stage becomes date + computed sensor."""
+    config = {
+        "views": [
+            {
+                "cards": [
+                    {
+                        "type": "entities",
+                        "title": "Cultivation Plan",
+                        "entities": [
+                            "select.3x3_mothers_tent_growth_stage",
+                            "number.3x3_mothers_tent_week_in_stage",
+                            "number.3x3_mothers_tent_target_ph",
+                        ],
+                    },
+                    {
+                        "type": "markdown",
+                        "content": (
+                            "{{ states('number.3x3_mothers_tent_week_in_stage') }}"
+                        ),
+                    },
+                ]
+            }
+        ]
+    }
+    updated, changed = rewrite_lovelace_stage_clock(
+        config,
+        {
+            "number.3x3_mothers_tent_week_in_stage": [
+                "date.3x3_mothers_tent_stage_started",
+                "sensor.3x3_mothers_tent_week_in_stage",
+            ]
+        },
+        {
+            "number.3x3_mothers_tent_week_in_stage": (
+                "sensor.3x3_mothers_tent_week_in_stage"
+            )
+        },
+    )
+    assert changed is True
+    entities = updated["views"][0]["cards"][0]["entities"]
+    assert entities == [
+        "select.3x3_mothers_tent_growth_stage",
+        "date.3x3_mothers_tent_stage_started",
+        "sensor.3x3_mothers_tent_week_in_stage",
+        "number.3x3_mothers_tent_target_ph",
+    ]
+    assert "number.3x3_mothers_tent_week_in_stage" not in entities
+    assert (
+        "sensor.3x3_mothers_tent_week_in_stage"
+        in updated["views"][0]["cards"][1]["content"]
+    )
+
+
+def test_rewrite_lovelace_does_not_duplicate_existing_date() -> None:
+    """Already-migrated Cultivation Plan cards stay a single date + week pair."""
+    config = {
+        "entities": [
+            "date.3x3_mothers_tent_stage_started",
+            "sensor.3x3_mothers_tent_week_in_stage",
+            "number.3x3_mothers_tent_week_in_stage",
+        ]
+    }
+    updated, changed = rewrite_lovelace_stage_clock(
+        config,
+        {
+            "number.3x3_mothers_tent_week_in_stage": [
+                "date.3x3_mothers_tent_stage_started",
+                "sensor.3x3_mothers_tent_week_in_stage",
+            ]
+        },
+        {},
+    )
+    assert changed is True
+    assert updated["entities"] == [
+        "date.3x3_mothers_tent_stage_started",
+        "sensor.3x3_mothers_tent_week_in_stage",
+    ]
