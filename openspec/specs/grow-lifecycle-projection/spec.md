@@ -20,14 +20,15 @@ change but SHALL provide a reasonable estimate out of the box.
 ### Requirement: Projected timeline sensor
 Each grow space SHALL expose a stage-projection sensor whose value is the days
 remaining in the current stage, derived from the current growth stage and the
-operator-entered week-in-stage, grouped under the grow space's device. The sensor
-SHALL expose attributes for days-in-stage, days-remaining, projected stage-end
-date, projected harvest date, and projected ready date, computed along the
-biological pipeline (clone → seedling → vegetative → early_flower → mid_flower →
-late_flower → flush → harvest → dry → cure → ready).
+elapsed time since the operator-entered stage-started date (falling back to
+week-in-stage × 7 only for unmigrated data), grouped under the grow space's
+device. The sensor SHALL expose attributes for days-in-stage, days-remaining,
+projected stage-end date, projected harvest date, and projected ready date,
+computed along the biological pipeline (clone → seedling → vegetative →
+early_flower → mid_flower → late_flower → flush → harvest → dry → cure → ready).
 
-#### Scenario: Days remaining reflects stage and week-in-stage
-- **WHEN** the stage is `vegetative` and week-in-stage indicates part of the stage has elapsed
+#### Scenario: Days remaining reflects stage and stage-started date
+- **WHEN** the stage is `vegetative` and the stage-started date indicates part of the stage has elapsed
 - **THEN** the sensor reports the remaining days and a projected stage-end date
 
 #### Scenario: Projected harvest and ready dates

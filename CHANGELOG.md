@@ -6,6 +6,23 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+### Changed
+- Cultivation Plan now uses a **Stage Started** date. Weeks in stage are
+  computed from that date (and feed AI dosing and timeline math). Changing
+  Growth Stage resets the date to today; you can still backdate it. Existing
+  week numbers are converted on upgrade.
+- AI Feeding Schedule markdown is expanded into a per-product mix-order list
+  (Armor Si → CALiMAGic → Micro → Gro → Bloom → Hydroguard → pH) so the same
+  readable card appears on every grow-space dashboard.
+
+### Fixed
+- AI health no longer treats live RDWC/DWC (Hydroguard / biologicals, or
+  RDWC/DWC without a sterilant) as a sterile system. ORP ~200–300 mV is not
+  flagged as critically low or as poor dissolved oxygen. Water at 65–68 °F is
+  in-range (not an “upper limit”); concern starts at 72 °F. Vegetative VPD of
+  0.7–1.2 kPa is acceptable. Current EC inside the GH week band is not
+  diagnosed as underfeeding against a higher mix-to target.
+
 ## [0.3.1] - 2026-08-24
 
 ### Changed

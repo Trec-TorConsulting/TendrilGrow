@@ -9,11 +9,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity_registry import async_get as get_entity_registry
 from homeassistant.util import dt as dt_util
 
-from .const import CTX_STAGE, CTX_WEEK_IN_STAGE, DOMAIN
+from .const import DOMAIN
 from .entity import grow_device_info
 from .flush import flush_status
 from .insights import build_grow_tasks
-from .sensor import compute_stage_projection
+from .sensor import compute_stage_projection, resolve_stage_clock
 
 
 async def async_setup_entry(
@@ -45,24 +45,13 @@ class TendrilGrowTodoList(TodoListEntity):
 
     def _raw_tasks(self) -> list[dict]:
         now = dt_util.now()
-        registry = get_entity_registry(self.hass)
-        stage_id = registry.async_get_entity_id(
-            "select", DOMAIN, f"{self._entry.entry_id}_{CTX_STAGE}"
-        )
-        week_id = registry.async_get_entity_id(
-            "number", DOMAIN, f"{self._entry.entry_id}_{CTX_WEEK_IN_STAGE}"
-        )
-        stage_state = self.hass.states.get(stage_id) if stage_id else None
-        week_state = self.hass.states.get(week_id) if week_id else None
-        projection = compute_stage_projection(
-            stage_state.state if stage_state else None,
-            week_state.state if week_state else None,
-            now,
-        )
+        stage, started, week = resolve_stage_clock(self.hass, self._entry.entry_id)
+        projection = compute_stage_projection(stage, week, now, stage_started=started)
         runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
         flush_st = None
         if runtime is not None and getattr(runtime, "flush_state", None) is not None:
             flush_st = flush_status(runtime.flush_state, dt_util.utcnow())
+        registry = get_entity_registry(self.hass)
         alert_id = registry.async_get_entity_id(
             "binary_sensor", DOMAIN, f"{self._entry.entry_id}_ai_health_critical_alert"
         )

@@ -30,7 +30,17 @@ and a feeding schedule. The stage objective MUST frame mother plants as permanen
 vegetative stock that are never flowered, clones as rooting cuttings, flowering
 stages as quality-first, and post-harvest stages (harvest, dry, cure, ready) as
 drying/curing assessment. A stage without reservoir targets MUST still produce a
-check using best-practice guidance rather than failing.
+check using best-practice guidance rather than failing. The prompt MUST classify
+the reservoir as live or sterile: Hydroguard or other biological additives, or
+grow type RDWC/DWC without a listed sterilant, SHALL be treated as live.
+Oxidizers (H2O2, HOCl, UC Roots) without biologicals SHALL be treated as sterile.
+Live-system prompts MUST NOT apply sterile disinfection ORP (650-850 mV), MUST
+NOT equate ORP with dissolved oxygen, MUST treat 65-68 F reservoir water as
+in-range (concern at or above 72 F), MUST treat vegetative VPD 0.70-1.20 kPa as
+acceptable, and MUST NOT diagnose underfeeding when current EC is inside the
+nutrient-line week band. Feeding-schedule entries MUST list products in official
+mixing order and be rendered as a spaced, per-product markdown list on every
+grow-space dashboard.
 
 #### Scenario: Successful check produces a structured result
 - **WHEN** the provider returns a valid JSON report
@@ -43,6 +53,10 @@ check using best-practice guidance rather than failing.
 #### Scenario: Stage without reservoir targets still runs
 - **WHEN** a health check runs for a post-harvest stage (dry or cure) that has no pH/EC/VPD targets
 - **THEN** the check proceeds using best-practice guidance and does not error
+
+#### Scenario: Live RDWC with Hydroguard uses live chemistry
+- **WHEN** a health check runs for an RDWC grow space whose additives include Hydroguard
+- **THEN** the prompt classifies the reservoir as live and instructs the model not to flag ORP near 200-300 mV as critically low or as poor dissolved oxygen
 
 #### Scenario: Non-JSON response is tolerated
 - **WHEN** the provider returns text that is not valid JSON

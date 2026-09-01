@@ -6,6 +6,7 @@ from custom_components.tendrilgrow.ai.health_checks import (
     AIHealthResult,
     _build_prompt,
     _coerce_result,
+    classify_reservoir_biology,
 )
 from custom_components.tendrilgrow.models.grow import GrowSpace
 
@@ -112,3 +113,64 @@ def test_result_roundtrip_preserves_new_fields() -> None:
     assert restored.confidence_rationale == "ok"
     assert restored.observations == ["a"]
     assert restored.feeding_schedule == ["step1"]
+
+
+def test_hydroguard_and_rdwc_classify_as_live() -> None:
+    assert classify_reservoir_biology("rdwc", "Hydroguard") == "live"
+    assert classify_reservoir_biology("rdwc", "") == "live"
+    assert classify_reservoir_biology("dwc", "beneficial bacteria") == "live"
+    assert classify_reservoir_biology("soil", "Hydroguard") == "live"
+    assert classify_reservoir_biology("soil", "") == "unknown"
+    assert classify_reservoir_biology("rdwc", "H2O2") == "sterile"
+    assert classify_reservoir_biology("rdwc", "Hydroguard and H2O2") == "mixed"
+
+
+def test_live_rdwc_prompt_rejects_sterile_orp_and_65f_water() -> None:
+    prompt = _build_prompt(
+        _grow_space(),
+        {
+            "orp": ("239", "mV"),
+            "ec": ("1.021", "mS/cm"),
+            "water_temperature": ("65.3", "°F"),
+            "temperature": ("75", "°F"),
+            "humidity": ("65", "%"),
+        },
+        {
+            "growth_stage": "vegetative",
+            "additives": "Hydroguard",
+            "nutrient_line": "GH Flora",
+            "target_ec_ms_cm": "1.6",
+            "stage_started_on": "2026-08-18",
+        },
+        retention_days=30,
+    )
+
+    assert "LIVE" in prompt
+    assert "Hydroguard" in prompt
+    assert "650-850 mV" in prompt
+    assert "do NOT apply that target to a live system" in prompt
+    assert "NOT critically low" in prompt
+    assert "ORP is NOT dissolved oxygen" in prompt
+    assert "65-68 F" in prompt
+    assert "not an upper limit" in prompt
+    assert "Do not write an Issue for 65-68 F water" in prompt
+    assert "0.70-1.20 kPa" in prompt
+    assert "early veg 0.9-1.1 is on-target" in prompt
+    assert "week_in_stage:" in prompt
+    assert "Armor Si" in prompt
+    assert "SEMICOLONS" in prompt
+    # Vegetative VPD band widened from peer-reviewed sources.
+    assert "VPD 0.7-1.2 kPa" in prompt
+
+
+def test_sterile_oxidizer_prompt_uses_disinfection_orp() -> None:
+    prompt = _build_prompt(
+        GrowSpace.new(name="Sterile", grow_type="rdwc"),
+        {},
+        {"additives": "hydrogen peroxide UC Roots"},
+        retention_days=7,
+    )
+    assert "STERILE" in prompt
+    assert "disinfection ORP 650-850 mV" in prompt
+    assert "do not recommend hydroguard" in prompt.lower()
+

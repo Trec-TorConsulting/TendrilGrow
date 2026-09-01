@@ -38,6 +38,7 @@ from .const import (
     CTX_LIGHTS_ON_HOURS,
     CTX_PRICE_PER_KWH,
     CTX_STAGE,
+    CTX_STAGE_STARTED,
     CTX_WEEK_IN_STAGE,
     DOMAIN,
     FLUSH_DAYS_SINCE_SUFFIX,
@@ -62,13 +63,16 @@ from .const import (
 )
 from .coordinator import TendrilGrowTuyaCoordinator, tuya_device_ids
 from .entity import grow_device_info
+from .feeding import compose_feeding_schedule_md
 from .flush import flush_dispatcher_signal, flush_status
 from .insights import (
     compose_weekly_journal,
     compute_daily_energy_kwh,
     compute_dew_point_c,
     compute_dli,
+    days_in_stage,
     estimate_daily_cost,
+    weeks_in_stage,
 )
 from .local_water_source import effective_water_source
 from .models.grow import GrowSpace
@@ -222,7 +226,8 @@ async def async_setup_entry(
         ]
     )
 
-    # Lifecycle stage projection (independent of Tuya).
+    # Lifecycle stage clock and projection (independent of Tuya).
+    entities.append(TendrilGrowWeekInStageSensor(hass, entry))
     entities.append(TendrilGrowStageProjectionSensor(hass, entry))
 
     # Derived climate/light/energy insights (independent of Tuya).
@@ -410,21 +415,7 @@ def _compose_report(latest) -> str:
 
 def _compose_feeding_schedule_md(latest) -> str:
     """Build a markdown feeding schedule from an AI health result."""
-    schedule = getattr(latest, "feeding_schedule", None) or []
-    if not schedule:
-        return "_No feeding schedule generated yet. Run an AI health check._"
-    parts: list[str] = []
-    for i, item in enumerate(schedule, 1):
-        # Promote the phase label (text before first '|') as a bold header.
-        if "|" in item:
-            header, _, rest = item.partition("|")
-            header = header.strip()
-            body = rest.strip()
-            entry = f"**{i}. {header}**\n{body}"
-        else:
-            entry = f"**{i}.** {item}"
-        parts.append(entry)
-    return "\n\n---\n\n".join(parts)
+    return compose_feeding_schedule_md(getattr(latest, "feeding_schedule", None))
 
 
 class TendrilGrowVpdSensor(SensorEntity):
@@ -1315,13 +1306,39 @@ class FlushDaysUntilSensor(FlushBaseSensor):
         return status["days_until"] if status else None
 
 
-def compute_stage_projection(
-    stage: str | None, week_in_stage: object, now: datetime
-) -> dict[str, object | None]:
-    """Project remaining days and milestone dates from stage + week-in-stage.
+def resolve_stage_clock(
+    hass: HomeAssistant, entry_id: str
+) -> tuple[str | None, str | None, str | None]:
+    """Return (stage, stage_started, week_in_stage) from current entity states."""
+    registry = get_entity_registry(hass)
 
-    `days_in_stage` comes from the operator-entered week-in-stage. Indefinite
-    (`mother`) and terminal (`ready`) stages return no remaining days or dates.
+    def _state(domain: str, suffix: str) -> str | None:
+        entity_id = registry.async_get_entity_id(domain, DOMAIN, f"{entry_id}_{suffix}")
+        if not entity_id:
+            return None
+        state = hass.states.get(entity_id)
+        if state is None or state.state in (None, "", "unknown", "unavailable"):
+            return None
+        return state.state
+
+    stage = _state("select", CTX_STAGE)
+    started = _state("date", CTX_STAGE_STARTED)
+    week = _state("sensor", CTX_WEEK_IN_STAGE) or _state("number", CTX_WEEK_IN_STAGE)
+    return stage, started, week
+
+
+def compute_stage_projection(
+    stage: str | None,
+    week_in_stage: object,
+    now: datetime,
+    *,
+    stage_started: object | None = None,
+) -> dict[str, object | None]:
+    """Project remaining days and milestone dates from stage + start date.
+
+    `days_in_stage` prefers the stage-started date. Week-in-stage × 7 remains
+    as a fallback for unmigrated data. Indefinite (`mother`) and terminal
+    (`ready`) stages return no remaining days or dates.
     """
     stage = (stage or "").strip().lower()
     result: dict[str, object | None] = {
@@ -1332,13 +1349,16 @@ def compute_stage_projection(
         "projected_harvest_date": None,
         "projected_ready_date": None,
         "pipeline_position": None,
+        "weeks_in_stage": None,
+        "stage_started": None,
     }
-    try:
-        weeks = float(week_in_stage)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        weeks = 0.0
-    days_in = max(0, int(round(weeks * 7)))
+    days_in = days_in_stage(
+        now, stage_started=stage_started, week_in_stage=week_in_stage
+    )
     result["days_in_stage"] = days_in
+    result["weeks_in_stage"] = weeks_in_stage(days_in)
+    if stage_started:
+        result["stage_started"] = str(stage_started)[:10]
     if stage in STAGE_PIPELINE:
         result["pipeline_position"] = STAGE_PIPELINE.index(stage) + 1
 
@@ -1371,6 +1391,92 @@ def compute_stage_projection(
     return result
 
 
+class TendrilGrowWeekInStageSensor(SensorEntity):
+    """Computed weeks in the current stage from the Stage Started date."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_name = "Week In Stage"
+    _attr_icon = "mdi:calendar-week"
+    _attr_native_unit_of_measurement = "wk"
+    _attr_suggested_display_precision = 1
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_{CTX_WEEK_IN_STAGE}"
+        self._unsub_state: object | None = None
+        self._unsub_timer: object | None = None
+
+    @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    def _source_entity_ids(self) -> list[str]:
+        registry = get_entity_registry(self.hass)
+        started_id = registry.async_get_entity_id(
+            "date", DOMAIN, f"{self._entry.entry_id}_{CTX_STAGE_STARTED}"
+        )
+        return [started_id] if started_id else []
+
+    def _days(self) -> int | None:
+        _stage, started, _week = resolve_stage_clock(self.hass, self._entry.entry_id)
+        if started is None:
+            return None
+        return days_in_stage(dt_util.now(), stage_started=started)
+
+    @property
+    def native_value(self):
+        elapsed = self._days()
+        if elapsed is None:
+            return None
+        return weeks_in_stage(elapsed)
+
+    @property
+    def extra_state_attributes(self):
+        _stage, started, _week = resolve_stage_clock(self.hass, self._entry.entry_id)
+        elapsed = self._days()
+        return {
+            "stage_started": started,
+            "days_in_stage": elapsed,
+        }
+
+    @callback
+    def _subscribe(self) -> None:
+        if self._unsub_state is not None:
+            return
+        source_ids = self._source_entity_ids()
+        if source_ids:
+            self._unsub_state = async_track_state_change_event(
+                self.hass, source_ids, self._async_source_changed
+            )
+
+    @callback
+    def _async_source_changed(self, _event) -> None:
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        @callback
+        def _refresh(*_args) -> None:
+            self._subscribe()
+            self.async_write_ha_state()
+
+        self._subscribe()
+        self._unsub_timer = async_track_time_interval(
+            self.hass, _refresh, timedelta(hours=1)
+        )
+        async_call_later(self.hass, 15, _refresh)
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_state is not None:
+            self._unsub_state()
+            self._unsub_state = None
+        if self._unsub_timer is not None:
+            self._unsub_timer()
+            self._unsub_timer = None
+
+
 class TendrilGrowStageProjectionSensor(SensorEntity):
     """Projected days remaining and milestone dates for the current stage."""
 
@@ -1396,24 +1502,19 @@ class TendrilGrowStageProjectionSensor(SensorEntity):
         stage_id = registry.async_get_entity_id(
             "select", DOMAIN, f"{self._entry.entry_id}_{CTX_STAGE}"
         )
-        week_id = registry.async_get_entity_id(
-            "number", DOMAIN, f"{self._entry.entry_id}_{CTX_WEEK_IN_STAGE}"
+        started_id = registry.async_get_entity_id(
+            "date", DOMAIN, f"{self._entry.entry_id}_{CTX_STAGE_STARTED}"
         )
-        return [eid for eid in (stage_id, week_id) if eid]
+        week_id = registry.async_get_entity_id(
+            "sensor", DOMAIN, f"{self._entry.entry_id}_{CTX_WEEK_IN_STAGE}"
+        )
+        return [eid for eid in (stage_id, started_id, week_id) if eid]
 
     def _projection(self) -> dict[str, object | None]:
-        registry = get_entity_registry(self.hass)
-        stage_id = registry.async_get_entity_id(
-            "select", DOMAIN, f"{self._entry.entry_id}_{CTX_STAGE}"
+        stage, started, week = resolve_stage_clock(self.hass, self._entry.entry_id)
+        return compute_stage_projection(
+            stage, week, dt_util.now(), stage_started=started
         )
-        week_id = registry.async_get_entity_id(
-            "number", DOMAIN, f"{self._entry.entry_id}_{CTX_WEEK_IN_STAGE}"
-        )
-        stage_state = self.hass.states.get(stage_id) if stage_id else None
-        week_state = self.hass.states.get(week_id) if week_id else None
-        stage = stage_state.state if stage_state else None
-        week = week_state.state if week_state else None
-        return compute_stage_projection(stage, week, dt_util.now())
 
     @property
     def native_value(self):
@@ -1450,7 +1551,7 @@ class TendrilGrowStageProjectionSensor(SensorEntity):
         self._unsub_timer = async_track_time_interval(
             self.hass, _refresh, timedelta(minutes=30)
         )
-        # The sensor platform loads before select/number; retry once they exist.
+        # The sensor platform loads before select/date; retry once they exist.
         async_call_later(self.hass, 15, _refresh)
 
     async def async_will_remove_from_hass(self) -> None:

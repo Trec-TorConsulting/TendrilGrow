@@ -110,6 +110,17 @@ def test_projection_pre_harvest_stage() -> None:
     assert projection["projected_harvest_date"] < projection["projected_ready_date"]
 
 
+def test_projection_from_stage_started_date() -> None:
+    now = datetime(2026, 7, 29, tzinfo=UTC)
+    projection = compute_stage_projection(
+        "vegetative", None, now, stage_started="2026-07-15"
+    )
+    assert projection["days_in_stage"] == 14
+    assert projection["weeks_in_stage"] == 2.0
+    assert projection["days_remaining"] == 14
+    assert projection["stage_started"] == "2026-07-15"
+
+
 def test_projection_indefinite_and_terminal_stages() -> None:
     now = datetime(2026, 7, 29, tzinfo=UTC)
 

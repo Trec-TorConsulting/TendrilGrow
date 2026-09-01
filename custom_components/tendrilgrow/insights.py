@@ -73,12 +73,42 @@ def estimate_daily_cost(
 
 
 def _parse_iso_date(value: object) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
     if not isinstance(value, str) or not value:
         return None
     try:
-        return date.fromisoformat(value)
+        return date.fromisoformat(value[:10])
     except ValueError:
         return None
+
+
+def days_in_stage(
+    now: datetime,
+    *,
+    stage_started: object | None = None,
+    week_in_stage: object | None = None,
+) -> int:
+    """Elapsed whole days in the current stage.
+
+    Prefer an operator-entered stage-start date. Fall back to week-in-stage × 7
+    for older data that has not been migrated yet.
+    """
+    started = _parse_iso_date(stage_started)
+    if started is not None:
+        return max(0, (now.date() - started).days)
+    try:
+        weeks = float(week_in_stage)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        weeks = 0.0
+    return max(0, int(round(weeks * 7)))
+
+
+def weeks_in_stage(days: int) -> float:
+    """Elapsed weeks, one decimal, from whole days in stage."""
+    return round(max(0, days) / 7.0, 1)
 
 
 def build_grow_events(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -16,6 +16,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
 from .ai.health_checks import AIHealthState, load_history, run_ai_health_check
@@ -23,6 +24,7 @@ from .const import (
     CONF_AI_HEALTH_INTERVAL_HOURS,
     CONF_TIMELAPSE_ENABLED,
     CONF_TIMELAPSE_INTERVAL_HOURS,
+    CTX_WEEK_IN_STAGE,
     DEFAULT_AI_HEALTH_INTERVAL_HOURS,
     DEFAULT_TIMELAPSE_ENABLED,
     DEFAULT_TIMELAPSE_INTERVAL_HOURS,
@@ -53,6 +55,7 @@ PLATFORMS: list[str] = [
     "calendar",
     "number",
     "select",
+    "date",
     "text",
     "todo",
     "switch",
@@ -98,6 +101,7 @@ class RuntimeData:
     unsubscribe_flush_ticker: Any
     unsubscribe_timelapse_scheduler: Any
     timelapse_scheduler_paused: bool
+    migrated_stage_started: date | None = None
 
 
 class _EphemeralStore:
@@ -155,6 +159,60 @@ def _migrate_ai_entity_ids(hass: HomeAssistant, entry: ConfigEntry) -> None:
             )
         except (ValueError, KeyError):
             LOGGER.debug("Could not migrate %s -> %s", current, desired, exc_info=True)
+
+
+def _seed_stage_started_from_week_number(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> date | None:
+    """Backdate Stage Started from the retired Week In Stage number.
+
+    Week 2 becomes about 14 days ago. The leftover number entity is removed
+    so it does not linger unavailable after the date entity takes over.
+    """
+    try:
+        registry = er.async_get(hass)
+    except Exception:  # noqa: BLE001
+        return None
+    week_id = registry.async_get_entity_id(
+        "number", DOMAIN, f"{entry.entry_id}_{CTX_WEEK_IN_STAGE}"
+    )
+    if not week_id:
+        return None
+    week_state = None
+    current = hass.states.get(week_id)
+    if current is not None and current.state not in (
+        None,
+        "",
+        STATE_UNKNOWN,
+        STATE_UNAVAILABLE,
+    ):
+        week_state = current.state
+    if week_state is None:
+        try:
+            from homeassistant.helpers.restore_state import (
+                async_get as async_get_restore,
+            )
+
+            stored = async_get_restore(hass).last_states.get(week_id)
+            if stored is not None and stored.state.state not in (
+                STATE_UNKNOWN,
+                STATE_UNAVAILABLE,
+                "",
+            ):
+                week_state = stored.state.state
+        except Exception:  # noqa: BLE001
+            week_state = None
+    try:
+        registry.async_remove(week_id)
+    except Exception:  # noqa: BLE001
+        LOGGER.debug("Could not remove legacy week-in-stage number %s", week_id)
+    if week_state is None:
+        return None
+    try:
+        weeks = float(week_state)
+    except (TypeError, ValueError):
+        return None
+    return dt_util.now().date() - timedelta(days=max(0, int(round(weeks * 7))))
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -266,6 +324,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     _migrate_ai_entity_ids(hass, entry)
+    runtime.migrated_stage_started = _seed_stage_started_from_week_number(
+        hass, entry
+    )
     try:
         async_evaluate_repair_issues(hass, entry, merged_config, grow_space)
     except Exception:  # noqa: BLE001

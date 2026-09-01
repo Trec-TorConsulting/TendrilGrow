@@ -34,6 +34,7 @@ from ..const import (
     STAGE_OBJECTIVES,
     STAGE_TARGETS,
 )
+from ..insights import days_in_stage, weeks_in_stage
 from ..models.grow import GrowSpace
 from .providers import ProviderExecutionError, generate_vision_health_report
 
@@ -79,25 +80,31 @@ def _build_nutrient_reference(nutrient_line: str, base_nutrients: str) -> str:
     combined = f"{nutrient_line} {base_nutrients}".lower()
     if any(kw in combined for kw in _GH_FLORA_KEYWORDS):
         return (
-            "\nNutrient reference — GH Flora Series, recirculating DWC/RDWC "
-            "(sources: GH official feed chart hub + GrowWeedEasy Flora Trio "
-            "guide):\n"
-            "EC-calibrated ml/gal for recirculating systems "
-            "(NOT drain-to-waste max rates — those are 2-3x higher "
-            "and yield 2.5-3.0 mS/cm, causing nutrient burn):\n"
-            "  Seedling:   Micro 1.25 ml, Gro 1.25 ml, Bloom 1.25 ml"
-            " -> est. 0.5-0.7 mS/cm\n"
-            "  Veg:        Micro 2.5 ml,  Gro 2.5 ml,  Bloom 2.5 ml "
-            " -> est. 1.0-1.2 mS/cm\n"
-            "  Transition: Micro 5.0 ml,  Gro 5.0 ml,  Bloom 5.0 ml "
-            " -> est. 1.6-2.0 mS/cm\n"
-            "  Flowering:  Micro 5.0 ml,  Gro 2.5 ml,  Bloom 7.5 ml "
-            " -> est. 1.4-1.8 mS/cm\n"
-            "  CaliMagic:  5 ml/gal for RO/soft water; optional with tap\n"
-            "  Hydroguard: 2 ml/gal preventative; 5 ml/gal if root rot\n"
-            "Mixing order: CaliMagic -> Micro -> Gro -> Bloom; pH LAST.\n"
+            "\nNutrient reference — GH Flora Series official 3-part program "
+            "(source: generalhydroponics.com FloraSeries 3-Part Feed Program). "
+            "Recirculating DWC/RDWC should use the Light/Medium columns, not "
+            "Aggressive drain-to-waste max rates:\n"
+            "  Seedling / clone (wk 1): Micro 1.8, Gro 1.8, Bloom 1.8 "
+            "-> EC 0.4-0.5 mS/cm\n"
+            "  Early veg (wk 2):        Micro 3.6, Gro 3.4, Bloom 2.6 "
+            "-> EC 0.9-1.1 mS/cm\n"
+            "  Early veg (wk 3):        Micro 4.9, Gro 4.6, Bloom 3.4 "
+            "-> EC 1.2-1.4 mS/cm\n"
+            "  Late veg (wk 4):         Micro 6.0, Gro 5.6, Bloom 4.2 "
+            "-> EC 1.4-1.7 mS/cm\n"
+            "  For quality-first recirculating systems, prefer the early-veg "
+            "band (0.9-1.4) unless the operator target EC is explicitly higher.\n"
+            "  CALiMAGic: per GH FAQ, add BEFORE FloraMicro (Armor Si first "
+            "if used). Typical 5 ml/gal for RO/soft water.\n"
+            "  Hydroguard (Botanicare): 2 ml/gal every watering, AFTER base "
+            "nutrients and BEFORE pH. Never combine with H2O2/HOCl/oxidizers.\n"
+            "Mixing order (GH official FAQ + Botanicare): Armor Si -> "
+            "CALiMAGic -> FloraMicro -> FloraGro -> FloraBloom -> "
+            "Hydroguard/biologicals -> pH LAST.\n"
             "Hydro pH target: 5.5-6.5 (ideal 5.8-6.2).\n"
-            "Interpolate rows to hit operator target EC exactly.\n"
+            "Interpolate rows to hit operator target EC exactly, but do NOT "
+            "treat current reservoir EC as underfeeding when it sits inside "
+            "the GH band for the computed week-in-stage.\n"
         )
     return ""
 
@@ -126,6 +133,126 @@ def _water_source_guidance(water_type: str) -> str:
             "ask for clarification rather than assuming full RO or hard tap."
         )
     return f" Makeup water type is '{water_type}'."
+
+
+_LIVE_KEYWORDS = (
+    "hydroguard",
+    "great white",
+    "southern ag",
+    "beneficial",
+    "bacillus",
+    "inoculant",
+    "mycorrhiza",
+    "microbe",
+    "microbes",
+    "rooters",
+    "cannazym",
+    "bacteria",
+)
+_STERILE_KEYWORDS = (
+    "h2o2",
+    "hydrogen peroxide",
+    "uc roots",
+    "hypochlorous",
+    "hocl",
+    "bleach",
+    "sterile",
+    "sterilant",
+    "physan",
+    "zerotol",
+    "chlorine dioxide",
+)
+_HYDRO_TYPES = frozenset({"rdwc", "dwc"})
+
+
+def classify_reservoir_biology(
+    grow_type: str, additives: str, extra_text: str = ""
+) -> str:
+    """Classify reservoir strategy: live, sterile, mixed, or unknown.
+
+    Live if biological additives (Hydroguard, etc.) are listed, or if the grow
+    type is RDWC/DWC and no sterilant is listed. Sterile if oxidizers are
+    listed without biologicals.
+    """
+    blob = f"{additives} {extra_text}".lower()
+    grow = grow_type.strip().lower()
+    live = any(key in blob for key in _LIVE_KEYWORDS)
+    sterile = any(key in blob for key in _STERILE_KEYWORDS)
+    if live and sterile:
+        return "mixed"
+    if live:
+        return "live"
+    if sterile:
+        return "sterile"
+    if grow in _HYDRO_TYPES:
+        return "live"
+    return "unknown"
+
+
+def _reservoir_biology_guidance(mode: str) -> str:
+    """Ground ORP/temp/DO advice. Numbers from named trusted sources."""
+    shared_temp = (
+        "Reservoir water temperature for DWC/RDWC: target 65-68 F (18-20 C). "
+        "65 F is in-range, not an upper limit. Prefer this cooler band for "
+        "flower quality over pushing warmer water for growth rate. "
+        "USGS Benson-Krause DO saturation is ~9.5 mg/L at 18 C and ~9.1 mg/L "
+        "at 20 C. University of Missouri Extension: measure DO separately "
+        "(optimum >6 ppm); ORP is NOT dissolved oxygen. "
+        "Flag water temperature as a concern only at or above 72 F / 22 C "
+        "(University of Kentucky / Colorado State root-disease guidance) and "
+        "as high-risk at or above 77 F / 25 C (Sutton et al., Pythium). "
+        "Do not write an Issue for 65-68 F water.\n"
+    )
+    vpd_ec = (
+        "VPD: vegetative 0.70-1.20 kPa is acceptable (Frontiers in Plant "
+        "Science 2025 citing Breit/Galindo/Vernon; Cannabis Science and "
+        "Technology treats 0.7-0.9 as still highly desirable). "
+        "Bruce Bugbee (Utah State): 0.7-1.5 kPa is fine when the root zone "
+        "is wet; do not flag VPD as an Issue when it is within 0.1 kPa of "
+        "the stage band or inside 0.7-1.2 kPa in veg. "
+        "EC: use the GH official week-in-stage band first. Operator "
+        "target_ec is the mix-to goal when mixing a new reservoir, not an "
+        "automatic underfeeding diagnosis if current EC is inside the GH "
+        "band for this week (early veg 0.9-1.1 is on-target even if the "
+        "operator mix target is 1.6).\n"
+    )
+    if mode == "live":
+        return (
+            "Reservoir biology: LIVE (beneficial bacteria / Hydroguard "
+            "detected, or RDWC/DWC without a sterilant). Botanicare "
+            "Hydroguard is Bacillus amyloliquefaciens at 2 ml/gal; it is "
+            "incompatible with H2O2/HOCl/oxidizers.\n"
+            "ORP (Apera Instruments hydroponics guide): sterile disinfection "
+            "with H2O2/ozone/chlorine is 650-850 mV — do NOT apply that "
+            "target to a live system. Balanced microbial activity is "
+            "300-500 mV; anaerobic risk is <200 mV. "
+            "ORP of ~200-300 mV on a live RDWC is acceptable/watch, NOT "
+            "critically low, NOT poor dissolved oxygen, and NOT by itself "
+            "a root-disease alarm. Only flag ORP <200 mV, or ORP plus "
+            "actual visual root-rot symptoms.\n"
+            f"{shared_temp}{vpd_ec}"
+        )
+    if mode == "sterile":
+        return (
+            "Reservoir biology: STERILE (oxidizer such as H2O2/HOCl "
+            "listed). Apera Instruments: disinfection ORP 650-850 mV. "
+            "Do not recommend Hydroguard or other biologicals while an "
+            "oxidizer is in the reservoir.\n"
+            f"{shared_temp}{vpd_ec}"
+        )
+    if mode == "mixed":
+        return (
+            "Reservoir biology: MIXED signals (biologicals and an oxidizer "
+            "are both listed). These strategies cancel each other — oxidizers "
+            "kill Bacillus. Ask the operator which strategy they intend; do "
+            "not apply sterile ORP >650 mV as a live-system failure.\n"
+            f"{shared_temp}{vpd_ec}"
+        )
+    return (
+        "Reservoir biology: not specified. Do not assume sterile ORP "
+        "targets (650-850 mV) unless additives include an oxidizer.\n"
+        f"{shared_temp}{vpd_ec}"
+    )
 
 
 @dataclass(slots=True)
@@ -245,6 +372,7 @@ def _build_prompt(
                 f"- Derived VPD (air temperature + air humidity): {round(vpd, 2)} kPa"
             )
     metric_lines = "\n".join(metric_entries)
+    _enrich_stage_clock(context)
     context_lines = "\n".join(
         f"- {key}: {value}" for key, value in sorted(context.items())
     )
@@ -281,6 +409,13 @@ def _build_prompt(
     nutrient_ref = _build_nutrient_reference(nutrient_line, base_nutrients)
     water_type = str(context.get("water_type", "")).strip().lower()
     water_source_clause = _water_source_guidance(water_type)
+    additives = str(context.get("additives", ""))
+    biology_mode = classify_reservoir_biology(
+        str(grow_space.grow_type or ""),
+        additives,
+        f"{nutrient_line} {base_nutrients}",
+    )
+    biology_guidance = _reservoir_biology_guidance(biology_mode)
     sites_clause = (
         f" The system has {site_count} plant sites/buckets sharing one "
         "circulating reservoir."
@@ -338,18 +473,22 @@ def _build_prompt(
         "- severity: one of low, medium, high, critical\n"
         "- summary: one concise paragraph\n"
         "- observations: array of short visual findings from the image\n"
-        "- issues: array of short problem statements\n"
+        "- issues: array of short problem statements. Omit values that are "
+        "inside the biology-appropriate and stage-appropriate bands below. "
+        "Never invent issues for in-range water temperature, live-system ORP, "
+        "in-band EC, or VPD within 0.1 kPa of the stage range.\n"
         "- recommended_actions: array of short, quality-first corrective actions\n"
         "- feeding_schedule: array of strings, one per phase/timing step. "
         "Format each entry as: "
-        "'[PHASE] | ADD IN ORDER: [Product]: Xml (Xml/gal), ... "
-        "| EST EC: X.X mS/cm | pH: X.X | [any key note]'. "
-        "List every product in mixing application order "
-        "(CalMag/CaMg first, then Micro, then Gro, then Bloom, "
-        "then biologicals/additives like Hydroguard last). "
+        "'[PHASE] | ADD IN ORDER: [Product]: Xml (Xml/gal); [Product]: Xml "
+        "(Xml/gal); ... | EST EC: X.X mS/cm | pH: X.X | NOTE: [key note]'. "
+        "Use SEMICOLONS between products so each product is unambiguous. "
+        "List products in official mixing order: Armor Si (if used), then "
+        "CALiMAGic/Cal-Mag, then FloraMicro, then FloraGro, then FloraBloom, "
+        "then biologicals (Hydroguard last among additives), then pH last. "
         "Include TOTAL ml for the full system volume AND ml/gal rate "
-        "for each product. EC-calibrate to operator target, "
-        "not manufacturer-max rates.\n\n"
+        "for each product. EC-calibrate to operator target when mixing a "
+        "new reservoir, not manufacturer-max rates.\n\n"
         "Scoring calibration (score against these stage target ranges):\n"
         f"{full_target_table}\n"
         f"{stage_target_line}\n\n"
@@ -364,7 +503,10 @@ def _build_prompt(
         "Dosing rule:\n"
         f"- {dosing_line}"
         f"{water_source_clause}"
-        f"{nutrient_ref}\n\n"
+        f"{nutrient_ref}\n"
+        "Reservoir chemistry (use these numbers; do not substitute sterile "
+        "forum rules for a live system):\n"
+        f"{biology_guidance}\n"
         "Grounding rules:\n"
         "- If the image is unusable or missing, set confidence low and say so; "
         "do not fabricate.\n"
@@ -379,8 +521,9 @@ def _build_prompt(
         f"Configured Schedules: {json.dumps(schedules, sort_keys=True)}\n"
         f"Configured Targets: {json.dumps(targets, sort_keys=True)}\n"
         f"History Retention Window: {retention_days} days\n"
-        "Cultivation context (operator-provided; includes strain, week-in-stage, "
-        "reservoir volume, feed, nutrient plan, and makeup water type):\n"
+        "Cultivation context (operator-provided; includes strain, stage-started "
+        "date, computed week-in-stage, reservoir volume, feed, nutrient plan, "
+        "additives, and makeup water type):\n"
         f"{context_lines if context_lines else '- none provided'}\n"
         "Current telemetry metrics:\n"
         f"{metric_lines if metric_lines else '- no telemetry available'}"
@@ -500,6 +643,16 @@ def _collect_metric_state_values(
         unit = str(state.attributes.get("unit_of_measurement", "") or "")
         values[role] = (state.state, unit)
     return values
+
+
+def _enrich_stage_clock(context: dict[str, Any]) -> None:
+    """Overwrite week_in_stage from the stage-started date when present."""
+    started = context.get("stage_started_on")
+    if not started:
+        return
+    elapsed = days_in_stage(datetime.now(UTC), stage_started=started)
+    context["days_in_stage"] = str(elapsed)
+    context["week_in_stage"] = str(weeks_in_stage(elapsed))
 
 
 def _collect_grow_context(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:

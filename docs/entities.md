@@ -16,9 +16,19 @@ Editable helpers that ground the AI advisor. Set them to match your grow.
 - Water Type — makeup water for fills/flushes: `tap`, `ro`, `filtered`,
   `bottled`, `rain`, `well`, `distilled`, `spring`, `mixed` (default `tap`).
 
+**Date**
+
+- Stage Started — the calendar date the current stage began. Changing Growth
+  Stage resets this to today; you can backdate it. Existing Week In Stage
+  numbers are converted on upgrade (week 2 → about 14 days ago).
+
+**Computed**
+
+- Week In Stage — days since Stage Started ÷ 7 (one decimal). Used by the AI
+  advisor and stage-projection math.
+
 **Numbers**
 
-- Week In Stage
 - Sites / Plants
 - Total System Volume (gal)
 - Target pH

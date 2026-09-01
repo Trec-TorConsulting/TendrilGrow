@@ -64,8 +64,9 @@ SNAPSHOT_ROLES = ("ph", "ec", "cf", "tds", "orp", "water_temperature", "humidity
 CTX_ORDER = (
     "ctx_strain",
     "ctx_stage",
-    "ctx_water_type",
+    "ctx_stage_started",
     "ctx_week_in_stage",
+    "ctx_water_type",
     "ctx_site_count",
     "ctx_reservoir_volume_gal",
     "ctx_target_ph",
@@ -241,14 +242,17 @@ def _timeline_card(space: dict) -> dict | None:
     reg = space["reg"]
     proj = reg.get("stage_projection")
     stage = reg.get("ctx_stage")
+    started = reg.get("ctx_stage_started")
     week = reg.get("ctx_week_in_stage")
     if not proj:
         return None
     lines = []
-    if stage and week:
-        lines.append(
-            f"**Stage:** {{{{ states('{stage}') }}}} (week {{{{ states('{week}') }}}})"
-        )
+    if stage:
+        lines.append(f"**Stage:** {{{{ states('{stage}') }}}}")
+    if started:
+        lines.append(f"**Stage started:** {{{{ states('{started}') }}}}")
+    if week:
+        lines.append(f"**Weeks in stage:** {{{{ states('{week}') }}}}")
     lines.append(f"**Days left in stage:** {{{{ states('{proj}') }}}} d")
     for label, attr in (
         ("Projected stage end", "projected_stage_end"),
