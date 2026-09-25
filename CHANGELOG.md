@@ -6,6 +6,13 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-09-25
+
+### Changed
+- Feeding cards use the additives listed on the tent. Full Cycle and Mothers
+  list CalMag+ at 2.5 ml/gal and Hydroguard at 2 ml/gal. Armor Si and a second
+  CALiMAGic dose are not added unless those products are listed.
+
 ## [0.3.5] - 2026-09-25
 
 ### Changed

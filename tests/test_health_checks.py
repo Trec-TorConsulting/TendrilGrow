@@ -156,9 +156,9 @@ def test_live_rdwc_prompt_rejects_sterile_orp_and_65f_water() -> None:
     assert "Do not write an Issue for 65-68 F water" in prompt
     assert "0.70-1.20 kPa" in prompt
     assert "early veg 0.9-1.1 is on-target" in prompt
-    assert "Micro 2.5, Gro 2.5, Bloom 2.5, Hydroguard 2" in prompt
-    assert "Armor Si 2, CALiMAGic 2.5" in prompt
-    assert "Do not drop Armor Si, Hydroguard" in prompt
+    assert "CalMag+ 2.5, Micro 2.5, Gro 2.5, Bloom 2.5, Hydroguard 2" in prompt
+    assert "Do not rename CalMag+ to CALiMAGic" in prompt
+    assert "Do not drop CalMag+ or Hydroguard" in prompt
     assert "Do NOT use the GH Light late-veg row" in prompt
     assert "at or below 1.6" in prompt
     assert "week_in_stage:" in prompt
