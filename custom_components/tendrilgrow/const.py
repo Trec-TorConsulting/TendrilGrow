@@ -161,6 +161,14 @@ CTX_RESERVOIR_VOLUME = "ctx_reservoir_volume_gal"
 CTX_SITE_COUNT = "ctx_site_count"
 CTX_TARGET_PH = "ctx_target_ph"
 CTX_TARGET_EC = "ctx_target_ec"
+CTX_TARGET_PH_LOW = "ctx_target_ph_low"
+CTX_TARGET_PH_HIGH = "ctx_target_ph_high"
+CTX_TARGET_EC_LOW = "ctx_target_ec_low"
+CTX_TARGET_EC_HIGH = "ctx_target_ec_high"
+CTX_TARGET_VPD_LOW = "ctx_target_vpd_low"
+CTX_TARGET_VPD_HIGH = "ctx_target_vpd_high"
+CTX_LIGHTS_ON_TIME = "ctx_lights_on_time"
+CTX_LIGHTS_OFF_TIME = "ctx_lights_off_time"
 CTX_FEED_INTERVAL_DAYS = "ctx_feed_interval_days"
 CTX_LIGHTS_ON_HOURS = "ctx_lights_on_hours"
 CTX_RUNOFF_TARGET_PCT = "ctx_runoff_target_pct"
@@ -311,8 +319,16 @@ GROW_CONTEXT_LABELS: dict[str, str] = {
     CTX_SITE_COUNT: "site_count_plants",
     CTX_TARGET_PH: "target_ph",
     CTX_TARGET_EC: "target_ec_ms_cm",
+    CTX_TARGET_PH_LOW: "target_ph_low",
+    CTX_TARGET_PH_HIGH: "target_ph_high",
+    CTX_TARGET_EC_LOW: "target_ec_low",
+    CTX_TARGET_EC_HIGH: "target_ec_high",
+    CTX_TARGET_VPD_LOW: "target_vpd_low_kpa",
+    CTX_TARGET_VPD_HIGH: "target_vpd_high_kpa",
     CTX_FEED_INTERVAL_DAYS: "feed_interval_days",
     CTX_LIGHTS_ON_HOURS: "lights_on_hours",
+    CTX_LIGHTS_ON_TIME: "lights_on_time",
+    CTX_LIGHTS_OFF_TIME: "lights_off_time",
     CTX_RUNOFF_TARGET_PCT: "runoff_target_pct",
     CTX_NUTRIENT_LINE: "nutrient_line",
     CTX_BASE_NUTRIENTS: "base_nutrients",

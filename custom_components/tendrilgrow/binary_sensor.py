@@ -19,6 +19,7 @@ from .ai.health_checks import ai_dispatcher_signal, has_critical_alert
 from .const import DOMAIN, FLUSH_DUE_SUFFIX
 from .entity import grow_device_info
 from .flush import flush_dispatcher_signal, flush_status
+from .metric_bands import METRIC_EC, METRIC_PH, METRIC_VPD, metric_band_dispatcher_signal
 
 
 async def async_setup_entry(
@@ -31,6 +32,10 @@ async def async_setup_entry(
         [
             AIHealthAlertBinarySensor(hass, entry),
             FlushDueBinarySensor(hass, entry),
+            MetricBandBinarySensor(hass, entry, METRIC_PH, "pH Out of Range"),
+            MetricBandBinarySensor(hass, entry, METRIC_EC, "EC Out of Range"),
+            MetricBandBinarySensor(hass, entry, METRIC_VPD, "VPD Out of Range"),
+            MetricBandSummaryBinarySensor(hass, entry),
         ]
     )
 
@@ -169,3 +174,121 @@ class FlushDueBinarySensor(BinarySensorEntity):
             "last_flush": last.isoformat() if last else None,
             "next_due": nxt.isoformat() if nxt else None,
         }
+
+
+class MetricBandBinarySensor(BinarySensorEntity):
+    """Problem sensor when a live metric is outside its target band."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_should_poll = False
+    _attr_icon = "mdi:alert-circle-outline"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        metric: str,
+        name: str,
+    ) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._metric = metric
+        self._attr_name = name
+        self._attr_unique_id = f"{entry.entry_id}_metric_band_{metric}"
+        self._unsub_dispatcher: object | None = None
+
+    @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    async def async_added_to_hass(self) -> None:
+        @callback
+        def _handle_update() -> None:
+            self.async_write_ha_state()
+
+        self._unsub_dispatcher = async_dispatcher_connect(
+            self.hass,
+            metric_band_dispatcher_signal(self._entry.entry_id),
+            _handle_update,
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_dispatcher is not None:
+            self._unsub_dispatcher()
+            self._unsub_dispatcher = None
+
+    def _band_state(self):
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        if runtime is None:
+            return None
+        return runtime.metric_band_state
+
+    @property
+    def available(self) -> bool:
+        state = self._band_state()
+        if state is None:
+            return False
+        if not state.has_band.get(self._metric, False):
+            return True
+        return state.source_available.get(self._metric, False)
+
+    @property
+    def is_on(self) -> bool:
+        state = self._band_state()
+        if state is None or not state.has_band.get(self._metric, False):
+            return False
+        if not state.source_available.get(self._metric, False):
+            return False
+        return bool(state.out_of_range.get(self._metric, False))
+
+
+class MetricBandSummaryBinarySensor(BinarySensorEntity):
+    """Summary problem sensor when any metric band is breached."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Metrics Out of Range"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_should_poll = False
+    _attr_icon = "mdi:alert"
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_metric_band_summary"
+        self._unsub_dispatcher: object | None = None
+
+    @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    async def async_added_to_hass(self) -> None:
+        @callback
+        def _handle_update() -> None:
+            self.async_write_ha_state()
+
+        self._unsub_dispatcher = async_dispatcher_connect(
+            self.hass,
+            metric_band_dispatcher_signal(self._entry.entry_id),
+            _handle_update,
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_dispatcher is not None:
+            self._unsub_dispatcher()
+            self._unsub_dispatcher = None
+
+    @property
+    def available(self) -> bool:
+        return self._entry.entry_id in self.hass.data.get(DOMAIN, {})
+
+    @property
+    def is_on(self) -> bool:
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        if runtime is None:
+            return False
+        state = runtime.metric_band_state
+        for metric, out in state.out_of_range.items():
+            if state.has_band.get(metric) and state.source_available.get(metric) and out:
+                return True
+        return False

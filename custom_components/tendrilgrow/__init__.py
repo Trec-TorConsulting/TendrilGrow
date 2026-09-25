@@ -41,6 +41,12 @@ from .flush import (
 )
 from .local_water_source import async_prepare_local_water_source
 from .models.grow import GrowSpace
+from .metric_bands import MetricBandRuntimeState, async_setup_metric_band_monitor
+from .pump_energy import (
+    PumpEnergyState,
+    async_setup_pump_energy_tracking,
+    load_pump_energy_state,
+)
 from .repairs import (
     async_clear_repair_issues,
     async_clear_timelapse_allowlist_issue,
@@ -58,6 +64,7 @@ PLATFORMS: list[str] = [
     "number",
     "select",
     "date",
+    "time",
     "text",
     "todo",
     "switch",
@@ -101,6 +108,11 @@ class RuntimeData:
     flush_state: FlushState
     flush_store: Any
     unsubscribe_flush_ticker: Any
+    pump_energy_state: PumpEnergyState
+    pump_energy_store: Any
+    unsubscribe_pump_energy: list[Any]
+    metric_band_state: MetricBandRuntimeState
+    unsubscribe_metric_bands: list[Any]
     unsubscribe_timelapse_scheduler: Any
     timelapse_scheduler_paused: bool
     migrated_stage_started: date | None = None
@@ -476,6 +488,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         flush_store = _EphemeralStore()
         flush_state = FlushState()
 
+    try:
+        pump_energy_store: Any = Store(
+            hass, 1, f"{DOMAIN}_pump_energy_{entry.entry_id}"
+        )
+        pump_energy_state = await load_pump_energy_state(pump_energy_store)
+    except Exception:  # noqa: BLE001
+        pump_energy_store = _EphemeralStore()
+        pump_energy_state = PumpEnergyState()
+
     interval_hours = int(
         merged_config.get(
             CONF_AI_HEALTH_INTERVAL_HOURS, DEFAULT_AI_HEALTH_INTERVAL_HOURS
@@ -522,6 +543,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         flush_state=flush_state,
         flush_store=flush_store,
         unsubscribe_flush_ticker=unsubscribe_flush_ticker,
+        pump_energy_state=pump_energy_state,
+        pump_energy_store=pump_energy_store,
+        unsubscribe_pump_energy=[],
+        metric_band_state=MetricBandRuntimeState(),
+        unsubscribe_metric_bands=[],
         unsubscribe_timelapse_scheduler=None,
         timelapse_scheduler_paused=False,
     )
@@ -557,6 +583,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception:  # noqa: BLE001
         LOGGER.debug("Unable to evaluate repair issues", exc_info=True)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    try:
+        runtime.unsubscribe_pump_energy = await async_setup_pump_energy_tracking(
+            hass,
+            entry,
+            runtime.pump_energy_state,
+            runtime.pump_energy_store,
+        )
+    except Exception:  # noqa: BLE001
+        LOGGER.debug(
+            "Unable to start pump energy tracking for %s",
+            entry.entry_id,
+            exc_info=True,
+        )
+    try:
+        runtime.unsubscribe_metric_bands = await async_setup_metric_band_monitor(
+            hass, entry, runtime
+        )
+    except Exception:  # noqa: BLE001
+        LOGGER.debug(
+            "Unable to start metric band monitor for %s",
+            entry.entry_id,
+            exc_info=True,
+        )
     _migrate_stage_clock_entity_ids(hass, entry)
     try:
         if not hass.data[DOMAIN].get(_LOVELACE_STAGE_CLOCK_SCHEDULED):
@@ -603,6 +652,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     if unsubscribe_flush_ticker:
         unsubscribe_flush_ticker()
+    for unsub in getattr(runtime, "unsubscribe_pump_energy", None) or []:
+        if unsub:
+            unsub()
+    for unsub in getattr(runtime, "unsubscribe_metric_bands", None) or []:
+        if unsub:
+            unsub()
     unsubscribe_timelapse_scheduler = (
         getattr(runtime, "unsubscribe_timelapse_scheduler", None) if runtime else None
     )

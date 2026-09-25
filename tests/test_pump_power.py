@@ -38,6 +38,28 @@ async def test_resolve_pump_power_source_explicit_mapping() -> None:
 
 
 @pytest.mark.asyncio
+async def test_resolve_pump_power_source_reads_options_mappings() -> None:
+    """Explicit power mapping in entry.options is honored."""
+    entry = SimpleNamespace(
+        entry_id="test-entry",
+        title="Tent A",
+        data={
+            "control_mappings": {CONTROL_ROLE_RDWC_PUMP: "switch.rdwc_pump"},
+            "sensor_mappings": {},
+        },
+        options={
+            "sensor_mappings": {SENSOR_ROLE_RDWC_PUMP_POWER: "sensor.rdwc_power_opts"},
+        },
+    )
+
+    hass = MagicMock()
+
+    result = await _resolve_pump_power_source(hass, entry, CONTROL_ROLE_RDWC_PUMP)
+
+    assert result == "sensor.rdwc_power_opts"
+
+
+@pytest.mark.asyncio
 async def test_resolve_pump_power_source_missing_when_unmapped() -> None:
     """Verify None returned when pump not mapped."""
     entry = SimpleNamespace(
@@ -114,11 +136,12 @@ def test_total_pump_power_sensor_sums_available() -> None:
 
     entry = SimpleNamespace(entry_id="test-entry", title="Tent A")
 
-    total_sensor = TendrilGrowTotalPumpPowerSensor(
-        hass,
-        entry,
-        ["sensor.rdwc_power", "sensor.chiller_power", "sensor.air_power"],
-    )
+    total_sensor = TendrilGrowTotalPumpPowerSensor(hass, entry, ["rdwc_pump"])
+    total_sensor._pump_power_sensors = [
+        "sensor.rdwc_power",
+        "sensor.chiller_power",
+        "sensor.air_power",
+    ]
 
     # Should sum all available power values.
     assert total_sensor.native_value == 90.5
@@ -138,11 +161,12 @@ def test_total_pump_power_sensor_skips_unavailable() -> None:
 
     entry = SimpleNamespace(entry_id="test-entry", title="Tent A")
 
-    total_sensor = TendrilGrowTotalPumpPowerSensor(
-        hass,
-        entry,
-        ["sensor.rdwc_power", "sensor.chiller_power", "sensor.air_power"],
-    )
+    total_sensor = TendrilGrowTotalPumpPowerSensor(hass, entry, ["rdwc_pump"])
+    total_sensor._pump_power_sensors = [
+        "sensor.rdwc_power",
+        "sensor.chiller_power",
+        "sensor.air_power",
+    ]
 
     # Should sum only available values (50 + 10, skipping unavailable).
     assert total_sensor.native_value == 60.0
@@ -156,14 +180,30 @@ def test_total_pump_power_sensor_unavailable_when_no_sources() -> None:
 
     entry = SimpleNamespace(entry_id="test-entry", title="Tent A")
 
-    total_sensor = TendrilGrowTotalPumpPowerSensor(
-        hass,
-        entry,
-        ["sensor.rdwc_power", "sensor.chiller_power"],
-    )
+    total_sensor = TendrilGrowTotalPumpPowerSensor(hass, entry, ["rdwc_pump"])
+    total_sensor._pump_power_sensors = []
 
     assert total_sensor.native_value is None
     assert total_sensor.available is False
+
+
+def test_total_pump_power_resolves_registry_entity_ids() -> None:
+    """Total power subscribes to registry entity ids, not guessed names."""
+    from unittest.mock import patch
+
+    hass = MagicMock()
+    entry = SimpleNamespace(entry_id="entry-abc", title="Tent A")
+
+    with patch(
+        "custom_components.tendrilgrow.sensor.pump_power_entity_id",
+        side_effect=lambda _h, _e, role: f"sensor.real_{role}_power",
+    ):
+        total_sensor = TendrilGrowTotalPumpPowerSensor(
+            hass, entry, [CONTROL_ROLE_RDWC_PUMP]
+        )
+        ids = total_sensor._resolve_power_entity_ids()
+
+    assert ids == ["sensor.real_rdwc_pump_power"]
 
 
 def test_total_pump_power_sensor_empty_list() -> None:

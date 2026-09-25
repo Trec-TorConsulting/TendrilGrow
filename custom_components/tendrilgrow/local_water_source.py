@@ -29,6 +29,7 @@ from .const import (
     WATER_SOURCE_TUYA_LOCAL,
 )
 from .coordinator import has_tuya_credentials, tuya_device_ids, tuya_enabled
+from .entry_config import entry_merged_config
 
 LOGGER = logging.getLogger(__name__)
 
@@ -37,15 +38,9 @@ _TDS_UNITS = frozenset({"ppm"})
 _ORP_UNITS = frozenset({"mv"})
 
 
-def _entry_merged_config(entry: ConfigEntry) -> dict[str, Any]:
-    merged = dict(entry.data)
-    merged.update(getattr(entry, "options", {}) or {})
-    return merged
-
-
 def stored_water_monitor_device_id(entry: ConfigEntry) -> str | None:
     """Return the configured HA device id, if any."""
-    raw = _entry_merged_config(entry).get(CONF_WATER_MONITOR_DEVICE_ID, "")
+    raw = entry_merged_config(entry).get(CONF_WATER_MONITOR_DEVICE_ID, "")
     device_id = str(raw or "").strip()
     return device_id or None
 
@@ -156,8 +151,9 @@ async def async_resolve_water_monitor_device(
             stored,
             entry.entry_id,
         )
+        return None
 
-    cfg = _entry_merged_config(entry)
+    cfg = entry_merged_config(entry)
     raw_ids = cfg.get(CONF_TUYA_DEVICE_IDS, [])
     if isinstance(raw_ids, str):
         tuya_ids = [part.strip() for part in raw_ids.split(",") if part.strip()]
@@ -171,7 +167,7 @@ async def async_resolve_water_monitor_device(
         return None
 
     device_id, domain = match
-    if persist and stored != device_id:
+    if persist and not stored:
         new_data = dict(entry.data)
         new_data[CONF_WATER_MONITOR_DEVICE_ID] = device_id
         hass.config_entries.async_update_entry(entry, data=new_data)

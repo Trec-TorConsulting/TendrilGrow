@@ -17,6 +17,7 @@ from .const import (
     PUMP_CONTROL_ROLES,
     PUMP_LABELS,
 )
+from .entry_config import entry_merged_config
 from .entity import grow_device_info
 
 LOGGER = logging.getLogger(__name__)
@@ -28,8 +29,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up TendrilGrow pump proxy switches for one config entry."""
-    data = entry.data
-    control_mappings = data.get("control_mappings", {})
+    control_mappings = entry_merged_config(entry).get("control_mappings", {})
 
     entities: list[SwitchEntity] = []
 

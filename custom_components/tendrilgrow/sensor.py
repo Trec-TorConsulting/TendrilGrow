@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -63,11 +64,17 @@ from .const import (
 )
 from .coordinator import TendrilGrowTuyaCoordinator, tuya_device_ids
 from .entity import assign_prefixed_entity_id, grow_device_info
+from .entry_config import entry_merged_config
+from .pump_energy import (
+    compute_daily_pump_energy_kwh,
+    pump_energy_dispatcher_signal,
+    pump_power_entity_id,
+    pump_switch_entity_id,
+)
 from .feeding import compose_feeding_schedule_md
 from .flush import flush_dispatcher_signal, flush_status
 from .insights import (
     compose_weekly_journal,
-    compute_daily_energy_kwh,
     compute_dew_point_c,
     compute_dli,
     days_in_stage,
@@ -195,9 +202,8 @@ async def async_setup_entry(
                 entities.append(TuyaLastUpdatedSensor(coordinator, entry, device_id))
 
     # Pump power sensors (independent of Tuya configuration).
-    data = entry.data
-    control_mappings = data.get("control_mappings", {})
-    pump_power_sensors: list[str] = []
+    control_mappings = entry_merged_config(entry).get("control_mappings", {})
+    mapped_pump_roles: list[str] = []
 
     for pump_role in PUMP_CONTROL_ROLES:
         if pump_role in control_mappings:
@@ -205,15 +211,12 @@ async def async_setup_entry(
             entities.append(
                 TendrilGrowPumpPowerSensor(hass, entry, pump_role, power_source)
             )
-            # Track pump power sensor IDs for total power calculation.
-            if power_source:
-                pump_power_sensor_id = f"sensor.{entry.entry_id}_{pump_role}_power"
-                pump_power_sensors.append(pump_power_sensor_id)
+            mapped_pump_roles.append(pump_role)
 
-    # Add total pump power sensor if any pump powers are mapped.
-    if pump_power_sensors:
+    # Add total pump power sensor if any pumps are mapped.
+    if mapped_pump_roles:
         entities.append(
-            TendrilGrowTotalPumpPowerSensor(hass, entry, pump_power_sensors)
+            TendrilGrowTotalPumpPowerSensor(hass, entry, mapped_pump_roles)
         )
 
     # Reservoir full-flush tracking sensors (independent of Tuya).
@@ -670,7 +673,7 @@ class TendrilGrowDliSensor(_DerivedGrowSensor):
 
 
 class TendrilGrowEnergyCostSensor(_DerivedGrowSensor):
-    """Estimated daily pump electricity cost (total pump power x 24h x price)."""
+    """Estimated daily pump electricity cost from observed on-time."""
 
     _attr_icon = "mdi:cash-clock"
     _attr_suggested_display_precision = 2
@@ -680,6 +683,7 @@ class TendrilGrowEnergyCostSensor(_DerivedGrowSensor):
         self._attr_native_unit_of_measurement = getattr(
             getattr(hass, "config", None), "currency", None
         )
+        self._unsub_pump_energy: Any = None
 
     def _power_id(self) -> str | None:
         registry = get_entity_registry(self.hass)
@@ -688,28 +692,60 @@ class TendrilGrowEnergyCostSensor(_DerivedGrowSensor):
         )
 
     def _source_entity_ids(self) -> list[str]:
-        ids = [self._power_id(), self._number_entity(CTX_PRICE_PER_KWH)]
+        ids = [self._number_entity(CTX_PRICE_PER_KWH), self._power_id()]
+        merged = entry_merged_config(self._entry)
+        for pump_role in PUMP_CONTROL_ROLES:
+            if pump_role not in merged.get("control_mappings", {}):
+                continue
+            for resolver in (pump_power_entity_id, pump_switch_entity_id):
+                entity_id = resolver(self.hass, self._entry, pump_role)
+                if entity_id:
+                    ids.append(entity_id)
         return [eid for eid in ids if eid]
 
-    def _energy_kwh(self) -> float | None:
-        return compute_daily_energy_kwh(self._read_float(self._power_id()))
+    def _energy_kwh(self) -> tuple[float | None, dict[str, Any]]:
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        state = getattr(runtime, "pump_energy_state", None)
+        if state is None:
+            return None, {"estimated": True}
+        return compute_daily_pump_energy_kwh(
+            self.hass, self._entry, state, dt_util.now()
+        )
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+
+        @callback
+        def _on_pump_energy() -> None:
+            self.async_write_ha_state()
+
+        self._unsub_pump_energy = async_dispatcher_connect(
+            self.hass,
+            pump_energy_dispatcher_signal(self._entry.entry_id),
+            _on_pump_energy,
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_pump_energy:
+            self._unsub_pump_energy()
+            self._unsub_pump_energy = None
+        await super().async_will_remove_from_hass()
 
     @property
     def native_value(self):
+        energy, _attrs = self._energy_kwh()
         cost = estimate_daily_cost(
-            self._energy_kwh(),
+            energy,
             self._read_float(self._number_entity(CTX_PRICE_PER_KWH)),
         )
         return round(cost, 2) if cost is not None else None
 
     @property
     def extra_state_attributes(self):
-        energy = self._energy_kwh()
-        return {
-            "estimated": True,
-            "energy_kwh_per_day": round(energy, 3) if energy is not None else None,
-            "assumes_hours_per_day": 24,
-        }
+        energy, attrs = self._energy_kwh()
+        result = dict(attrs)
+        result["energy_kwh_per_day"] = round(energy, 3) if energy is not None else None
+        return result
 
 
 class TimelapseBaseSensor(SensorEntity):
@@ -1014,9 +1050,9 @@ async def _resolve_pump_power_source(
 
     Returns entity_id of power sensor or None if not found.
     """
-    data = entry.data
-    sensor_mappings = data.get("sensor_mappings", {})
-    control_mappings = data.get("control_mappings", {})
+    merged = entry_merged_config(entry)
+    sensor_mappings = merged.get("sensor_mappings", {})
+    control_mappings = merged.get("control_mappings", {})
 
     # Check explicit power mapping first.
     power_role = PUMP_POWER_ROLE_FOR.get(pump_role)
@@ -1133,19 +1169,33 @@ class TendrilGrowTotalPumpPowerSensor(SensorEntity):
         self,
         hass: HomeAssistant,
         entry: ConfigEntry,
-        pump_power_sensors: list[str],
+        pump_roles: list[str],
     ) -> None:
         """Initialize total pump power sensor."""
         self.hass = hass
         self._entry = entry
-        self._pump_power_sensors = pump_power_sensors
+        self._pump_roles = pump_roles
+        self._pump_power_sensors: list[str] = []
         self._unsub_state_changes: list[object] = []
 
         self._attr_unique_id = f"{entry.entry_id}_total_pump_power"
         self._attr_device_info = grow_device_info(entry)
 
-    async def async_added_to_hass(self) -> None:
-        """Subscribe to all pump power sensor state changes."""
+    def _resolve_power_entity_ids(self) -> list[str]:
+        entity_ids: list[str] = []
+        for pump_role in self._pump_roles:
+            entity_id = pump_power_entity_id(self.hass, self._entry, pump_role)
+            if entity_id:
+                entity_ids.append(entity_id)
+        return entity_ids
+
+    @callback
+    def _subscribe_power_entities(self, _now=None) -> None:
+        for unsub in self._unsub_state_changes:
+            if unsub:
+                unsub()
+        self._unsub_state_changes = []
+        self._pump_power_sensors = self._resolve_power_entity_ids()
         for sensor_id in self._pump_power_sensors:
             unsub = async_track_state_change_event(
                 self.hass,
@@ -1153,6 +1203,12 @@ class TendrilGrowTotalPumpPowerSensor(SensorEntity):
                 self._on_power_state_change,
             )
             self._unsub_state_changes.append(unsub)
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to all pump power sensor state changes."""
+        self._subscribe_power_entities()
+        async_call_later(self.hass, 5, self._subscribe_power_entities)
 
     async def async_will_remove_from_hass(self) -> None:
         """Unsubscribe from all state changes."""

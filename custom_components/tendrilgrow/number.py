@@ -10,7 +10,9 @@ from homeassistant.components.number import (
     RestoreNumber,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -29,6 +31,14 @@ from .const import (
 )
 from .entity import grow_device_info
 from .flush import async_save_flush_state, flush_dispatcher_signal
+from .grow_targets import (
+    BAND_OVERRIDDEN_ATTR,
+    TARGET_BAND_SPECS,
+    TargetBandSpec,
+    current_stage,
+    reseed_dispatcher_signal,
+    seed_value_for_band,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,6 +134,7 @@ async def async_setup_entry(
     entities: list[NumberEntity] = [
         GrowContextNumber(entry, description) for description in NUMBERS
     ]
+    entities.extend(TargetBandNumber(hass, entry, spec) for spec in TARGET_BAND_SPECS)
     entities.append(FlushIntervalNumber(hass, entry))
     async_add_entities(entities)
 
@@ -158,6 +169,85 @@ class GrowContextNumber(RestoreNumber):
             self._attr_native_value = last.native_value
 
     async def async_set_native_value(self, value: float) -> None:
+        self._attr_native_value = value
+        self.async_write_ha_state()
+
+
+class TargetBandNumber(RestoreNumber):
+    """Editable pH/EC/VPD band bound seeded from the current stage."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_mode = NumberMode.BOX
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self, hass: HomeAssistant, entry: ConfigEntry, spec: TargetBandSpec
+    ) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._spec = spec
+        self._band_overridden = False
+        self._attr_unique_id = f"{entry.entry_id}_{spec.key}"
+        self._attr_name = spec.name
+        self._attr_native_min_value = spec.minimum
+        self._attr_native_max_value = spec.maximum
+        self._attr_native_step = spec.step
+        self._attr_native_unit_of_measurement = spec.unit
+        self._attr_icon = spec.icon
+        self._unsub_reseed = None
+
+    @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, bool]:
+        return {BAND_OVERRIDDEN_ATTR: self._band_overridden}
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        restored = False
+        last_number = await self.async_get_last_number_data()
+        if last_number is not None and last_number.native_value is not None:
+            self._attr_native_value = float(last_number.native_value)
+            restored = True
+        last_state = await self.async_get_last_state()
+        if last_state is not None:
+            self._band_overridden = bool(last_state.attributes.get(BAND_OVERRIDDEN_ATTR))
+        if not restored:
+            stage = current_stage(self.hass, self._entry)
+            seeded = seed_value_for_band(stage, self._spec)
+            if seeded is not None:
+                self._attr_native_value = seeded
+
+        @callback
+        def _on_reseed(payload: dict) -> None:
+            self._apply_reseed(str(payload.get("stage") or current_stage(self.hass, self._entry)))
+
+        self._unsub_reseed = async_dispatcher_connect(
+            self.hass,
+            reseed_dispatcher_signal(self._entry.entry_id),
+            _on_reseed,
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_reseed is not None:
+            self._unsub_reseed()
+            self._unsub_reseed = None
+
+    @callback
+    def _apply_reseed(self, stage: str) -> None:
+        if self._band_overridden:
+            return
+        seeded = seed_value_for_band(stage, self._spec)
+        if seeded is None:
+            return
+        self._attr_native_value = seeded
+        self.async_write_ha_state()
+
+    async def async_set_native_value(self, value: float) -> None:
+        self._band_overridden = True
         self._attr_native_value = value
         self.async_write_ha_state()
 

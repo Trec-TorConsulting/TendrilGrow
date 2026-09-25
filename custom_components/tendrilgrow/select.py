@@ -17,6 +17,7 @@ from .const import (
     WATER_TYPE_OPTIONS,
 )
 from .entity import grow_device_info
+from .grow_targets import dispatch_reseed_target_bands
 
 
 async def async_setup_entry(
@@ -53,8 +54,11 @@ class GrowStageSelect(SelectEntity, RestoreEntity):
             self._attr_current_option = last.state
 
     async def async_select_option(self, option: str) -> None:
+        previous = self._attr_current_option
         self._attr_current_option = option
         self.async_write_ha_state()
+        if previous != option:
+            dispatch_reseed_target_bands(self.hass, self._entry, option)
 
 
 class GrowWaterTypeSelect(SelectEntity, RestoreEntity):

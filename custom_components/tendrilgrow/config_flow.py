@@ -69,6 +69,18 @@ from .const import (
     SENSOR_ROLES_TUYA_OPTIONAL,
     TUYA_LOCAL_DOMAIN,
 )
+from .entry_config import (
+    entry_merged_config,
+    hide_water_quality_fields,
+    merge_mappings_from_options_input,
+    normalize_sensor_mappings,
+    options_visible_sensor_roles,
+    preserve_blank_tuya_device_ids,
+    resolved_tuya_access_id,
+    resolved_tuya_access_secret,
+    tuya_enabled_from_input,
+    water_monitor_device_id_from_input,
+)
 from .models.grow import GrowSpace
 
 TUYA_REGIONS: tuple[str, ...] = ("us", "eu", "cn", "in")
@@ -135,28 +147,6 @@ def _optional_power_sensor_field(
         fields[vol.Optional(power_role, default=existing)] = selector_obj
         return
     fields[vol.Optional(power_role)] = selector_obj
-
-
-def _normalize_sensor_mappings(sensor_mappings: dict[str, str]) -> dict[str, str]:
-    normalized = dict(sensor_mappings)
-    if SENSOR_ROLE_EC_TDS_LEGACY in normalized and SENSOR_ROLE_TDS not in normalized:
-        normalized[SENSOR_ROLE_TDS] = normalized[SENSOR_ROLE_EC_TDS_LEGACY]
-    return normalized
-
-
-def _tuya_enabled_from_input(user_input: dict[str, Any], default: bool = False) -> bool:
-    return bool(user_input.get(CONF_TUYA_ENABLED, default))
-
-
-def _water_monitor_device_id_from_input(
-    user_input: dict[str, Any], default: str = ""
-) -> str:
-    return str(user_input.get(CONF_WATER_MONITOR_DEVICE_ID, default) or "").strip()
-
-
-def _hide_water_quality_fields(tuya_enabled: bool, local_device_id: str) -> bool:
-    """Hide water roles only for cloud fallback with no local device bound."""
-    return bool(tuya_enabled) and not bool(local_device_id)
 
 
 def _water_monitor_device_selector() -> selector.DeviceSelector:
@@ -228,9 +218,9 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_entity_mapping(self, user_input: dict[str, Any] | None = None):
         """Map sensor and control roles to user entities."""
         if user_input is not None:
-            tuya_enabled = _tuya_enabled_from_input(user_input)
-            local_device_id = _water_monitor_device_id_from_input(user_input)
-            hide_water = _hide_water_quality_fields(tuya_enabled, local_device_id)
+            tuya_enabled = tuya_enabled_from_input(user_input)
+            local_device_id = water_monitor_device_id_from_input(user_input, "")
+            hide_water = hide_water_quality_fields(tuya_enabled, local_device_id)
             sensor_mappings = {}
             allowed_sensor_roles = (
                 SENSOR_ROLES if not hide_water else SENSOR_ROLES_TUYA_OPTIONAL
@@ -312,7 +302,7 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         fields: dict[Any, Any] = {}
         tuya_enabled = bool(self._data.get(CONF_TUYA_ENABLED, False))
         local_device_id = str(self._data.get(CONF_WATER_MONITOR_DEVICE_ID, "") or "")
-        hide_water = _hide_water_quality_fields(tuya_enabled, local_device_id)
+        hide_water = hide_water_quality_fields(tuya_enabled, local_device_id)
         visible_sensor_roles = (
             SENSOR_ROLES_CONFIGURABLE
             if not hide_water
@@ -574,43 +564,29 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         if user_input is not None:
-            current = dict(self._entry.data)
-            current.update(getattr(self._entry, "options", {}))
-            submitted_secret = str(user_input.get(CONF_TUYA_ACCESS_SECRET, "")).strip()
-            resolved_secret = (
-                submitted_secret
-                or str(current.get(CONF_TUYA_ACCESS_SECRET, "")).strip()
+            current = entry_merged_config(self._entry)
+            sensor_mappings, control_mappings = merge_mappings_from_options_input(
+                current, user_input
             )
-            tuya_enabled = _tuya_enabled_from_input(
+            tuya_enabled = tuya_enabled_from_input(
                 user_input, bool(current.get(CONF_TUYA_ENABLED, False))
             )
-            local_device_id = _water_monitor_device_id_from_input(
+            local_device_id = water_monitor_device_id_from_input(
                 user_input,
                 str(current.get(CONF_WATER_MONITOR_DEVICE_ID, "") or ""),
             )
-            hide_water = _hide_water_quality_fields(tuya_enabled, local_device_id)
-            sensor_mappings = {}
-            allowed_sensor_roles = (
-                SENSOR_ROLES if not hide_water else SENSOR_ROLES_TUYA_OPTIONAL
+            resolved_secret = resolved_tuya_access_secret(
+                user_input,
+                str(current.get(CONF_TUYA_ACCESS_SECRET, "") or ""),
             )
-            if allowed_sensor_roles:
-                sensor_mappings = {
-                    role: value
-                    for role, value in user_input.items()
-                    if role in allowed_sensor_roles and value
-                }
-
-            # Add power sensor mappings (extracted from form fields).
-            for pump_role in PUMP_CONTROL_ROLES:
-                power_role = PUMP_POWER_ROLE_FOR.get(pump_role)
-                if power_role and power_role in user_input and user_input[power_role]:
-                    sensor_mappings[power_role] = user_input[power_role]
-
-            control_mappings = {
-                role: value
-                for role, value in user_input.items()
-                if role in CONTROL_ROLES and value
-            }
+            resolved_access_id = resolved_tuya_access_id(
+                user_input,
+                str(current.get(CONF_TUYA_ACCESS_ID, "") or ""),
+            )
+            device_ids = preserve_blank_tuya_device_ids(
+                user_input,
+                current.get(CONF_TUYA_DEVICE_IDS, []),
+            )
             return self.async_create_entry(
                 title="",
                 data={
@@ -620,15 +596,11 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                     CONF_CONTROL_MAPPINGS: control_mappings,
                     CONF_WATER_MONITOR_DEVICE_ID: local_device_id,
                     CONF_TUYA_ENABLED: tuya_enabled,
-                    CONF_TUYA_ACCESS_ID: str(
-                        user_input.get(CONF_TUYA_ACCESS_ID, "")
-                    ).strip(),
+                    CONF_TUYA_ACCESS_ID: resolved_access_id,
                     CONF_TUYA_ACCESS_SECRET: resolved_secret,
                     CONF_TUYA_REGION: str(user_input.get(CONF_TUYA_REGION, "us")),
                     CONF_TUYA_UID: str(user_input.get(CONF_TUYA_UID, "")).strip(),
-                    CONF_TUYA_DEVICE_IDS: _parse_tuya_device_ids(
-                        str(user_input.get(CONF_TUYA_DEVICE_IDS, ""))
-                    ),
+                    CONF_TUYA_DEVICE_IDS: device_ids,
                     CONF_TUYA_SCAN_INTERVAL: int(
                         user_input.get(
                             CONF_TUYA_SCAN_INTERVAL,
@@ -700,8 +672,7 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                 },
             )
 
-        current = dict(self._entry.data)
-        current.update(getattr(self._entry, "options", {}))
+        current = entry_merged_config(self._entry)
         fields: dict[Any, Any] = {
             vol.Required(
                 CONF_GROW_TYPE, default=current.get(CONF_GROW_TYPE, "rdwc")
@@ -715,17 +686,12 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
             vol.Optional(CONF_GROW_SIZE, default=current.get(CONF_GROW_SIZE, "")): str,
         }
 
-        sensor_mappings = _normalize_sensor_mappings(
+        sensor_mappings = normalize_sensor_mappings(
             current.get(CONF_SENSOR_MAPPINGS, {})
         )
+        visible_sensor_roles = options_visible_sensor_roles(current)
         tuya_enabled = bool(current.get(CONF_TUYA_ENABLED, False))
         local_device_id = str(current.get(CONF_WATER_MONITOR_DEVICE_ID, "") or "")
-        hide_water = _hide_water_quality_fields(tuya_enabled, local_device_id)
-        visible_sensor_roles = (
-            SENSOR_ROLES_CONFIGURABLE
-            if not hide_water
-            else SENSOR_ROLES_TUYA_OPTIONAL
-        )
         _optional_device_field(fields, CONF_WATER_MONITOR_DEVICE_ID, local_device_id)
         for role in visible_sensor_roles:
             _optional_entity_field(fields, role, sensor_mappings)
