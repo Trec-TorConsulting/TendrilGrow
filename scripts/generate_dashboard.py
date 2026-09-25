@@ -45,7 +45,8 @@ DOMAIN = "tendrilgrow"
 DEFAULT_URL_PATH = "tendrial-grow"
 DEFAULT_TITLE = "Tendrial Grow"
 
-# Reservoir/air telemetry roles, in the order they should appear on cards.
+# Reservoir/air telemetry roles. pH and EC are promoted ahead of this list;
+# integration VPD is inserted after them and before the remaining roles.
 SENSOR_ROLE_ORDER = (
     "ph",
     "ec",
@@ -57,15 +58,55 @@ SENSOR_ROLE_ORDER = (
     "humidity",
     "light_ppfd",
 )
-# Compact subset used on the executive overview snapshot/trend cards.
-SNAPSHOT_ROLES = ("ph", "ec", "cf", "tds", "orp", "water_temperature", "humidity")
+ROLE_LABELS = {
+    "ph": "pH",
+    "ec": "EC",
+    "cf": "CF",
+    "tds": "TDS",
+    "orp": "ORP",
+    "water_temperature": "Water temperature",
+    "temperature": "Temperature",
+    "humidity": "Humidity",
+    "light_ppfd": "PPFD",
+}
 
-# Cultivation-context helper entities, by unique-id suffix, in display order.
-CTX_ORDER = (
-    "ctx_strain",
+LIFECYCLE_SUFFIXES = (
     "ctx_stage",
     "ctx_stage_started",
     "ctx_week_in_stage",
+    "stage_projection",
+)
+AI_TILE_SUFFIXES = (
+    "ai_health_summary",
+    "ai_health_last_check",
+    "ai_health_critical_alert",
+    "run_ai_health_check",
+)
+BAND_TILE_SUFFIXES = (
+    ("metric_band_ph", "pH band"),
+    ("metric_band_ec", "EC band"),
+    ("metric_band_vpd", "VPD band"),
+)
+TARGET_BAND_SUFFIXES = (
+    "ctx_target_ph_low",
+    "ctx_target_ph_high",
+    "ctx_target_ec_low",
+    "ctx_target_ec_high",
+    "ctx_target_vpd_low",
+    "ctx_target_vpd_high",
+)
+FLUSH_SUFFIXES = (
+    "flush_due",
+    "days_until_flush",
+    "days_since_flush",
+    "next_flush_due",
+    "last_flush",
+    "flush_now",
+    "flush_interval_days",
+)
+PUMP_ROLES = ("rdwc_pump", "chiller_pump", "air_pump")
+PLAN_SUFFIXES = (
+    "ctx_strain",
     "ctx_water_type",
     "ctx_site_count",
     "ctx_reservoir_volume_gal",
@@ -73,17 +114,54 @@ CTX_ORDER = (
     "ctx_target_ec",
     "ctx_feed_interval_days",
     "ctx_lights_on_hours",
+    "ctx_lights_on_time",
+    "ctx_lights_off_time",
     "ctx_runoff_target_pct",
     "ctx_nutrient_line",
     "ctx_base_nutrients",
     "ctx_additives",
+    "ctx_price_per_kwh",
 )
-AI_ORDER = (
-    "ai_health_score",
-    "ai_health_summary",
-    "ai_health_last_check",
-    "ai_health_critical_alert",
-    "run_ai_health_check",
+SUFFIX_LABELS = {
+    "ctx_stage": "Stage",
+    "ctx_stage_started": "Stage started",
+    "ctx_week_in_stage": "Week in stage",
+    "stage_projection": "Days left in stage",
+    "ai_health_summary": "Summary",
+    "ai_health_last_check": "Last check",
+    "ai_health_critical_alert": "Critical alert",
+    "run_ai_health_check": "Run AI health check",
+    "flush_due": "Flush due",
+    "days_until_flush": "Days until flush",
+    "days_since_flush": "Days since flush",
+    "next_flush_due": "Next flush due",
+    "last_flush": "Last flush",
+    "flush_now": "Flush now",
+    "flush_interval_days": "Flush interval",
+    "total_pump_power": "Total pump power",
+    "rdwc_pump": "RDWC pump",
+    "chiller_pump": "Chiller pump",
+    "air_pump": "Air pump",
+    "rdwc_pump_power": "RDWC pump power",
+    "chiller_pump_power": "Chiller pump power",
+    "air_pump_power": "Air pump power",
+    "metric_band_summary": "Metrics out of range",
+}
+PROJECTION_ATTRS = (
+    ("Projected stage end", "projected_stage_end"),
+    ("Projected harvest", "projected_harvest_date"),
+    ("Projected ready", "projected_ready_date"),
+)
+CARD_TYPES = frozenset(
+    {
+        "heading",
+        "tile",
+        "gauge",
+        "picture-entity",
+        "entities",
+        "markdown",
+        "history-graph",
+    }
 )
 
 
@@ -126,12 +204,6 @@ def _slug(text: str) -> str:
     while "__" in out:
         out = out.replace("__", "_")
     return out.strip("_")
-
-
-def _entities_card(title: str, rows: list, **extra: Any) -> dict:
-    card = {"type": "entities", "title": title, "state_color": True, "entities": rows}
-    card.update(extra)
-    return card
 
 
 def classify(
@@ -183,211 +255,293 @@ def _camera_card(space: dict) -> dict | None:
     }
 
 
-def _telemetry_rows(space: dict) -> list[str]:
-    rows = [space["sensors"][r] for r in SENSOR_ROLE_ORDER if r in space["sensors"]]
-    if space["reg"].get("vpd"):
-        rows.append(space["reg"]["vpd"])
-    if space["last_updated"]:
-        rows.append(space["last_updated"])
-    return rows
+def _heading(text: str, *, style: str = "subtitle") -> dict:
+    return {"type": "heading", "heading": text, "heading_style": style}
 
 
-def _flush_card(space: dict) -> dict | None:
-    reg = space["reg"]
-    if "flush_now" not in reg:
-        return None
-    rows: list[Any] = [
-        {"entity": reg["flush_now"], "name": "Flush now", "icon": "mdi:water-sync"}
+def _tile(entity_id: str, name: str) -> dict:
+    return {"type": "tile", "entity": entity_id, "name": name}
+
+
+def _suffix_tiles(reg: dict, suffixes: tuple[str, ...]) -> list[dict]:
+    return [
+        _tile(reg[suffix], SUFFIX_LABELS[suffix])
+        for suffix in suffixes
+        if reg.get(suffix)
     ]
-    if reg.get("flush_interval_days"):
-        rows.append({"entity": reg["flush_interval_days"], "name": "Flush interval"})
-    rows.append({"type": "divider"})
-    for suffix, name in (
-        ("flush_due", "Flush due?"),
-        ("days_since_flush", "Days since flush"),
-        ("days_until_flush", "Days until next"),
-        ("next_flush_due", "Next due"),
-        ("last_flush", "Last flush"),
-    ):
-        if reg.get(suffix):
-            rows.append({"entity": reg[suffix], "name": name})
-    return _entities_card("Reservoir Flush", rows, show_header_toggle=False)
 
 
-def _ai_cards(space: dict) -> list[dict]:
+def _section(
+    heading: str,
+    cards: list[dict],
+    *,
+    column_span: int | None = None,
+    heading_style: str = "subtitle",
+) -> dict | None:
+    """A grid section. Omitted when it would contain only a heading."""
+    if not cards:
+        return None
+    section: dict[str, Any] = {
+        "type": "grid",
+        "cards": [_heading(heading, style=heading_style), *cards],
+    }
+    if column_span is not None:
+        section["column_span"] = column_span
+    return section
+
+
+def _score_gauge(entity_id: str, name: str) -> dict:
+    return {
+        "type": "gauge",
+        "entity": entity_id,
+        "name": name,
+        "min": 0,
+        "max": 100,
+        "severity": {"red": 0, "yellow": 50, "green": 75},
+    }
+
+
+def _badge(entity_id: str) -> dict:
+    return {
+        "type": "entity",
+        "entity": entity_id,
+        "visibility": [{"condition": "state", "entity": entity_id, "state": "on"}],
+    }
+
+
+def _attr_template(entity_id: str, attr: str) -> str:
+    return f"{{{{ state_attr('{entity_id}','{attr}') }}}}"
+
+
+def _hidden_legacy_targets(reg: dict) -> set[str]:
+    hidden: set[str] = set()
+    if reg.get("ctx_target_ph_low") and reg.get("ctx_target_ph_high"):
+        hidden.add("ctx_target_ph")
+    if reg.get("ctx_target_ec_low") and reg.get("ctx_target_ec_high"):
+        hidden.add("ctx_target_ec")
+    return hidden
+
+
+def _pump_suffixes() -> tuple[str, ...]:
+    switches = PUMP_ROLES
+    power = tuple(f"{role}_power" for role in PUMP_ROLES)
+    return ("total_pump_power", *switches, *power)
+
+
+def _reservoir_tiles(space: dict) -> list[dict]:
+    sensors = space["sensors"]
     reg = space["reg"]
-    score = reg.get("ai_health_score")
-    if not score:
-        return []
-    rows = [reg[s] for s in AI_ORDER if reg.get(s)]
-    cards = [_entities_card("AI Health", rows)]
-    cards.append(
+    tiles: list[dict] = []
+    if sensors.get("ph"):
+        tiles.append(_tile(sensors["ph"], ROLE_LABELS["ph"]))
+    if sensors.get("ec"):
+        tiles.append(_tile(sensors["ec"], ROLE_LABELS["ec"]))
+    if reg.get("vpd"):
+        tiles.append(_tile(reg["vpd"], "VPD"))
+    for role in SENSOR_ROLE_ORDER:
+        if role in ("ph", "ec"):
+            continue
+        entity_id = sensors.get(role)
+        if entity_id:
+            tiles.append(_tile(entity_id, ROLE_LABELS[role]))
+    for suffix, label in BAND_TILE_SUFFIXES:
+        if reg.get(suffix):
+            tiles.append(_tile(reg[suffix], label))
+    return tiles
+
+
+def _target_band_card(reg: dict) -> dict | None:
+    rows = [reg[suffix] for suffix in TARGET_BAND_SUFFIXES if reg.get(suffix)]
+    if not rows:
+        return None
+    return {
+        "type": "entities",
+        "title": "Target bands",
+        "state_color": True,
+        "entities": rows,
+    }
+
+
+def _projection_markdown(entity_id: str) -> dict:
+    lines = [
+        f"**{label}:** {_attr_template(entity_id, attr)}"
+        for label, attr in PROJECTION_ATTRS
+    ]
+    return {"type": "markdown", "title": "Projections", "content": "\n\n".join(lines)}
+
+
+def _advisor_cards(score: str) -> list[dict]:
+    return [
         {
             "type": "markdown",
             "title": "AI Health Report",
-            "content": f"{{{{ state_attr('{score}','report') }}}}",
-        }
-    )
-    cards.append(
+            "content": _attr_template(score, "report"),
+        },
         {
             "type": "markdown",
             "title": "AI Feeding Schedule",
-            "content": f"{{{{ state_attr('{score}','feeding_schedule_md') }}}}",
-        }
-    )
-    return cards
+            "content": _attr_template(score, "feeding_schedule_md"),
+        },
+    ]
 
 
-def _timeline_card(space: dict) -> dict | None:
-    reg = space["reg"]
-    proj = reg.get("stage_projection")
-    stage = reg.get("ctx_stage")
-    started = reg.get("ctx_stage_started")
-    week = reg.get("ctx_week_in_stage")
-    if not proj:
-        return None
-    lines = []
-    if stage:
-        lines.append(f"**Stage:** {{{{ states('{stage}') }}}}")
-    if started:
-        lines.append(f"**Stage started:** {{{{ states('{started}') }}}}")
-    if week:
-        lines.append(f"**Weeks in stage:** {{{{ states('{week}') }}}}")
-    lines.append(f"**Days left in stage:** {{{{ states('{proj}') }}}} d")
-    for label, attr in (
-        ("Projected stage end", "projected_stage_end"),
-        ("Projected harvest", "projected_harvest_date"),
-        ("Projected ready", "projected_ready_date"),
-    ):
-        lines.append(f"**{label}:** {{{{ state_attr('{proj}','{attr}') }}}}")
-    return {"type": "markdown", "title": "Grow Timeline", "content": "\n\n".join(lines)}
-
-
-def _cultivation_card(space: dict) -> dict | None:
-    reg = space["reg"]
-    rows = [reg[s] for s in CTX_ORDER if reg.get(s)]
+def _plan_card(reg: dict) -> dict | None:
+    hidden = _hidden_legacy_targets(reg)
+    rows = [
+        reg[suffix]
+        for suffix in PLAN_SUFFIXES
+        if suffix not in hidden and reg.get(suffix)
+    ]
     if not rows:
         return None
-    return {"type": "entities", "title": "Cultivation Plan", "entities": rows}
+    return {
+        "type": "entities",
+        "title": "Cultivation Plan",
+        "state_color": True,
+        "entities": rows,
+    }
+
+
+def _operations_cards(reg: dict) -> list[dict]:
+    return _suffix_tiles(reg, (*FLUSH_SUFFIXES, *_pump_suffixes()))
 
 
 def build_space_view(space: dict) -> dict:
-    cards: list[dict] = []
+    reg = space["reg"]
+    sections: list[dict] = []
+
     camera = _camera_card(space)
-    if camera:
-        cards.append(camera)
-    telemetry = _telemetry_rows(space)
-    if telemetry:
-        cards.append(_entities_card(f"{space['title']} Telemetry", telemetry))
-    for builder in (_flush_card, _timeline_card):
-        card = builder(space)
-        if card:
-            cards.append(card)
-    cards.extend(_ai_cards(space))
-    cultivation = _cultivation_card(space)
-    if cultivation:
-        cards.append(cultivation)
+    watch = _section("Watch", [camera] if camera else [], column_span=2)
+    if watch:
+        sections.append(watch)
+
+    lifecycle = _suffix_tiles(reg, LIFECYCLE_SUFFIXES)
+    if reg.get("stage_projection"):
+        lifecycle.append(_projection_markdown(reg["stage_projection"]))
+    life = _section(space["title"], lifecycle, heading_style="title")
+    if life:
+        sections.append(life)
+
+    ai: list[dict] = []
+    if reg.get("ai_health_score"):
+        ai.append(_score_gauge(reg["ai_health_score"], f"{space['title']} AI Health"))
+    ai.extend(_suffix_tiles(reg, AI_TILE_SUFFIXES))
+    ai_section = _section("AI", ai)
+    if ai_section:
+        sections.append(ai_section)
+
+    reservoir = _reservoir_tiles(space)
+    bands = _target_band_card(reg)
+    if bands:
+        reservoir.append(bands)
+    reservoir_section = _section("Reservoir", reservoir)
+    if reservoir_section:
+        sections.append(reservoir_section)
+
+    operations = _section("Operations", _operations_cards(reg))
+    if operations:
+        sections.append(operations)
+
+    advisor_cards = (
+        _advisor_cards(reg["ai_health_score"]) if reg.get("ai_health_score") else []
+    )
+    advisor = _section("Advisor", advisor_cards, column_span=2)
+    if advisor:
+        sections.append(advisor)
+
+    plan = _plan_card(reg)
+    plan_section = _section("Plan", [plan] if plan else [])
+    if plan_section:
+        sections.append(plan_section)
+
     return {
         "path": f"zone-{space['slug']}",
         "title": space["title"],
         "icon": "mdi:sprout",
-        "cards": cards,
+        "type": "sections",
+        "max_columns": 2,
+        "sections": sections,
     }
 
 
-def _grid(cards: list[dict]) -> dict:
-    return {"type": "grid", "columns": 2, "square": False, "cards": cards}
+def _trend_entities(spaces: list[dict]) -> list[str]:
+    trend: list[str] = []
+    for space in spaces:
+        for role in ("water_temperature", "ph"):
+            entity_id = space["sensors"].get(role)
+            if entity_id:
+                trend.append(entity_id)
+    return trend
+
+
+def _status_cards(space: dict) -> list[dict]:
+    reg = space["reg"]
+    cards: list[dict] = []
+    camera = _camera_card(space)
+    if camera:
+        cards.append(camera)
+    if reg.get("ai_health_score"):
+        cards.append(
+            _score_gauge(reg["ai_health_score"], f"{space['title']} AI Health")
+        )
+    for suffix in (
+        "ai_health_summary",
+        "metric_band_summary",
+        "flush_due",
+        "days_until_flush",
+    ):
+        if reg.get(suffix):
+            cards.append(_tile(reg[suffix], SUFFIX_LABELS[suffix]))
+    return cards
 
 
 def build_overview(spaces: list[dict]) -> dict:
-    cards: list[dict] = []
-
-    cameras = [c for c in (_camera_card(s) for s in spaces) if c]
-    if cameras:
-        cards.append(_grid(cameras))
-
-    cards.append(
-        {
-            "type": "markdown",
-            "content": (
-                "## Operations Command Board\n\n"
-                "Live reservoir chemistry, freshness, AI health, and lifecycle "
-                "across all active grow spaces."
-            ),
-        }
-    )
-
-    freshness = []
+    sections: list[dict] = []
+    badges: list[dict] = []
     for space in spaces:
-        reg = space["reg"]
-        if "flush_now" not in reg:
-            continue
-        rows: list[Any] = [
-            {"entity": reg["flush_now"], "name": "Flush now", "icon": "mdi:water-sync"}
-        ]
-        for suffix, name in (
-            ("flush_due", "Flush due?"),
-            ("days_since_flush", "Days since flush"),
-            ("days_until_flush", "Days until next"),
-        ):
-            if reg.get(suffix):
-                rows.append({"entity": reg[suffix], "name": name})
-        freshness.append(
-            _entities_card(
-                f"{space['title']} Freshness", rows, show_header_toggle=False
-            )
-        )
-    if freshness:
-        cards.append(_grid(freshness))
-
-    snapshots = []
-    for space in spaces:
-        rows = [space["sensors"][r] for r in SNAPSHOT_ROLES if r in space["sensors"]]
-        if space["last_updated"]:
-            rows.append(space["last_updated"])
-        if rows:
-            snapshots.append(_entities_card(f"{space['title']} Snapshot", rows))
-    if snapshots:
-        cards.append(_grid(snapshots))
-
-    trend = []
-    for space in spaces:
-        for role in ("water_temperature", "ph"):
-            if role in space["sensors"]:
-                trend.append(space["sensors"][role])
-    if trend:
-        cards.append(
+        sections.append(
             {
-                "type": "history-graph",
-                "title": "Water Temperature and pH Trend (24h)",
-                "hours_to_show": 24,
-                "entities": trend,
+                "type": "grid",
+                "cards": [
+                    _heading(space["title"], style="title"),
+                    *_status_cards(space),
+                ],
+            }
+        )
+        for suffix in ("metric_band_summary", "flush_due"):
+            entity_id = space["reg"].get(suffix)
+            if entity_id:
+                badges.append(_badge(entity_id))
+
+    trend = _trend_entities(spaces)
+    if trend:
+        sections.append(
+            {
+                "type": "grid",
+                "column_span": max(len(spaces), 1),
+                "cards": [
+                    _heading("Trend"),
+                    {
+                        "type": "history-graph",
+                        "title": "Water Temperature and pH Trend (24h)",
+                        "hours_to_show": 24,
+                        "entities": trend,
+                    },
+                ],
             }
         )
 
-    gauges = []
-    for space in spaces:
-        score = space["reg"].get("ai_health_score")
-        if score:
-            gauges.append(
-                {
-                    "type": "gauge",
-                    "entity": score,
-                    "name": f"{space['title']} AI Health",
-                    "min": 0,
-                    "max": 100,
-                    "severity": {"red": 0, "yellow": 50, "green": 75},
-                }
-            )
-    if gauges:
-        cards.append(_grid(gauges))
-
-    return {
+    view: dict[str, Any] = {
         "path": "overview",
         "title": "Executive",
         "icon": "mdi:view-dashboard",
-        "cards": cards,
+        "type": "sections",
+        "max_columns": max(len(spaces), 1),
+        "sections": sections,
     }
+    if badges:
+        view["badges"] = badges
+    return view
 
 
 async def fetch_diagnostics(session, url, token, entry_id, ssl_ctx) -> dict:

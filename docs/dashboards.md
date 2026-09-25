@@ -5,12 +5,18 @@ the example YAML, or generate tabs from the live entity registry.
 
 ## What a complete tab includes
 
-1. Camera snapshot  
-2. Telemetry (pH, EC, ORP, temps, VPD)  
-3. Reservoir Flush  
-4. Grow Timeline (stage, Stage Started, weeks, projections)  
-5. AI Health + report + **AI Feeding Schedule** markdown  
-6. Cultivation Plan entities  
+`scripts/generate_dashboard.py` emits a sections view. A section is left out
+when that grow space has none of its entities.
+
+1. **Watch** — camera snapshot
+2. **Lifecycle** — stage, stage started, week in stage, days left, and projected dates
+3. **AI** — health-score gauge, summary, last check, critical alert, and the run button
+4. **Reservoir** — pH, EC, and VPD first, then any other mapped readings, band alerts, and the target-band numbers
+5. **Operations** — flush status and pump switches plus power
+6. **Advisor** — AI health report and feeding schedule
+7. **Plan** — cultivation helpers that are not already in the sections above
+
+The Executive view is one status section per grow space (camera, AI score, out-of-range, flush) plus a 24-hour water-temperature and pH graph. Badges for an out-of-range summary or a flush due show only while that sensor is on.
 
 Ready-made YAML: [Examples](examples.md). Cultivation Plan IDs:
 [Cultivation plan](cultivation.md).
@@ -18,7 +24,8 @@ Ready-made YAML: [Examples](examples.md). Cultivation Plan IDs:
 ## Example file in the repo
 
 [`dashboards/tendrial_grow.yaml`](https://github.com/Trec-TorConsulting/TendrilGrow/blob/main/dashboards/tendrial_grow.yaml)
-is an executive overview plus per-zone tabs from a real install.
+is an executive overview plus per-zone tabs from a real install. Refresh it
+with `scripts/export_dashboard.py` after `scripts/generate_dashboard.py --apply`.
 
 !!! info "Entity IDs are examples"
     Prefixes such as `3x3_mothers_tent_` and `4x4_full_cycle_tent_` are
