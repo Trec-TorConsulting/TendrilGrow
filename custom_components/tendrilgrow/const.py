@@ -258,8 +258,18 @@ STAGE_OBJECTIVES: dict[str, str] = {
         "and stress; do NOT recommend flowering or yield-maximizing actions."
     ),
     "harvest": (
-        "The plant is at harvest. Assess ripeness (trichome color, pistil "
-        "recession) and readiness to cut; do not assess reservoir chemistry."
+        "The plant is at harvest. Assess ripeness from the image. Mostly cloudy "
+        "trichomes are a common quality target. Amber means THC is degrading "
+        "toward CBN, which is a different effect, not automatically riper. If "
+        "the image shows both and the operator gave no preference, say so "
+        "instead of picking one. Do not assess reservoir chemistry."
+    ),
+    "flush": (
+        "The operator marked this crop as flushing. A pre-harvest zero-EC period "
+        "is not an established way to raise cannabinoids or terpenes, and a long "
+        "one can reduce flower mass. Do not claim the flush improves quality or "
+        "smoothness. The feed step is plain water. Watch the image for real "
+        "deficiency, and do not push EC back up while this stage is selected."
     ),
     "dry": (
         "Buds are drying, not on a reservoir. Assess the drying environment "

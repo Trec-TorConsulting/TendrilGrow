@@ -6,6 +6,18 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-09-25
+
+### Changed
+- AI health checks score against the operator's pH, EC, and air-VPD bands.
+  The built-in stage ranges apply only when those bands are unset.
+- Flora mixes are the current stage only, labeled as a light feed under
+  General Hydroponics' published charts. CalMag+ 2.5 ml/gal is half the
+  Botanicare label rate. The check does not print an estimated EC.
+- A rising reservoir EC is treated as concentration, not a reason to add
+  nutrients. Checks include DLI, dew point, pump and light state, and the
+  previous telemetry snapshot.
+
 ## [0.3.6] - 2026-09-25
 
 ### Changed

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from ..const import (
     CONF_AI_MODEL,
@@ -22,6 +23,12 @@ from ..const import (
     CONF_AI_SEVERE_THRESHOLD,
     CONF_API_KEY,
     CONF_BASE_URL,
+    CONTROL_ROLE_AIR_PUMP,
+    CONTROL_ROLE_CHILLER_PUMP,
+    CONTROL_ROLE_FANS,
+    CONTROL_ROLE_INLINE_FANS,
+    CONTROL_ROLE_LIGHTS,
+    CONTROL_ROLE_RDWC_PUMP,
     DEFAULT_AI_RESULT_RETENTION_DAYS,
     DEFAULT_AI_SEVERE_THRESHOLD,
     DEFAULT_OBJECTIVE,
@@ -30,11 +37,12 @@ from ..const import (
     PROVIDER_NONE,
     SENSOR_ROLE_CAMERA,
     SENSOR_ROLE_HUMIDITY,
+    SENSOR_ROLE_LIGHT,
     SENSOR_ROLE_TEMPERATURE,
     STAGE_OBJECTIVES,
     STAGE_TARGETS,
 )
-from ..insights import days_in_stage, weeks_in_stage
+from ..insights import compute_dew_point_c, compute_dli, days_in_stage, weeks_in_stage
 from ..models.grow import GrowSpace
 from .providers import ProviderExecutionError, generate_vision_health_report
 
@@ -50,6 +58,12 @@ METRIC_ROLE_LABELS: dict[str, str] = {
     "orp": "ORP",
     "tds": "TDS",
     "light_ppfd": "Light PPFD",
+    "rdwc_pump_power": "RDWC pump power",
+    "chiller_pump_power": "Chiller pump power",
+    "air_pump_power": "Air pump power",
+    "dli_mol_m2_d": "Derived DLI",
+    "dew_point": "Derived dew point",
+    "vpd_kpa": "Derived air VPD",
 }
 
 
@@ -71,76 +85,91 @@ _GH_FLORA_KEYWORDS = (
 )
 
 
-def _build_nutrient_reference(nutrient_line: str, base_nutrients: str) -> str:
-    """Return an EC-calibrated reference table when a known line is detected.
+# Current-stage Flora rates (ml/gal). A deliberate light feed, under GH's
+# published Medium and Aggressive charts. Not a GH Light/Medium/Aggressive row.
+_FLORA_RATES_ML_PER_GAL: dict[str, str] = {
+    "clone": "CalMag+ 2.5, Micro 1.25, Gro 1.25, Bloom 1.25, Hydroguard 2",
+    "seedling": "CalMag+ 2.5, Micro 1.25, Gro 1.25, Bloom 1.25, Hydroguard 2",
+    "mother": "CalMag+ 2.5, Micro 2.5, Gro 2.5, Bloom 2.5, Hydroguard 2",
+    "vegetative": "CalMag+ 2.5, Micro 2.5, Gro 2.5, Bloom 2.5, Hydroguard 2",
+    "early_flower": "CalMag+ 2.5, Micro 2.5, Gro 1.25, Bloom 3.75, Hydroguard 2",
+    "mid_flower": "CalMag+ 2.5, Micro 2.5, Gro 1.25, Bloom 3.75, Hydroguard 2",
+    "late_flower": "CalMag+ 2.5, Micro 1.25, Gro 0, Bloom 3.75, Hydroguard 2",
+}
 
-    Sources: GH official feed chart hub (generalhydroponics.com/pages/feedcharts)
-    and GrowWeedEasy Flora Trio guide (featured in High Times, Ed Rosenthal).
+_POST_HARVEST_STAGES = frozenset({"harvest", "dry", "cure", "ready"})
+_HYDRO_TYPES = frozenset({"rdwc", "dwc"})
+_EC_TREND_NOISE = 0.05
+
+
+def _build_nutrient_reference(
+    nutrient_line: str, base_nutrients: str, stage: str
+) -> str:
+    """Return the current-stage Flora mix when that line is detected.
+
+    The rates are a light feed chosen for this integration. GH's published
+    late-growth medium column is FloraMicro 6.0, FloraGro 5.6, FloraBloom
+    4.2 ml/gal at about EC 1.4-1.7. Botanicare Cal-Mag Plus is labeled
+    5 ml (1 tsp) per gallon. Hydroguard is labeled 2 ml/gal.
     """
     combined = f"{nutrient_line} {base_nutrients}".lower()
-    if any(kw in combined for kw in _GH_FLORA_KEYWORDS):
+    if not any(kw in combined for kw in _GH_FLORA_KEYWORDS):
+        return ""
+    if stage == "flush":
         return (
-            "\nNutrient reference — QUALITY over yield for recirculating "
-            "cannabis (DWC/RDWC), same schedule for every Flora tent. "
-            "Source: Grow Weed Easy DWC Flora Trio chart (1 tsp = 5 ml), "
-            "held at the light end. Grow Weed Easy states the General "
-            "Hydroponics chart is the maximum for cannabis and to start at "
-            "half strength. Do NOT use the GH Light late-veg row "
-            "(FloraMicro 6.0, FloraGro 5.6, FloraBloom 4.2 ml/gal). That "
-            "row plus CALiMAGic 5 ml/gal measured about 2.2 mS/cm in a "
-            "recirculating reservoir, which is too strong for quality.\n"
-            "  Quote these ml/gal rates in mix order. The operator additives "
-            "field is the product list for extras. Full Cycle Tent and "
-            "Mothers Tent list Hydroguard and CalMag+. Print those names. "
-            "Do not rename CalMag+ to CALiMAGic, and do not add both. "
-            "Do not add Armor Si unless Armor Si is listed. Do not scale "
-            "the Flora rates up toward the GH chart to chase a higher EC:\n"
-            "  Seedling / clone: CalMag+ 2.5, Micro 1.25, Gro 1.25, "
-            "Bloom 1.25, Hydroguard 2\n"
-            "  Vegetative:       CalMag+ 2.5, Micro 2.5, Gro 2.5, "
-            "Bloom 2.5, Hydroguard 2\n"
-            "  Early flower:     CalMag+ 2.5, Micro 2.5, Gro 1.25, "
-            "Bloom 3.75, Hydroguard 2\n"
-            "  Mid flower:       CalMag+ 2.5, Micro 2.5, Gro 1.25, "
-            "Bloom 3.75, Hydroguard 2\n"
-            "  Late flower:      CalMag+ 2.5, Micro 1.25, Gro 0, "
-            "Bloom 3.75, Hydroguard 2\n"
-            "  Ripen:            CalMag+ 0, Micro 1.25, Gro 0, Bloom 2.5, "
-            "Hydroguard 2\n"
-            "  CalMag+ is 2.5 ml/gal, AFTER water and BEFORE FloraMicro. "
-            "Do not add a separate 5 ml/gal on top. If the operator listed "
-            "CALiMAGic instead of CalMag+, use that bottle at the same "
-            "2.5 ml/gal in this slot.\n"
-            "  Hydroguard (Botanicare) is 2 ml/gal on every reservoir fill, "
-            "including ripen, AFTER the base nutrients and BEFORE pH. "
-            "Never combine it with H2O2/HOCl/oxidizers. A plain-water flush "
-            "is the only step with no Hydroguard.\n"
-            "  Other extras, only when the operator listed them: "
-            "Armor Si 2 ml/gal through late flower (0 at ripen), first in "
-            "the water; RapidStart 1 ml/gal from seedling through veg; "
-            "Floralicious Plus 1 ml/gal from veg through mid flower; "
-            "Liquid KoolBloom 2.5 ml/gal in late flower and ripen only. "
-            "Put each listed extra on the card in mix order. Do not drop "
-            "CalMag+ or Hydroguard.\n"
-            "  These rates target about 1.0-1.6 mS/cm including CalMag+. "
-            "Stay at or below the operator target EC. If the mix would "
-            "measure above the target, lower the Flora ml/gal rates, not "
-            "Hydroguard. Never recommend FloraMicro at 6 ml/gal or a recipe "
-            "that measures about 2.2. Pale plants may step vegetative Flora "
-            "from 2.5 toward 3.5 ml/gal of each part, still under the target "
-            "EC. Dark leaves or burnt tips mean drop the Flora rates back, "
-            "and keep Hydroguard at 2 ml/gal and CalMag+ at 2.5 ml/gal.\n"
-            "  For quality-first recirculating systems, prefer the early-veg "
-            "band (0.9-1.4) unless the operator target EC is explicitly higher.\n"
-            "Mixing order: Armor Si only if listed -> CalMag+ (or CALiMAGic) "
-            "-> FloraMicro -> FloraGro -> FloraBloom -> RapidStart / "
-            "Floralicious / KoolBloom when listed -> Hydroguard -> pH LAST.\n"
-            "Hydro pH target: 5.5-6.5 (ideal 5.8-6.2).\n"
-            "Do NOT treat current reservoir EC as underfeeding when it sits "
-            "inside 0.9-1.6 mS/cm for veg or the quality flower band for "
-            "the computed week-in-stage.\n"
+            "\nNutrient line is General Hydroponics Flora, but the current "
+            "stage is flush. Ignore Flora rates. The only step is plain water. "
+            "Do not add Hydroguard to a plain-water change.\n"
         )
-    return ""
+    rates = _FLORA_RATES_ML_PER_GAL.get(stage)
+    if not rates:
+        return (
+            "\nNutrient line is General Hydroponics Flora. This stage has no "
+            "reservoir recipe. Do not invent ml/gal rates.\n"
+        )
+    return (
+        "\nNutrient reference for this stage only. These ml/gal rates are a "
+        "deliberate light feed, under General Hydroponics' published charts. "
+        "They are not the GH Light, Medium, or Aggressive schedule. GH's "
+        "published late-growth medium column is FloraMicro 6.0, FloraGro 5.6, "
+        "FloraBloom 4.2 ml/gal, with a stated EC of about 1.4-1.7 mS/cm. GH "
+        "bloom medium weeks go to about EC 2.0-2.4. Do not use those rates "
+        "and do not scale this mix up toward a GH chart.\n"
+        f"  Current stage '{stage}' ml/gal: {rates}\n"
+        "  Print only this stage. The operator additives field is the extra "
+        "product list. Print the product names the operator used. If they "
+        "listed CalMag+, print CalMag+. Do not rename CalMag+ to CALiMAGic, "
+        "and do not add both. If they listed CALiMAGic, use that bottle in "
+        "this Cal-Mag slot. Do not add Armor Si, RapidStart, Floralicious "
+        "Plus, or Liquid KoolBloom unless that product is listed.\n"
+        "  CalMag+ at 2.5 ml/gal is half of Botanicare Cal-Mag Plus's label "
+        "rate of 5 ml (1 tsp) per gallon. Add it after water and before "
+        "FloraMicro. Do not stack another 5 ml/gal on top. On RO, distilled, "
+        "or rain water, if new growth shows a calcium deficiency, raise "
+        "CalMag+ toward 5 ml/gal before raising any Flora part, and still "
+        "stay at or below the active EC high. On hard tap, well, or spring "
+        "water, do not add the full Cal-Mag rate by default.\n"
+        "  Hydroguard (Botanicare) at 2 ml/gal is the label rate. Add it after "
+        "the base nutrients and before pH on a nutrient fill. Never combine "
+        "it with H2O2, HOCl, or other oxidizers. Do not drop CalMag+ or "
+        "Hydroguard off a nutrient fill.\n"
+        "  Listed extras only: Armor Si 2 ml/gal through late flower, first "
+        "in the water; RapidStart 1 ml/gal from seedling through veg; "
+        "Floralicious Plus 1 ml/gal from veg through mid flower; Liquid "
+        "KoolBloom 2.5 ml/gal in late flower only.\n"
+        "  If this mix would measure above the active EC high, lower the "
+        "Flora ml/gal rates. Pale plants may step vegetative Flora from 2.5 "
+        "toward 3.5 ml/gal of each part, still under the active EC high. "
+        "Dark leaves or burnt tips: lower the Flora rates and keep Hydroguard "
+        "at 2 ml/gal.\n"
+        "  Mixing order: Armor Si only if listed, then CalMag+ or CALiMAGic, "
+        "then FloraMicro, then FloraGro, then FloraBloom, then RapidStart, "
+        "Floralicious, or KoolBloom when listed, then Hydroguard, then pH "
+        "last. Do not print an estimated EC. EC is known only after the "
+        "operator measures the mixed reservoir.\n"
+        "  Do not treat current EC as underfeeding when it is inside the "
+        "active EC band.\n"
+    )
 
 
 def _water_source_guidance(water_type: str) -> str:
@@ -196,7 +225,6 @@ _STERILE_KEYWORDS = (
     "zerotol",
     "chlorine dioxide",
 )
-_HYDRO_TYPES = frozenset({"rdwc", "dwc"})
 
 
 def classify_reservoir_biology(
@@ -238,17 +266,20 @@ def _reservoir_biology_guidance(mode: str) -> str:
         "Do not write an Issue for 65-68 F water.\n"
     )
     vpd_ec = (
-        "VPD: vegetative 0.70-1.20 kPa is acceptable (Frontiers in Plant "
-        "Science 2025 citing Breit/Galindo/Vernon; Cannabis Science and "
-        "Technology treats 0.7-0.9 as still highly desirable). "
-        "Bruce Bugbee (Utah State): 0.7-1.5 kPa is fine when the root zone "
-        "is wet; do not flag VPD as an Issue when it is within 0.1 kPa of "
-        "the stage band or inside 0.7-1.2 kPa in veg. "
-        "EC: use the GH official week-in-stage band first. Operator "
-        "target_ec is the mix-to goal when mixing a new reservoir, not an "
-        "automatic underfeeding diagnosis if current EC is inside the GH "
-        "band for this week (early veg 0.9-1.1 is on-target even if the "
-        "operator mix target is 1.6).\n"
+        "Air VPD is computed from air temperature and humidity. It is not "
+        "leaf VPD. No leaf-temperature sensor is present. Vegetative air VPD "
+        "of 0.70-1.20 kPa is acceptable. Do not flag air VPD as an Issue when "
+        "it is inside the active band, or within 0.1 kPa of that band. The "
+        "built-in late-flower and flush VPD of 1.3-1.6 kPa is a drier "
+        "mold-avoidance range, not a proven terpene target. Warm air with "
+        "low humidity is a flower-quality problem even when air VPD sits in "
+        "that range.\n"
+        "EC: the active EC band in this prompt is the only band. Do not "
+        "diagnose underfeeding when current EC is inside it. In recirculating "
+        "water, rising EC means the reservoir is concentrating because the "
+        "plants are taking up more water than nutrients. Top off with "
+        "lower-EC water. Do not add nutrients because EC rose. Falling EC "
+        "means nutrient uptake is ahead of water uptake.\n"
     )
     if mode == "live":
         return (
@@ -307,6 +338,7 @@ class AIHealthResult:
     model: str = ""
     reason: str = ""
     raw_response: str = ""
+    telemetry: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -340,6 +372,7 @@ class AIHealthResult:
             model=str(value.get("model", "")),
             reason=str(value.get("reason", "")),
             raw_response=str(value.get("raw_response", "")),
+            telemetry=_telemetry_from_storage(value.get("telemetry")),
         )
 
 
@@ -380,194 +413,495 @@ def _entry_merged_config(entry: ConfigEntry) -> dict[str, Any]:
     return merged
 
 
+_EQUIPMENT_LABELS: dict[str, str] = {
+    CONTROL_ROLE_LIGHTS: "Lights",
+    CONTROL_ROLE_FANS: "Circulation fans",
+    CONTROL_ROLE_INLINE_FANS: "Exhaust fan",
+    CONTROL_ROLE_RDWC_PUMP: "RDWC circulation pump",
+    CONTROL_ROLE_CHILLER_PUMP: "Chiller pump",
+    CONTROL_ROLE_AIR_PUMP: "Air pump",
+}
+
+
+def _telemetry_from_storage(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): str(item) for key, item in value.items() if item not in (None, "")
+    }
+
+
+def _metric_display(payload: Any) -> str:
+    if isinstance(payload, tuple):
+        value = payload[0]
+        unit = payload[1] if len(payload) > 1 else ""
+        return f"{value} {unit}".strip()
+    return str(payload)
+
+
+def _leading_number(value: Any) -> float | None:
+    if isinstance(value, tuple):
+        value = value[0]
+    text = str(value if value is not None else "").strip()
+    token: list[str] = []
+    started = False
+    for char in text:
+        if char.isdigit() or (char == "." and started) or (char == "-" and not started):
+            token.append(char)
+            started = True
+        elif started:
+            break
+    if not token or token in (["-"], ["."], ["-."]):
+        return None
+    return _coerce_metric_float("".join(token))
+
+
+def _bound_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text or text.lower() in {"unknown", "unavailable", "none"}:
+        return None
+    return _coerce_metric_float(text)
+
+
+def _active_range(
+    context: dict[str, Any],
+    low_key: str,
+    high_key: str,
+    stage: str,
+    stage_field: str,
+) -> tuple[str, str]:
+    """Operator low/high wins. The built-in stage row is only the fallback."""
+    low = _bound_float(context.get(low_key))
+    high = _bound_float(context.get(high_key))
+    if low is not None and high is not None and high >= low:
+        return f"{low:g}-{high:g}", "operator band"
+    raw = STAGE_TARGETS.get(stage, {}).get(stage_field)
+    if raw:
+        return str(raw), "built-in stage default"
+    return "not set", "none"
+
+
+def _fahrenheit(unit: str | None) -> bool:
+    normalized = (unit or "").strip().lower().replace("\u00b0", "")
+    return normalized in {"f", "fahrenheit"}
+
+
+def _derived_snapshot(
+    metrics: dict[str, Any], context: dict[str, Any]
+) -> dict[str, str]:
+    derived: dict[str, str] = {}
+    air_temp = metrics.get(SENSOR_ROLE_TEMPERATURE)
+    air_hum = metrics.get(SENSOR_ROLE_HUMIDITY)
+    if isinstance(air_temp, tuple) and isinstance(air_hum, tuple):
+        temp_value = _coerce_metric_float(air_temp[0])
+        humidity = _coerce_metric_float(air_hum[0])
+        vpd = GrowSpace.compute_vpd_kpa(temp_value, air_temp[1], humidity)
+        if vpd is not None:
+            derived["vpd_kpa"] = f"{round(vpd, 2)} kPa"
+        dew_c = compute_dew_point_c(
+            GrowSpace.to_celsius(temp_value, air_temp[1]), humidity
+        )
+        if dew_c is not None:
+            if _fahrenheit(str(air_temp[1])):
+                derived["dew_point"] = (
+                    f"{round(dew_c * 9.0 / 5.0 + 32.0, 1)} {air_temp[1]}"
+                )
+            else:
+                derived["dew_point"] = f"{round(dew_c, 1)} {air_temp[1] or 'C'}"
+    light = metrics.get(SENSOR_ROLE_LIGHT)
+    ppfd = _leading_number(light) if light is not None else None
+    hours = _bound_float(context.get("lights_on_hours"))
+    dli = compute_dli(ppfd, hours)
+    if dli is not None:
+        derived["dli_mol_m2_d"] = f"{dli:.1f} mol/m^2/day"
+    return derived
+
+
+def _snapshot_telemetry(
+    metrics: dict[str, Any], context: dict[str, Any]
+) -> dict[str, str]:
+    snapshot = {
+        role: _metric_display(payload)
+        for role, payload in metrics.items()
+        if _metric_display(payload)
+    }
+    snapshot.update(_derived_snapshot(metrics, context))
+    return snapshot
+
+
+def _metric_lines(metrics: dict[str, Any], context: dict[str, Any]) -> str:
+    entries: list[str] = []
+    for role, payload in sorted(metrics.items()):
+        value, unit = payload if isinstance(payload, tuple) else (payload, "")
+        label = METRIC_ROLE_LABELS.get(role, role)
+        unit_suffix = f" {unit}" if unit else ""
+        entries.append(f"- {label}: {value}{unit_suffix}")
+    derived = _derived_snapshot(metrics, context)
+    if "vpd_kpa" in derived:
+        entries.append(
+            "- Derived VPD (air temperature + air humidity, not leaf VPD): "
+            f"{derived['vpd_kpa']}"
+        )
+    if "dew_point" in derived:
+        entries.append(
+            "- Derived dew point (from air temperature and humidity): "
+            f"{derived['dew_point']}"
+        )
+    if "dli_mol_m2_d" in derived:
+        entries.append(
+            "- Derived DLI (current PPFD x lights-on hours; estimate, not an "
+            f"integrated light measurement): {derived['dli_mol_m2_d']}"
+        )
+    if not entries:
+        return "- no telemetry available"
+    lines = "\n".join(entries)
+    if "ec" in metrics and ("tds" in metrics or "cf" in metrics):
+        lines += (
+            "\nEC is the dosing authority. CF and TDS ppm depend on the meter "
+            "scale (500 vs 700) and are not a second diagnosis when EC is present."
+        )
+    return lines
+
+
+def _parse_clock(value: Any) -> time | None:
+    raw = str(value or "").strip()
+    parts = raw.split(":")
+    if len(parts) < 2:
+        return None
+    try:
+        hour = int(parts[0])
+        minute = int(parts[1])
+        second = int(parts[2]) if len(parts) > 2 and parts[2] else 0
+    except ValueError:
+        return None
+    if hour > 23 or minute > 59 or second > 59 or min(hour, minute, second) < 0:
+        return None
+    return time(hour, minute, second)
+
+
+def _lights_are_on(now_t: time, on: time, off: time) -> bool:
+    now_minutes = now_t.hour * 60 + now_t.minute
+    on_minutes = on.hour * 60 + on.minute
+    off_minutes = off.hour * 60 + off.minute
+    if off_minutes == on_minutes:
+        return False
+    if off_minutes < on_minutes:
+        return now_minutes >= on_minutes or now_minutes < off_minutes
+    return on_minutes <= now_minutes < off_minutes
+
+
+def _schedule_block(context: dict[str, Any], now: datetime | None) -> str:
+    on_time = _parse_clock(context.get("lights_on_time"))
+    off_time = _parse_clock(context.get("lights_off_time"))
+    if on_time is None or off_time is None or now is None:
+        return ""
+    now_t = time(now.hour, now.minute, now.second)
+    phase = "lights-on" if _lights_are_on(now_t, on_time, off_time) else "lights-off"
+    return (
+        f"Local time at check: {now_t.strftime('%H:%M')}. "
+        f"Scheduled lights-on {on_time.strftime('%H:%M')} to lights-off "
+        f"{off_time.strftime('%H:%M')}. This reading is in the scheduled "
+        f"{phase} period.\n"
+    )
+
+
+def _equipment_block(equipment: dict[str, str] | None) -> str:
+    if not equipment:
+        return "Equipment state: not provided.\n"
+    lines = "\n".join(f"- {name}: {state}" for name, state in sorted(equipment.items()))
+    return (
+        "Equipment state (switch state at check time):\n"
+        f"{lines}\n"
+        "If the air pump or the RDWC circulation pump is off, that is a "
+        "root-zone problem. If the lights switch disagrees with the light "
+        "schedule, trust the switch for whether the lights are on now and say "
+        "that they disagree.\n"
+    )
+
+
+def _collect_equipment_states(
+    hass: HomeAssistant, grow_space: GrowSpace
+) -> dict[str, str]:
+    states: dict[str, str] = {}
+    for role, entity_id in grow_space.control_mappings.items():
+        if not entity_id:
+            continue
+        label = _EQUIPMENT_LABELS.get(role, role)
+        state = hass.states.get(entity_id)
+        states[label] = "unavailable" if state is None else str(state.state)
+    return states
+
+
+def _ec_trend_line(
+    metrics: dict[str, Any], prior_telemetry: dict[str, str] | None
+) -> str:
+    if not prior_telemetry:
+        return "EC trend: no previous snapshot. Do not invent a rise or fall.\n"
+    previous = _leading_number(prior_telemetry.get("ec"))
+    current_payload = metrics.get("ec")
+    if current_payload is None or previous is None:
+        return "EC trend: no comparable EC pair. Do not invent a rise or fall.\n"
+    current = _leading_number(current_payload)
+    if current is None:
+        return "EC trend: no comparable EC pair. Do not invent a rise or fall.\n"
+    previous_display = str(prior_telemetry.get("ec"))
+    current_display = _metric_display(current_payload)
+    delta = current - previous
+    if abs(delta) < _EC_TREND_NOISE:
+        detail = (
+            f"EC is steady ({previous_display} to {current_display}). "
+            "A change under 0.05 mS/cm is treated as meter noise."
+        )
+    elif delta > 0:
+        detail = (
+            f"EC has risen from {previous_display} to {current_display}. "
+            "In recirculating water the reservoir is concentrating: the plants "
+            "are taking up more water than nutrients. Top off with lower-EC "
+            "water. Do not add nutrients because EC rose."
+        )
+    else:
+        detail = (
+            f"EC has fallen from {previous_display} to {current_display}. "
+            "Nutrient uptake is ahead of water uptake. Raise the mix only if "
+            "the plant is pale and EC is under the active band."
+        )
+    return f"EC trend: {detail}\n"
+
+
+def _prior_block(
+    prior_telemetry: dict[str, str] | None, prior_checked_at: str | None
+) -> str:
+    if not prior_telemetry:
+        return "Previous telemetry snapshot: none.\n"
+    lines = "\n".join(
+        f"- {METRIC_ROLE_LABELS.get(key, key)}: {value}"
+        for key, value in sorted(prior_telemetry.items())
+    )
+    when = f" from {prior_checked_at}" if prior_checked_at else ""
+    return f"Previous telemetry snapshot{when}:\n{lines}\n"
+
+
+def _dosing_line(grow_type: str, volume: str, site_count: str, stage: str) -> str:
+    hydro = grow_type.strip().lower() in _HYDRO_TYPES
+    sites = (
+        f" The system has {site_count} plant sites sharing one reservoir."
+        if site_count
+        else ""
+    )
+    if volume and hydro:
+        line = (
+            f"Total system volume provided: {volume} gallons.{sites} "
+            "This is the TOTAL circulating water volume (all buckets + control "
+            "reservoir + connecting lines), not a single bucket. Compute TOTAL "
+            f"milliliters as the ml/gal rate times {volume} and label them "
+            f"'TOTAL for {volume} gal system'. Dose a fresh fill for this same "
+            "volume. If the volume looks too small for the site count, ask the "
+            "operator to confirm it."
+        )
+    elif volume:
+        line = (
+            f"Volume provided: {volume} gallons.{sites} Dose for that volume. "
+            f"Grow type is '{grow_type or 'unspecified'}'. Do not describe this "
+            "grow as a recirculating RDWC system."
+        )
+    elif hydro:
+        line = (
+            "Reservoir volume not provided. Give per-gallon rates and say that "
+            "total milliliters need the full system volume (all buckets + "
+            "reservoir + lines)."
+        )
+    else:
+        line = (
+            "Volume not provided. Give per-gallon rates only. Do not invent a "
+            "system volume."
+        )
+    if stage == "flush":
+        line += (
+            " Current stage is flush. The only feed step is plain water for "
+            "the stated volume. Do not add nutrients or Hydroguard. Do not "
+            "claim this improves cannabinoids, terpenes, or smoothness."
+        )
+    return line
+
+
 def _build_prompt(
     grow_space: GrowSpace,
     metrics: dict[str, Any],
     context: dict[str, Any],
     *,
     retention_days: int,
+    equipment: dict[str, str] | None = None,
+    prior_telemetry: dict[str, str] | None = None,
+    prior_checked_at: str | None = None,
+    now: datetime | None = None,
 ) -> str:
-    metric_entries: list[str] = []
-    for role, payload in sorted(metrics.items()):
-        value, unit = payload if isinstance(payload, tuple) else (payload, "")
-        label = METRIC_ROLE_LABELS.get(role, role)
-        unit_suffix = f" {unit}" if unit else ""
-        metric_entries.append(f"- {label}: {value}{unit_suffix}")
-    air_temp = metrics.get(SENSOR_ROLE_TEMPERATURE)
-    air_hum = metrics.get(SENSOR_ROLE_HUMIDITY)
-    if isinstance(air_temp, tuple) and isinstance(air_hum, tuple):
-        vpd = GrowSpace.compute_vpd_kpa(
-            _coerce_metric_float(air_temp[0]),
-            air_temp[1],
-            _coerce_metric_float(air_hum[0]),
-        )
-        if vpd is not None:
-            metric_entries.append(
-                f"- Derived VPD (air temperature + air humidity): {round(vpd, 2)} kPa"
-            )
-    metric_lines = "\n".join(metric_entries)
     _enrich_stage_clock(context)
+    metric_lines = _metric_lines(metrics, context)
     context_lines = "\n".join(
         f"- {key}: {value}" for key, value in sorted(context.items())
     )
-    schedules = grow_space.schedules or {}
-    targets = grow_space.targets or {}
-
     stage = str(context.get("growth_stage", "")).strip().lower()
     objective = STAGE_OBJECTIVES.get(stage, DEFAULT_OBJECTIVE)
-    stage_targets = STAGE_TARGETS.get(stage)
-    if stage_targets:
-        stage_target_line = (
-            f"Calibration targets for current stage '{stage}': "
-            f"pH {stage_targets['ph']}, EC {stage_targets['ec_ms_cm']} mS/cm, "
-            f"VPD {stage_targets['vpd_kpa']} kPa."
-        )
-    else:
-        stage_target_line = (
-            "Calibration targets for current stage: not defined; "
-            "infer from best practice."
-        )
-
-    full_target_table = "\n".join(
-        f"- {name}: pH {vals['ph']}, EC {vals['ec_ms_cm']} mS/cm, "
-        f"VPD {vals['vpd_kpa']} kPa"
-        for name, vals in STAGE_TARGETS.items()
-    )
-
+    nutrient_line = str(context.get("nutrient_line", ""))
+    base_nutrients = str(context.get("base_nutrients", ""))
+    nutrient_ref = _build_nutrient_reference(nutrient_line, base_nutrients, stage)
     reservoir_volume = str(context.get("reservoir_volume_gal", "")).strip()
     site_count = str(context.get("site_count_plants", "")).strip()
     target_ec = str(context.get("target_ec_ms_cm", "")).strip()
     target_ph = str(context.get("target_ph", "")).strip()
-    nutrient_line = str(context.get("nutrient_line", ""))
-    base_nutrients = str(context.get("base_nutrients", ""))
-    nutrient_ref = _build_nutrient_reference(nutrient_line, base_nutrients)
     water_type = str(context.get("water_type", "")).strip().lower()
-    water_source_clause = _water_source_guidance(water_type)
     additives = str(context.get("additives", ""))
-    biology_mode = classify_reservoir_biology(
-        str(grow_space.grow_type or ""),
-        additives,
-        f"{nutrient_line} {base_nutrients}",
+    ph_band, ph_source = _active_range(
+        context, "target_ph_low", "target_ph_high", stage, "ph"
     )
-    biology_guidance = _reservoir_biology_guidance(biology_mode)
-    sites_clause = (
-        f" The system has {site_count} plant sites/buckets sharing one "
-        "circulating reservoir."
-        if site_count
-        else ""
+    ec_band, ec_source = _active_range(
+        context, "target_ec_low", "target_ec_high", stage, "ec_ms_cm"
     )
+    vpd_band, vpd_source = _active_range(
+        context, "target_vpd_low_kpa", "target_vpd_high_kpa", stage, "vpd_kpa"
+    )
+    grow_type = str(grow_space.grow_type or "")
+    dosing_line = _dosing_line(grow_type, reservoir_volume, site_count, stage)
     if target_ec:
-        ec_constraint = (
-            f" OPERATOR TARGET EC IS {target_ec} mS/cm. Quality over quantity: "
-            "use the cannabis recirculating ml/gal table (veg 2.5 ml/gal of "
-            "each Flora part, not FloraMicro 6.0). The mixed reservoir must "
-            f"measure at or below {target_ec} mS/cm. Do not recommend a "
-            "recipe the operator would measure above the target."
+        dosing_line += (
+            f" Fresh-mix EC must measure at or below {target_ec} mS/cm and "
+            "inside the active EC band. If those disagree, the active EC band "
+            "wins. Do not print an estimated EC."
         )
-    else:
-        ec_constraint = ""
     if target_ph:
-        ph_constraint = (
-            f" OPERATOR TARGET pH IS {target_ph} — adjust pH to this value "
-            "after all nutrients are fully mixed."
+        dosing_line += (
+            f" Fresh-mix pH aim is {target_ph}, adjusted after nutrients are "
+            "mixed, and it must land inside the active pH band."
         )
-    else:
-        ph_constraint = ""
-    if reservoir_volume:
-        dosing_line = (
-            f"Total system volume provided: {reservoir_volume} gallons."
-            f"{sites_clause} Treat this as the TOTAL circulating RDWC water "
-            "volume (all buckets + control reservoir + connecting lines "
-            "combined), NOT a single bucket. Compute TOTAL nutrient and "
-            "additive amounts for this full volume (per-gallon rate x "
-            f"{reservoir_volume} gallons) and label them clearly as "
-            f"'TOTAL for {reservoir_volume} gal system'. "
-            "If you recommend a fresh reservoir fill, dose for this same "
-            "total volume, not a smaller assumed fill. If this volume looks "
-            "implausibly small for the stated site count, flag it and ask "
-            "the operator to confirm the total system volume."
+    biology_guidance = _reservoir_biology_guidance(
+        classify_reservoir_biology(
+            grow_type, additives, f"{nutrient_line} {base_nutrients}"
         )
-    else:
-        dosing_line = (
-            "Reservoir volume not provided; give per-gallon rates and note "
-            "total dosing needs the full system volume (all buckets + "
-            "reservoir + lines)."
+    )
+    vpd_note = ""
+    if stage in {"late_flower", "flush"} and vpd_source == "built-in stage default":
+        vpd_note = (
+            " The built-in VPD high end is a mold-avoidance range, not a "
+            "terpene target. Do not treat 1.6 kPa as the quality goal."
         )
-    dosing_line = f"{dosing_line}{ec_constraint}{ph_constraint}"
-
-    return (
-        "You are a master cannabis cultivation agronomist.\n"
-        "Analyze the attached grow image together with the telemetry and \n"
-        "cultivation context.\n"
-        f"Primary objective for the '{stage or 'unspecified'}' stage: "
-        f"{objective}\n\n"
-        "Return STRICT JSON only, no markdown, with keys:\n"
-        "- score: integer 0-100 (overall plant health and quality trajectory)\n"
-        "- confidence: integer 0-100 (your confidence given image and \n"
-        "  telemetry quality)\n"
-        "- confidence_rationale: one short sentence explaining the confidence \n"
-        "  and score drivers\n"
-        "- severity: one of low, medium, high, critical\n"
-        "- summary: one concise paragraph\n"
-        "- observations: array of short visual findings from the image\n"
-        "- issues: array of short problem statements. Omit values that are "
-        "inside the biology-appropriate and stage-appropriate bands below. "
-        "Never invent issues for in-range water temperature, live-system ORP, "
-        "in-band EC, or VPD within 0.1 kPa of the stage range.\n"
-        "- recommended_actions: array of short, quality-first corrective actions\n"
-        "- feeding_schedule: array of strings, one per phase/timing step. "
-        "Format each entry as: "
-        "'[PHASE] | ADD IN ORDER: [Product]: Xml (Xml/gal); [Product]: Xml "
-        "(Xml/gal); ... | EST EC: X.X mS/cm | pH: X.X | NOTE: [key note]'. "
-        "Use SEMICOLONS between products so each product is unambiguous. "
-        "List products in official mixing order: Armor Si (if used), then "
-        "CALiMAGic/Cal-Mag, then FloraMicro, then FloraGro, then FloraBloom, "
-        "then biologicals (Hydroguard last among additives), then pH last. "
-        "Include TOTAL ml for the full system volume AND ml/gal rate "
-        "for each product. Use the quality recirculating table "
-        "(vegetative 2.5 ml/gal of each Flora part) AND include every "
-        "additive the operator listed. For Hydroguard and CalMag+, print "
-        "those names at Hydroguard 2 ml/gal and CalMag+ 2.5 ml/gal. Do not "
-        "use manufacturer-max or GH late-veg 6 ml/gal rates. A feeding step "
-        "that omits a listed additive is wrong.\n\n"
-        "Scoring calibration (score against these stage target ranges):\n"
-        f"{full_target_table}\n"
-        f"{stage_target_line}\n\n"
-        "- Deficiency diagnosis rubric (use nutrient mobility to localize "
-        "symptoms):\n"
-        "- Mobile nutrients (N, P, K, Mg, Zn): deficiencies appear on "
-        "OLDER/lower leaves first.\n"
-        "- Immobile nutrients (Ca, S, Fe, Mn, B, Cu): deficiencies appear on "
-        "NEWER/upper leaves first.\n"
-        "- Use symptom location plus pH-driven lockout ranges to distinguish "
-        "true deficiency from lockout.\n\n"
-        "Dosing rule:\n"
-        f"- {dosing_line}"
-        f"{water_source_clause}"
-        f"{nutrient_ref}\n"
-        "Reservoir chemistry (use these numbers; do not substitute sterile "
-        "forum rules for a live system):\n"
-        f"{biology_guidance}\n"
-        "Grounding rules:\n"
-        "- If the image is unusable or missing, set confidence low and say so; "
-        "do not fabricate.\n"
-        "- Tie recommendations to the provided targets, feed schedule, "
-        "strain, "
-        "and nutrient context when relevant.\n"
-        "- Prefer specific, actionable guidance (for example, raise pH to 5.9 "
-        "or reduce EC to 1.4).\n\n"
+    legacy = ""
+    if grow_space.schedules:
+        legacy += (
+            "Configured schedules: "
+            f"{json.dumps(grow_space.schedules, sort_keys=True)}\n"
+        )
+    if grow_space.targets:
+        legacy += (
+            "Legacy configured targets (active bands above win if they differ): "
+            f"{json.dumps(grow_space.targets, sort_keys=True)}\n"
+        )
+    data_block = (
+        f"Stored results are kept for {retention_days} days. This prompt "
+        "includes only the previous telemetry snapshot, not the full history.\n"
         f"Grow Space: {grow_space.name}\n"
-        f"Grow Type: {grow_space.grow_type}\n"
+        f"Grow Type: {grow_type or 'n/a'}\n"
         f"Descriptor: {grow_space.descriptor or 'n/a'}\n"
-        f"Configured Schedules: {json.dumps(schedules, sort_keys=True)}\n"
-        f"Configured Targets: {json.dumps(targets, sort_keys=True)}\n"
-        f"History Retention Window: {retention_days} days\n"
-        "Cultivation context (operator-provided; includes strain, stage-started "
-        "date, computed week-in-stage, reservoir volume, feed, nutrient plan, "
-        "additives, and makeup water type):\n"
+        f"{legacy}"
+        f"{_schedule_block(context, now)}"
+        f"{_equipment_block(equipment)}"
+        "Cultivation context (operator-provided):\n"
         f"{context_lines if context_lines else '- none provided'}\n"
         "Current telemetry metrics:\n"
-        f"{metric_lines if metric_lines else '- no telemetry available'}"
+        f"{metric_lines}\n"
+        f"{_ec_trend_line(metrics, prior_telemetry)}"
+        f"{_prior_block(prior_telemetry, prior_checked_at)}"
+    )
+    header = (
+        "You are a cannabis cultivation agronomist.\n"
+        "Report only what the image, the telemetry, or the operator context "
+        "supports. Label each claim as seen in the image, measured by a "
+        "sensor, set by the operator, or recommended. If a number was not "
+        "measured, say it is unknown. Do not invent products, EC, or citations.\n"
+        "Mineral nutrient lines, including General Hydroponics Flora, are not "
+        "organic flower. Do not call this crop organic.\n"
+        "No CO2 sensor is available. Do not recommend a higher PPFD as if the "
+        "room were CO2-enriched. If the canopy is bleached or tacoing, light "
+        "is too high for this room.\n"
+        f"Primary objective for the '{stage or 'unspecified'}' stage: "
+        f"{objective}\n\n"
+    )
+    if stage in _POST_HARVEST_STAGES:
+        return (
+            f"{header}"
+            "This stage is not on a reservoir. feeding_schedule must be an "
+            "empty array. Do not discuss pH, EC, nutrients, ORP, or a feed mix.\n\n"
+            "Return STRICT JSON only, no markdown, with keys:\n"
+            "- score: integer 0-100 (health and quality of what is shown)\n"
+            "- confidence: integer 0-100\n"
+            "- confidence_rationale: one short sentence\n"
+            "- severity: one of low, medium, high, critical\n"
+            "- summary: one concise paragraph\n"
+            "- observations: array of short visual findings from the image\n"
+            "- issues: array of problems you can see or measure. Do not invent "
+            "reservoir issues.\n"
+            "- recommended_actions: array of short actions tied to a seen or "
+            "measured fact\n"
+            "- feeding_schedule: an empty array\n\n"
+            "If the image is unusable or missing, set confidence low and say so.\n"
+            "In dry and cure, use air humidity and dew point for mold risk when "
+            "those measurements are present.\n\n"
+            f"{data_block}"
+        )
+
+    active = (
+        f"Active targets for '{stage or 'unspecified'}'. Score only against "
+        "these. An operator band wins over the built-in stage default.\n"
+        f"- pH {ph_band} ({ph_source})\n"
+        f"- EC {ec_band} mS/cm ({ec_source})\n"
+        f"- Air VPD {vpd_band} kPa ({vpd_source}).{vpd_note}\n"
+    )
+    return (
+        f"{header}"
+        f"{active}\n"
+        "Return STRICT JSON only, no markdown, with keys:\n"
+        "- score: integer 0-100 (plant health and quality trajectory). Do not "
+        "lower the score for a value inside the active band.\n"
+        "- confidence: integer 0-100\n"
+        "- confidence_rationale: one short sentence naming the image and "
+        "measurement limits\n"
+        "- severity: one of low, medium, high, critical\n"
+        "- summary: one concise paragraph\n"
+        "- observations: array of short visual findings from the image only\n"
+        "- issues: array of problems supported by the image or a measurement. "
+        "Omit values inside the active band and the reservoir rules below. "
+        "Never invent issues for 65-68 F water, live-system ORP of 200-300 mV, "
+        "in-band EC, or air VPD within 0.1 kPa of the active band.\n"
+        "- recommended_actions: array of short actions. Name the measurement "
+        "each action responds to.\n"
+        "- feeding_schedule: array with ONE string for the current stage, or "
+        "an empty array when this stage has no feed. Format: "
+        "'[PHASE] | ADD IN ORDER: [Product]: Xml (Xml/gal); [Product]: Xml "
+        "(Xml/gal) | pH: X.X | NOTE: mix, then measure EC'. "
+        "Use SEMICOLONS between products. Do not include an estimated EC. "
+        "Mixing order: Armor Si only if the operator listed it, then CalMag+ "
+        "or CALiMAGic, then FloraMicro, then FloraGro, then FloraBloom, then "
+        "other listed extras, then Hydroguard, then pH last. Include TOTAL ml "
+        "for the full system volume and the ml/gal rate. Include every "
+        "additive the operator listed. A step that omits a listed additive, "
+        "or adds a product they did not list, is wrong.\n\n"
+        "Deficiency diagnosis rubric (use nutrient mobility):\n"
+        "- Mobile nutrients (N, P, K, Mg, Zn): deficiencies appear on OLDER/lower "
+        "leaves first.\n"
+        "- Immobile nutrients (Ca, S, Fe, Mn, B, Cu): deficiencies appear "
+        "on NEWER/upper leaves first.\n"
+        "- Use symptom location plus the measured pH to separate deficiency "
+        "from lockout. Do not call in-band EC underfeeding.\n\n"
+        "Dosing rule:\n"
+        f"- {dosing_line}"
+        f"{_water_source_guidance(water_type)}"
+        f"{nutrient_ref}\n"
+        "Reservoir chemistry (use these numbers):\n"
+        f"{biology_guidance}\n"
+        "If the image is unusable or missing, set confidence low and say so. "
+        "Do not fabricate.\n\n"
+        f"{data_block}"
     )
 
 
@@ -754,7 +1088,21 @@ async def run_ai_health_check(
 
     metrics = _collect_metric_state_values(hass, grow_space)
     context = _collect_grow_context(hass, entry)
-    prompt = _build_prompt(grow_space, metrics, context, retention_days=retention_days)
+    prior_telemetry = None
+    prior_checked_at = None
+    if state.latest is not None and state.latest.telemetry:
+        prior_telemetry = dict(state.latest.telemetry)
+        prior_checked_at = state.latest.checked_at.isoformat()
+    prompt = _build_prompt(
+        grow_space,
+        metrics,
+        context,
+        retention_days=retention_days,
+        equipment=_collect_equipment_states(hass, grow_space),
+        prior_telemetry=prior_telemetry,
+        prior_checked_at=prior_checked_at,
+        now=dt_util.now(),
+    )
 
     state.running = True
     async_dispatcher_send(hass, ai_dispatcher_signal(entry.entry_id))
@@ -775,6 +1123,7 @@ async def run_ai_health_check(
             mime_type=mime_type,
         )
         result = _coerce_result(raw_text, provider, model, reason)
+        result.telemetry = _snapshot_telemetry(metrics, context)
 
         state.latest = result
         state.history.append(result)

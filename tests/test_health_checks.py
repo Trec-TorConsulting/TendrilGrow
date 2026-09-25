@@ -36,7 +36,7 @@ def test_build_prompt_includes_context_and_metrics() -> None:
         retention_days=30,
     )
 
-    assert "master cannabis cultivation agronomist" in prompt
+    assert "cannabis cultivation agronomist" in prompt
     assert "Primary objective for the 'mid_flower' stage" in prompt
     assert "Prioritize QUALITY" in prompt
     assert "growth_stage: mid_flower" in prompt
@@ -52,7 +52,7 @@ def test_build_prompt_includes_context_and_metrics() -> None:
     assert "Derived VPD" in prompt
     assert "observations" in prompt
     # New calibration, rubric, dosing, and feeding-schedule sections.
-    assert "Calibration targets for current stage 'mid_flower'" in prompt
+    assert "Active targets for 'mid_flower'" in prompt
     assert "Mobile nutrients" in prompt
     assert "Immobile nutrients" in prompt
     assert "confidence_rationale" in prompt
@@ -155,11 +155,16 @@ def test_live_rdwc_prompt_rejects_sterile_orp_and_65f_water() -> None:
     assert "not an upper limit" in prompt
     assert "Do not write an Issue for 65-68 F water" in prompt
     assert "0.70-1.20 kPa" in prompt
-    assert "early veg 0.9-1.1 is on-target" in prompt
+    assert "early veg 0.9-1.1 is on-target" not in prompt
     assert "CalMag+ 2.5, Micro 2.5, Gro 2.5, Bloom 2.5, Hydroguard 2" in prompt
     assert "Do not rename CalMag+ to CALiMAGic" in prompt
     assert "Do not drop CalMag+ or Hydroguard" in prompt
-    assert "Do NOT use the GH Light late-veg row" in prompt
+    assert "late-growth medium column" in prompt
+    assert "FloraMicro 6.0, FloraGro 5.6, FloraBloom 4.2" in prompt
+    assert "GH Light late-veg" not in prompt
+    assert "half of Botanicare" in prompt
+    assert "are not organic flower" in prompt
+    assert "not leaf VPD" in prompt
     assert "at or below 1.6" in prompt
     assert "week_in_stage:" in prompt
     assert "Armor Si" in prompt
@@ -179,3 +184,67 @@ def test_sterile_oxidizer_prompt_uses_disinfection_orp() -> None:
     assert "disinfection ORP 650-850 mV" in prompt
     assert "do not recommend hydroguard" in prompt.lower()
 
+
+def test_operator_band_wins_and_rising_ec_is_concentrating() -> None:
+    prompt = _build_prompt(
+        _grow_space(),
+        {
+            "ec": ("1.40", "mS/cm"),
+            "light_ppfd": ("700", "µmol/m²/s"),
+        },
+        {
+            "growth_stage": "vegetative",
+            "target_ec_low": "0.8",
+            "target_ec_high": "1.2",
+            "lights_on_hours": "12",
+            "nutrient_line": "GH Flora",
+        },
+        retention_days=30,
+        prior_telemetry={"ec": "1.00 mS/cm"},
+        prior_checked_at="2026-09-24T12:00:00+00:00",
+        equipment={"Air pump": "off"},
+    )
+
+    assert "EC 0.8-1.2 mS/cm (operator band)" in prompt
+    assert "0.9-1.6" not in prompt
+    assert "EC has risen from 1.00 mS/cm to 1.40 mS/cm" in prompt
+    assert "concentrating" in prompt
+    assert "30.2 mol/m^2/day" in prompt
+    assert "Air pump: off" in prompt
+    assert "root-zone problem" in prompt
+    assert "mix, then measure EC" in prompt
+
+
+def test_soil_volume_is_not_described_as_rdwc() -> None:
+    prompt = _build_prompt(
+        GrowSpace.new(name="Bed", grow_type="soil"),
+        {},
+        {"growth_stage": "vegetative", "reservoir_volume_gal": "10"},
+        retention_days=7,
+    )
+
+    assert "10 gallons" in prompt
+    assert "circulating water volume" not in prompt
+    assert "Do not describe this grow as a recirculating RDWC system." in prompt
+
+
+def test_missing_telemetry_roundtrip_defaults_empty() -> None:
+    restored = AIHealthResult.from_dict(
+        {"score": 1, "severity": "low", "summary": "ok"}
+    )
+
+    assert restored.telemetry == {}
+
+
+def test_telemetry_roundtrip() -> None:
+    restored = AIHealthResult.from_dict(
+        {
+            "checked_at": "2026-09-25T00:00:00+00:00",
+            "score": 1,
+            "severity": "low",
+            "summary": "ok",
+            "telemetry": {"ec": "1.2 mS/cm"},
+        }
+    )
+
+    assert restored.telemetry == {"ec": "1.2 mS/cm"}

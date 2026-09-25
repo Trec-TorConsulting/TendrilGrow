@@ -95,6 +95,8 @@ def test_prompt_objective_is_stage_aware() -> None:
     dry = prompt_for("dry")
     assert "drying" in dry
     assert "Ignore pH/EC" in dry
+    assert "FloraMicro" not in dry
+    assert "feeding_schedule must be an empty array" in dry
 
 
 def test_projection_pre_harvest_stage() -> None:
