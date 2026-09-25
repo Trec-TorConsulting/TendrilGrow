@@ -223,9 +223,9 @@ STAGE_TARGETS: dict[str, dict[str, str]] = {
     "seedling": {"ph": "5.8-6.2", "ec_ms_cm": "0.4-0.8", "vpd_kpa": "0.4-0.8"},
     "mother": {"ph": "5.8-6.2", "ec_ms_cm": "1.0-1.6", "vpd_kpa": "0.7-1.2"},
     "vegetative": {"ph": "5.6-6.0", "ec_ms_cm": "0.9-1.6", "vpd_kpa": "0.7-1.2"},
-    "early_flower": {"ph": "5.8-6.1", "ec_ms_cm": "1.6-2.2", "vpd_kpa": "1.0-1.3"},
-    "mid_flower": {"ph": "5.8-6.2", "ec_ms_cm": "1.8-2.4", "vpd_kpa": "1.2-1.5"},
-    "late_flower": {"ph": "6.0-6.3", "ec_ms_cm": "1.4-2.0", "vpd_kpa": "1.3-1.6"},
+    "early_flower": {"ph": "5.8-6.1", "ec_ms_cm": "1.2-1.6", "vpd_kpa": "1.0-1.3"},
+    "mid_flower": {"ph": "5.8-6.2", "ec_ms_cm": "1.2-1.6", "vpd_kpa": "1.2-1.5"},
+    "late_flower": {"ph": "6.0-6.3", "ec_ms_cm": "1.0-1.4", "vpd_kpa": "1.3-1.6"},
     "flush": {"ph": "5.8-6.2", "ec_ms_cm": "0.0-0.4", "vpd_kpa": "1.3-1.6"},
 }
 

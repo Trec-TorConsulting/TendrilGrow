@@ -80,31 +80,61 @@ def _build_nutrient_reference(nutrient_line: str, base_nutrients: str) -> str:
     combined = f"{nutrient_line} {base_nutrients}".lower()
     if any(kw in combined for kw in _GH_FLORA_KEYWORDS):
         return (
-            "\nNutrient reference — GH Flora Series official 3-part program "
-            "(source: generalhydroponics.com FloraSeries 3-Part Feed Program). "
-            "Recirculating DWC/RDWC should use the Light/Medium columns, not "
-            "Aggressive drain-to-waste max rates:\n"
-            "  Seedling / clone (wk 1): Micro 1.8, Gro 1.8, Bloom 1.8 "
-            "-> EC 0.4-0.5 mS/cm\n"
-            "  Early veg (wk 2):        Micro 3.6, Gro 3.4, Bloom 2.6 "
-            "-> EC 0.9-1.1 mS/cm\n"
-            "  Early veg (wk 3):        Micro 4.9, Gro 4.6, Bloom 3.4 "
-            "-> EC 1.2-1.4 mS/cm\n"
-            "  Late veg (wk 4):         Micro 6.0, Gro 5.6, Bloom 4.2 "
-            "-> EC 1.4-1.7 mS/cm\n"
+            "\nNutrient reference — QUALITY over yield for recirculating "
+            "cannabis (DWC/RDWC), same schedule for every Flora tent. "
+            "Source: Grow Weed Easy DWC Flora Trio chart (1 tsp = 5 ml), "
+            "held at the light end. Grow Weed Easy states the General "
+            "Hydroponics chart is the maximum for cannabis and to start at "
+            "half strength. Do NOT use the GH Light late-veg row "
+            "(FloraMicro 6.0, FloraGro 5.6, FloraBloom 4.2 ml/gal). That "
+            "row plus CALiMAGic 5 ml/gal measured about 2.2 mS/cm in a "
+            "recirculating reservoir, which is too strong for quality.\n"
+            "  Quote these ml/gal rates in mix order, including Armor Si "
+            "and Hydroguard on every fill. Do not scale the Flora rates up "
+            "toward the GH chart to chase a higher EC. Do not omit extras "
+            "the operator listed under base nutrients or additives:\n"
+            "  Seedling / clone: Armor Si 2, CALiMAGic 2.5, Micro 1.25, "
+            "Gro 1.25, Bloom 1.25, Hydroguard 2\n"
+            "  Vegetative:       Armor Si 2, CALiMAGic 2.5, Micro 2.5, "
+            "Gro 2.5, Bloom 2.5, Hydroguard 2\n"
+            "  Early flower:     Armor Si 2, CALiMAGic 2.5, Micro 2.5, "
+            "Gro 1.25, Bloom 3.75, Hydroguard 2\n"
+            "  Mid flower:       Armor Si 2, CALiMAGic 2.5, Micro 2.5, "
+            "Gro 1.25, Bloom 3.75, Hydroguard 2\n"
+            "  Late flower:      Armor Si 2, CALiMAGic 2.5, Micro 1.25, "
+            "Gro 0, Bloom 3.75, Hydroguard 2\n"
+            "  Ripen:            Armor Si 0, CALiMAGic 0, Micro 1.25, "
+            "Gro 0, Bloom 2.5, Hydroguard 2\n"
+            "  Hydroguard (Botanicare) is 2 ml/gal on every reservoir fill, "
+            "including ripen, AFTER the base nutrients and BEFORE pH. "
+            "Never combine it with H2O2/HOCl/oxidizers. A plain-water flush "
+            "is the only step with no Hydroguard.\n"
+            "  Other extras, only when the operator listed them: "
+            "RapidStart 1 ml/gal from seedling through veg; "
+            "Floralicious Plus 1 ml/gal from veg through mid flower; "
+            "Liquid KoolBloom 2.5 ml/gal in late flower and ripen only. "
+            "Put each listed extra on the card in mix order. Do not drop "
+            "Armor Si, Hydroguard, or any other listed additive.\n"
+            "  These rates target about 1.0-1.6 mS/cm including CALiMAGic "
+            "and Armor Si. Stay at or below the operator target EC. If the "
+            "mix would measure above the target, lower the Flora ml/gal "
+            "rates, not Hydroguard. Never recommend FloraMicro at 6 ml/gal "
+            "or a recipe that measures about 2.2. Pale plants may step "
+            "vegetative Flora from 2.5 toward 3.5 ml/gal of each part, "
+            "still under the target EC. Dark leaves or burnt tips mean "
+            "drop the Flora rates back, and keep Hydroguard at 2 ml/gal.\n"
             "  For quality-first recirculating systems, prefer the early-veg "
             "band (0.9-1.4) unless the operator target EC is explicitly higher.\n"
-            "  CALiMAGic: per GH FAQ, add BEFORE FloraMicro (Armor Si first "
-            "if used). Typical 5 ml/gal for RO/soft water.\n"
-            "  Hydroguard (Botanicare): 2 ml/gal every watering, AFTER base "
-            "nutrients and BEFORE pH. Never combine with H2O2/HOCl/oxidizers.\n"
+            "  CALiMAGic: 2.5 ml/gal on this schedule, after Armor Si and "
+            "BEFORE FloraMicro. Do not add a separate 5 ml/gal on top.\n"
             "Mixing order (GH official FAQ + Botanicare): Armor Si -> "
             "CALiMAGic -> FloraMicro -> FloraGro -> FloraBloom -> "
+            "RapidStart / Floralicious / KoolBloom when listed -> "
             "Hydroguard/biologicals -> pH LAST.\n"
             "Hydro pH target: 5.5-6.5 (ideal 5.8-6.2).\n"
-            "Interpolate rows to hit operator target EC exactly, but do NOT "
-            "treat current reservoir EC as underfeeding when it sits inside "
-            "the GH band for the computed week-in-stage.\n"
+            "Do NOT treat current reservoir EC as underfeeding when it sits "
+            "inside 0.9-1.6 mS/cm for veg or the quality flower band for "
+            "the computed week-in-stage.\n"
         )
     return ""
 
@@ -422,41 +452,44 @@ def _build_prompt(
         if site_count
         else ""
     )
-    ec_constraint = (
-        f" OPERATOR TARGET EC IS {target_ec} mS/cm — you MUST calibrate "
-        "per-gallon rates to achieve this post-mix EC, NOT manufacturer-maximum "
-        "rates (which overshoot the target and cause nutrient burn). "
-        "Back-calculate nutrient rates from this target EC; do NOT default to "
-        "full-label rates unless the target EC explicitly requires it. "
-        "Include your estimated post-mix EC alongside each recipe so the "
-        "operator can verify it matches the target before mixing."
-        if target_ec
-        else ""
-    )
-    ph_constraint = (
-        f" OPERATOR TARGET pH IS {target_ph} — adjust pH to this value after "
-        "all nutrients are fully mixed."
-        if target_ph
-        else ""
-    )
-    dosing_line = (
-        f"Total system volume provided: {reservoir_volume} gallons."
-        f"{sites_clause} Treat this as the TOTAL circulating RDWC water "
-        "volume (all buckets + control reservoir + connecting lines combined), "
-        "NOT a single bucket. Compute TOTAL nutrient and additive amounts for "
-        f"this full volume (per-gallon rate x {reservoir_volume} gallons) and "
-        f"label them clearly as 'TOTAL for {reservoir_volume} gal system'."
-        f"{ec_constraint}{ph_constraint} If you recommend a fresh reservoir "
-        "fill, dose for this same total volume, not a smaller assumed fill. "
-        "If this volume looks implausibly small for the stated site count, "
-        "flag it and ask the operator to confirm the total system volume."
-        if reservoir_volume
-        else (
-            "Reservoir volume not provided; give per-gallon rates and note "
-            "total dosing needs the full system volume (all buckets + reservoir "
-            "+ lines)."
+    if target_ec:
+        ec_constraint = (
+            f" OPERATOR TARGET EC IS {target_ec} mS/cm. Quality over quantity: "
+            "use the cannabis recirculating ml/gal table (veg 2.5 ml/gal of "
+            "each Flora part, not FloraMicro 6.0). The mixed reservoir must "
+            f"measure at or below {target_ec} mS/cm. Do not recommend a "
+            "recipe the operator would measure above the target."
         )
-    )
+    else:
+        ec_constraint = ""
+    if target_ph:
+        ph_constraint = (
+            f" OPERATOR TARGET pH IS {target_ph} — adjust pH to this value "
+            "after all nutrients are fully mixed."
+        )
+    else:
+        ph_constraint = ""
+    if reservoir_volume:
+        dosing_line = (
+            f"Total system volume provided: {reservoir_volume} gallons."
+            f"{sites_clause} Treat this as the TOTAL circulating RDWC water "
+            "volume (all buckets + control reservoir + connecting lines "
+            "combined), NOT a single bucket. Compute TOTAL nutrient and "
+            "additive amounts for this full volume (per-gallon rate x "
+            f"{reservoir_volume} gallons) and label them clearly as "
+            f"'TOTAL for {reservoir_volume} gal system'. "
+            "If you recommend a fresh reservoir fill, dose for this same "
+            "total volume, not a smaller assumed fill. If this volume looks "
+            "implausibly small for the stated site count, flag it and ask "
+            "the operator to confirm the total system volume."
+        )
+    else:
+        dosing_line = (
+            "Reservoir volume not provided; give per-gallon rates and note "
+            "total dosing needs the full system volume (all buckets + "
+            "reservoir + lines)."
+        )
+    dosing_line = f"{dosing_line}{ec_constraint}{ph_constraint}"
 
     return (
         "You are a master cannabis cultivation agronomist.\n"
@@ -487,8 +520,11 @@ def _build_prompt(
         "CALiMAGic/Cal-Mag, then FloraMicro, then FloraGro, then FloraBloom, "
         "then biologicals (Hydroguard last among additives), then pH last. "
         "Include TOTAL ml for the full system volume AND ml/gal rate "
-        "for each product. EC-calibrate to operator target when mixing a "
-        "new reservoir, not manufacturer-max rates.\n\n"
+        "for each product. Use the quality recirculating table "
+        "(vegetative 2.5 ml/gal of each Flora part) AND include Armor Si, "
+        "Hydroguard at 2 ml/gal, and every other additive the operator "
+        "listed. Do not use manufacturer-max or GH late-veg 6 ml/gal rates. "
+        "A feeding step that omits Hydroguard or a listed extra is wrong.\n\n"
         "Scoring calibration (score against these stage target ranges):\n"
         f"{full_target_table}\n"
         f"{stage_target_line}\n\n"
