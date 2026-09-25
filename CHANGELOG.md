@@ -6,6 +6,16 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-09-25
+
+### Changed
+- Recirculating Flora feeding is quality-first for every tent. Vegetative is
+  2.5 ml/gal of Micro, Gro, and Bloom, with Armor Si, CALiMAGic, and
+  Hydroguard on each fill. The General Hydroponics late-veg 6 ml/gal row is
+  not used; that mix measured about 2.2 mS/cm.
+- Flower EC bands are 1.2–1.6 in early and mid flower and 1.0–1.4 in late
+  flower, so a 2.2 mix is no longer treated as in range.
+
 ## [0.3.4] - 2026-09-01
 
 ### Changed
