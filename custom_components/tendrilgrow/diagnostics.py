@@ -53,6 +53,19 @@ async def async_get_config_entry_diagnostics(
                 "latest": latest,
             }
 
+        ws_mon = getattr(runtime, "water_safety_monitor", None)
+        water_safety = {}
+        if ws_mon is not None:
+            water_safety = {
+                "status": ws_mon.status,
+                "flow_ok": ws_mon.flow_ok,
+                "leak_detected": ws_mon.leak_detected,
+                "active_leaks": ws_mon.active_leaks,
+                "flow_rate": ws_mon.flow_rate,
+                "shutoff_triggered": ws_mon.shutoff_triggered,
+                "leak_shutoff_enabled": ws_mon._leak_shutoff_enabled,
+            }
+
     water_source = "none"
     bound_device_id = stored_water_monitor_device_id(entry)
     try:
@@ -72,5 +85,6 @@ async def async_get_config_entry_diagnostics(
             "effective_sensor_mappings": effective_sensor_mappings,
             "effective_control_mappings": effective_control_mappings,
             "ai_health": _safe_redact(ai_health),
+            "water_safety": water_safety,
         },
     }

@@ -33,6 +33,11 @@
           "chiller_pump_power": "Chiller pump power sensor (optional)",
           "air_pump": "Air pump (optional)",
           "air_pump_power": "Air pump power sensor (optional)",
+          "water_flow": "Circulation flow sensor (optional rate or flow switch)",
+          "leak": "Leak detection sensors (optional, select one or more)",
+          "leak_shutoff_enabled": "Automatically shut off RDWC pump on confirmed leak",
+          "no_flow_grace_seconds": "No-flow grace period (seconds)",
+          "leak_debounce_seconds": "Leak detection debounce (seconds)",
           "water_monitor_device_id": "Local water monitor (LocalTuya or Tuya Local)",
           "tuya_enabled": "Enable Tuya cloud polling (fallback only)",
           "tuya_access_id": "Tuya access ID (cloud fallback)",
@@ -99,6 +104,11 @@
           "chiller_pump_power": "Chiller pump power sensor (optional)",
           "air_pump": "Air pump (optional)",
           "air_pump_power": "Air pump power sensor (optional)",
+          "water_flow": "Circulation flow sensor (optional rate or flow switch)",
+          "leak": "Leak detection sensors (optional, select one or more)",
+          "leak_shutoff_enabled": "Automatically shut off RDWC pump on confirmed leak",
+          "no_flow_grace_seconds": "No-flow grace period (seconds)",
+          "leak_debounce_seconds": "Leak detection debounce (seconds)",
           "water_monitor_device_id": "Local water monitor (LocalTuya or Tuya Local)",
           "tuya_enabled": "Enable Tuya cloud polling (fallback only)",
           "tuya_access_id": "Tuya access ID (cloud fallback)",
@@ -170,12 +180,28 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "flow_ok": {
+        "name": "Flow OK"
+      },
+      "leak_detected": {
+        "name": "Leak Detected"
+      }
+    },
     "button": {
       "capture_timelapse_frame": {
         "name": "Capture Timelapse Frame"
       }
     },
     "sensor": {
+      "water_safety_status": {
+        "name": "Water Safety Status",
+        "state": {
+          "ok": "OK",
+          "no_flow": "No Flow",
+          "leak": "Leak Detected"
+        }
+      },
       "timelapse_frames": {
         "name": "Timelapse Frames"
       },

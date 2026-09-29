@@ -74,6 +74,7 @@ from .stage_migration import (
     rewrite_lovelace_stage_clock,
 )
 from .timelapse import async_build_timelapse_video, async_capture_frame
+from .water_safety import async_setup_water_safety
 
 LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[str] = [
@@ -152,6 +153,7 @@ class RuntimeData:
     unsubscribe_metric_bands: list[Any]
     unsubscribe_timelapse_scheduler: Any
     timelapse_scheduler_paused: bool
+    water_safety_monitor: Any = None
     migrated_stage_started: date | None = None
     grow_object_prefix: str | None = None
     legacy_week_entity_id: str | None = None
@@ -325,6 +327,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry.entry_id,
             exc_info=True,
         )
+    try:
+        runtime.water_safety_monitor = await async_setup_water_safety(
+            hass, entry, grow_space, merged_config
+        )
+    except Exception:  # noqa: BLE001
+        LOGGER.debug(
+            "Unable to start water safety monitor for %s",
+            entry.entry_id,
+            exc_info=True,
+        )
     _migrate_stage_clock_entity_ids(hass, entry)
     try:
         await _async_scan_lovelace_stage_clock_repairs(hass)
@@ -368,6 +380,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if getattr(runtime, "unsubscribe_metric_bands", None):
                 for unsub in runtime.unsubscribe_metric_bands:
                     unsub()
+            if getattr(runtime, "water_safety_monitor", None):
+                runtime.water_safety_monitor.async_stop()
             _async_stop_timelapse_scheduler(runtime)
     await _async_maybe_unregister_services(hass)
     return unload_ok

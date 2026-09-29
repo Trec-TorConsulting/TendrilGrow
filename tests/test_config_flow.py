@@ -389,3 +389,60 @@ async def test_options_flow_pump_control_and_power_mappings() -> None:
     )
     # Air pump power not submitted, should not be in mappings.
     assert SENSOR_ROLE_AIR_PUMP_POWER not in sensor_mappings
+
+
+@pytest.mark.asyncio
+async def test_options_flow_water_safety_mappings_and_options() -> None:
+    """Verify water safety flow and leak sensor mappings and options persist."""
+    from custom_components.tendrilgrow.const import (
+        CONF_LEAK_DEBOUNCE_SECONDS,
+        CONF_LEAK_SHUTOFF_ENABLED,
+        CONF_NO_FLOW_GRACE_SECONDS,
+        CONTROL_ROLE_RDWC_PUMP,
+        SENSOR_ROLE_LEAK,
+        SENSOR_ROLE_WATER_FLOW,
+    )
+
+    entry = SimpleNamespace(
+        data={
+            "grow_type": "rdwc",
+            "grow_size": "3x3",
+            "sensor_mappings": {},
+            "control_mappings": {},
+        }
+    )
+    flow = TendrilGrowOptionsFlow(entry)
+    _patch_show_form(flow)
+    _patch_create_entry(flow)
+
+    result = await flow.async_step_init(
+        {
+            "grow_type": "rdwc",
+            "grow_size": "3x3",
+            CONTROL_ROLE_RDWC_PUMP: "switch.rdwc_pump",
+            SENSOR_ROLE_WATER_FLOW: "sensor.return_flow_rate",
+            SENSOR_ROLE_LEAK: ["binary_sensor.tent_floor", "binary_sensor.chiller_pan"],
+            CONF_LEAK_SHUTOFF_ENABLED: True,
+            CONF_NO_FLOW_GRACE_SECONDS: 45,
+            CONF_LEAK_DEBOUNCE_SECONDS: 5,
+            CONF_TUYA_ENABLED: False,
+            CONF_TUYA_ACCESS_ID: "",
+            CONF_TUYA_REGION: "us",
+            CONF_TUYA_DEVICE_IDS: "",
+            CONF_TUYA_SCAN_INTERVAL: 60,
+            CONF_AI_HEALTH_INTERVAL_HOURS: 12,
+            CONF_AI_SEVERE_THRESHOLD: 20,
+            CONF_AI_RESULT_RETENTION_DAYS: 30,
+        }
+    )
+
+    assert result["type"] == "create_entry"
+    sensor_mappings = result["data"][CONF_SENSOR_MAPPINGS]
+    assert sensor_mappings[SENSOR_ROLE_WATER_FLOW] == "sensor.return_flow_rate"
+    assert (
+        sensor_mappings[SENSOR_ROLE_LEAK]
+        == "binary_sensor.tent_floor, binary_sensor.chiller_pan"
+    )
+    assert result["data"][CONF_LEAK_SHUTOFF_ENABLED] is True
+    assert result["data"][CONF_NO_FLOW_GRACE_SECONDS] == 45
+    assert result["data"][CONF_LEAK_DEBOUNCE_SECONDS] == 5

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Any
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -25,6 +26,7 @@ from .metric_bands import (
     METRIC_VPD,
     metric_band_dispatcher_signal,
 )
+from .water_safety import water_safety_dispatcher_signal
 
 
 async def async_setup_entry(
@@ -41,6 +43,8 @@ async def async_setup_entry(
             MetricBandBinarySensor(hass, entry, METRIC_EC, "EC Out of Range"),
             MetricBandBinarySensor(hass, entry, METRIC_VPD, "VPD Out of Range"),
             MetricBandSummaryBinarySensor(hass, entry),
+            FlowOkBinarySensor(hass, entry),
+            LeakDetectedBinarySensor(hass, entry),
         ]
     )
 
@@ -301,3 +305,117 @@ class MetricBandSummaryBinarySensor(BinarySensorEntity):
             ):
                 return True
         return False
+
+
+class FlowOkBinarySensor(BinarySensorEntity):
+    """Turns on when circulation water flow is verified (or pump is idle)."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Flow OK"
+    _attr_icon = "mdi:water-check"
+    _attr_device_class = BinarySensorDeviceClass.RUNNING
+    _attr_should_poll = False
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_flow_ok"
+        self._unsub_dispatcher: object | None = None
+
+    @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    async def async_added_to_hass(self) -> None:
+        @callback
+        def _handle_update() -> None:
+            self.async_write_ha_state()
+
+        self._unsub_dispatcher = async_dispatcher_connect(
+            self.hass,
+            water_safety_dispatcher_signal(self._entry.entry_id),
+            _handle_update,
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_dispatcher is not None:
+            self._unsub_dispatcher()
+            self._unsub_dispatcher = None
+
+    @property
+    def is_on(self) -> bool:
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        if (
+            runtime is not None
+            and getattr(runtime, "water_safety_monitor", None) is not None
+        ):
+            return runtime.water_safety_monitor.flow_ok
+        return True
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        mon = getattr(runtime, "water_safety_monitor", None) if runtime else None
+        if mon is None:
+            return {}
+        return {
+            "flow_rate": mon.flow_rate,
+            "pump_entity_id": mon.rdwc_pump_entity_id,
+        }
+
+
+class LeakDetectedBinarySensor(BinarySensorEntity):
+    """Turns on when any mapped leak sensor detects moisture (debounced)."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Leak Detected"
+    _attr_icon = "mdi:water-alert"
+    _attr_device_class = BinarySensorDeviceClass.MOISTURE
+    _attr_should_poll = False
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_leak_detected"
+        self._unsub_dispatcher: object | None = None
+
+    @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    async def async_added_to_hass(self) -> None:
+        @callback
+        def _handle_update() -> None:
+            self.async_write_ha_state()
+
+        self._unsub_dispatcher = async_dispatcher_connect(
+            self.hass,
+            water_safety_dispatcher_signal(self._entry.entry_id),
+            _handle_update,
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_dispatcher is not None:
+            self._unsub_dispatcher()
+            self._unsub_dispatcher = None
+
+    @property
+    def is_on(self) -> bool:
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        if (
+            runtime is not None
+            and getattr(runtime, "water_safety_monitor", None) is not None
+        ):
+            return runtime.water_safety_monitor.leak_detected
+        return False
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        mon = getattr(runtime, "water_safety_monitor", None) if runtime else None
+        if mon is None:
+            return {}
+        return {
+            "active_leaks": mon.active_leaks,
+            "shutoff_triggered": mon.shutoff_triggered,
+        }

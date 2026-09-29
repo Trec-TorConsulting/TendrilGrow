@@ -65,6 +65,7 @@ from .sensors.tuya import (
     TuyaMetricSensor,
     _to_float,
 )
+from .sensors.water_safety import TendrilGrowWaterSafetyStatusSensor
 
 LOGGER = logging.getLogger(__name__)
 
@@ -182,6 +183,7 @@ async def async_setup_entry(
             TendrilGrowEnergyCostSensor(hass, entry),
             TendrilGrowTimelapseFramesSensor(hass, entry),
             TendrilGrowTimelapseLastFrameSensor(hass, entry),
+            TendrilGrowWaterSafetyStatusSensor(hass, entry),
         ]
     )
 

@@ -77,7 +77,12 @@ def merge_mappings_from_options_input(
             continue
         value = user_input.get(role)
         if value:
-            sensor_mappings[role] = str(value)
+            if isinstance(value, list):
+                sensor_mappings[role] = ", ".join(
+                    str(v).strip() for v in value if str(v).strip()
+                )
+            else:
+                sensor_mappings[role] = str(value)
         else:
             sensor_mappings.pop(role, None)
 

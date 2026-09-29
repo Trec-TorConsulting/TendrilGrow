@@ -56,6 +56,13 @@ FLUSH_REPORT = (
     ("flush_due", "due"),
 )
 
+# Water safety monitoring entities (change: add-water-safety-monitoring).
+WATER_SAFETY_REPORT = (
+    ("water_safety_status", "status"),
+    ("flow_ok", "flow ok"),
+    ("leak_detected", "leak detected"),
+)
+
 # Plausible ranges for sanity-checking live readings.
 PLAUSIBLE: dict[str, tuple[float, float]] = {
     "ph": (3.5, 8.5),
@@ -401,6 +408,46 @@ def validate_space(
         )
     else:
         r.warn("stage-projection sensor not found in registry for this space")
+
+    # Water safety monitoring (change: add-water-safety-monitoring).
+    if mappings.get("water_flow"):
+        flow_eid = mappings["water_flow"]
+        st = states.get(flow_eid)
+        val = st.get("state") if st else "no state"
+        r.ok(f"water safety flow sensor -> {flow_eid} = {val}")
+
+    if mappings.get("leak"):
+        leak_val = mappings["leak"]
+        leak_eids = [x.strip() for x in str(leak_val).split(",") if x.strip()]
+        for l_eid in leak_eids:
+            st = states.get(l_eid)
+            val = st.get("state") if st else "no state"
+            r.ok(f"water safety leak sensor -> {l_eid} = {val}")
+
+    ws_by_suffix: dict[str, str] = {}
+    for ent in ents:
+        uid = str(ent.get("unique_id", ""))
+        for suffix, _label in WATER_SAFETY_REPORT:
+            if uid.endswith(f"_{suffix}"):
+                ws_by_suffix[suffix] = ent.get("entity_id")
+                break
+    if ws_by_suffix:
+        for suffix, label in WATER_SAFETY_REPORT:
+            entity_id = ws_by_suffix.get(suffix)
+            if not entity_id:
+                continue
+            st = states.get(entity_id)
+            val = st.get("state") if st else "no state"
+            r.ok(f"water safety {label} -> {entity_id} = {val}")
+
+    ws_diag = runtime.get("water_safety") or {}
+    if ws_diag:
+        r.ok(
+            f"water safety monitor: status={ws_diag.get('status')} "
+            f"flow_ok={ws_diag.get('flow_ok')} "
+            f"leak_detected={ws_diag.get('leak_detected')} "
+            f"shutoff_enabled={ws_diag.get('shutoff_enabled')}"
+        )
 
     reg_suffixes = {
         suffix

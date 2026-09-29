@@ -6,6 +6,16 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-09-29
+
+### Added
+- Water safety monitoring (`add-water-safety-monitoring`):
+  - Multi-leak detection supporting multiple leak sensors per grow space (tent floor, chiller pan, reservoir edge) with configurable debounce.
+  - Flow verification: tracks return-line flow sensors (numeric rate or binary switch) when RDWC circulation pumps run, raising a `no_flow` safety alert after a configurable grace period.
+  - Opt-in emergency RDWC pump shutoff: automatically commands the mapped circulation pump `turn_off` once upon confirmed leak detection, preventing flooding or draining the reservoir (never auto-restarts).
+  - Safety entities: `binary_sensor.<grow>_flow_ok`, `binary_sensor.<grow>_leak_detected`, and `sensor.<grow>_water_safety_status` with detailed attributes (`active_leaks`, `flow_rate`, `shutoff_triggered`).
+  - Diagnostic dump for water safety and live HA validation script support.
+
 ## [0.3.10] - 2026-09-29
 
 ### Fixed

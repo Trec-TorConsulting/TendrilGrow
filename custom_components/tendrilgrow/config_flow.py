@@ -30,6 +30,9 @@ from .const import (
     CONF_GROW_SIZE,
     CONF_GROW_SPACE_NAME,
     CONF_GROW_TYPE,
+    CONF_LEAK_DEBOUNCE_SECONDS,
+    CONF_LEAK_SHUTOFF_ENABLED,
+    CONF_NO_FLOW_GRACE_SECONDS,
     CONF_SCHEDULES,
     CONF_SENSOR_MAPPINGS,
     CONF_TARGETS,
@@ -49,6 +52,9 @@ from .const import (
     DEFAULT_AI_HEALTH_INTERVAL_HOURS,
     DEFAULT_AI_RESULT_RETENTION_DAYS,
     DEFAULT_AI_SEVERE_THRESHOLD,
+    DEFAULT_LEAK_DEBOUNCE_SECONDS,
+    DEFAULT_LEAK_SHUTOFF_ENABLED,
+    DEFAULT_NO_FLOW_GRACE_SECONDS,
     DEFAULT_TIMELAPSE_ENABLED,
     DEFAULT_TIMELAPSE_INTERVAL_HOURS,
     DEFAULT_TIMELAPSE_RETENTION_FRAMES,
@@ -62,6 +68,8 @@ from .const import (
     PROVIDER_OPENAI,
     PUMP_CONTROL_ROLES,
     PUMP_POWER_ROLE_FOR,
+    SENSOR_ROLE_LEAK,
+    SENSOR_ROLE_WATER_FLOW,
     SENSOR_ROLES,
     SENSOR_ROLES_CONFIGURABLE,
     SENSOR_ROLES_TUYA_OPTIONAL,
@@ -105,11 +113,56 @@ def _entity_selector_for_domains(*domains: str) -> selector.EntitySelector:
     )
 
 
+def _optional_leak_sensor_field(
+    fields: dict[Any, Any],
+    role: str,
+    mapping: dict[str, str],
+) -> None:
+    raw = mapping.get(role, "")
+    existing = [part.strip() for part in str(raw).split(",") if part.strip()]
+    selector_obj = selector.EntitySelector(
+        selector.EntitySelectorConfig(
+            multiple=True,
+            filter=selector.EntityFilterSelectorConfig(domain=["binary_sensor"]),
+        )
+    )
+    if existing:
+        fields[vol.Optional(role, default=existing)] = selector_obj
+        return
+    fields[vol.Optional(role)] = selector_obj
+
+
+def _optional_flow_sensor_field(
+    fields: dict[Any, Any],
+    role: str,
+    mapping: dict[str, str],
+) -> None:
+    existing = mapping.get(role, "")
+    selector_obj = selector.EntitySelector(
+        selector.EntitySelectorConfig(
+            multiple=False,
+            filter=selector.EntityFilterSelectorConfig(
+                domain=["sensor", "binary_sensor"]
+            ),
+        )
+    )
+    if existing:
+        fields[vol.Optional(role, default=existing)] = selector_obj
+        return
+    fields[vol.Optional(role)] = selector_obj
+
+
 def _optional_entity_field(
     fields: dict[Any, Any],
     role: str,
     mapping: dict[str, str],
 ) -> None:
+    if role == SENSOR_ROLE_LEAK:
+        _optional_leak_sensor_field(fields, role, mapping)
+        return
+    if role == SENSOR_ROLE_WATER_FLOW:
+        _optional_flow_sensor_field(fields, role, mapping)
+        return
     existing = mapping.get(role, "")
     if existing:
         fields[vol.Optional(role, default=existing)] = _entity_selector()
@@ -690,6 +743,33 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                             current.get(CONF_TIMELAPSE_DIR, ""),
                         )
                     ).strip(),
+                    CONF_LEAK_SHUTOFF_ENABLED: bool(
+                        user_input.get(
+                            CONF_LEAK_SHUTOFF_ENABLED,
+                            current.get(
+                                CONF_LEAK_SHUTOFF_ENABLED,
+                                DEFAULT_LEAK_SHUTOFF_ENABLED,
+                            ),
+                        )
+                    ),
+                    CONF_NO_FLOW_GRACE_SECONDS: int(
+                        user_input.get(
+                            CONF_NO_FLOW_GRACE_SECONDS,
+                            current.get(
+                                CONF_NO_FLOW_GRACE_SECONDS,
+                                DEFAULT_NO_FLOW_GRACE_SECONDS,
+                            ),
+                        )
+                    ),
+                    CONF_LEAK_DEBOUNCE_SECONDS: int(
+                        user_input.get(
+                            CONF_LEAK_DEBOUNCE_SECONDS,
+                            current.get(
+                                CONF_LEAK_DEBOUNCE_SECONDS,
+                                DEFAULT_LEAK_DEBOUNCE_SECONDS,
+                            ),
+                        )
+                    ),
                 },
             )
 
@@ -851,6 +931,42 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                 default=current.get(CONF_TIMELAPSE_DIR, ""),
             )
         ] = str
+        fields[
+            vol.Optional(
+                CONF_LEAK_SHUTOFF_ENABLED,
+                default=bool(
+                    current.get(CONF_LEAK_SHUTOFF_ENABLED, DEFAULT_LEAK_SHUTOFF_ENABLED)
+                ),
+            )
+        ] = selector.BooleanSelector()
+        fields[
+            vol.Optional(
+                CONF_NO_FLOW_GRACE_SECONDS,
+                default=int(
+                    current.get(
+                        CONF_NO_FLOW_GRACE_SECONDS, DEFAULT_NO_FLOW_GRACE_SECONDS
+                    )
+                ),
+            )
+        ] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=5, max=600, step=5, mode=selector.NumberSelectorMode.BOX
+            )
+        )
+        fields[
+            vol.Optional(
+                CONF_LEAK_DEBOUNCE_SECONDS,
+                default=int(
+                    current.get(
+                        CONF_LEAK_DEBOUNCE_SECONDS, DEFAULT_LEAK_DEBOUNCE_SECONDS
+                    )
+                ),
+            )
+        ] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0, max=60, step=1, mode=selector.NumberSelectorMode.BOX
+            )
+        )
 
         return self.async_show_form(
             step_id="init", data_schema=vol.Schema(fields), errors={}

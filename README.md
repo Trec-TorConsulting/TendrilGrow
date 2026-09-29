@@ -36,11 +36,20 @@ vision model to score plant health.
 | Canopy temp + humidity | VPD and dew point |
 | Reservoir pH / EC / ORP / temp | Role-mapped chemistry + AI context |
 | Circulation / chiller / air pumps | Switches, power, estimated daily cost |
+| Return flow + tent/chiller leak sensors | Flow verification, leak detection, water safety status, opt-in pump shutoff |
 | A camera + vision model | Health score, issues, mix-order feeding card |
 | Nothing extra | Growth stage, Stage Started date, Week In Stage, flush cadence, timeline calendar, tasks |
 
-Control stays **manual and opt-in**. You build automations; TendrilGrow does not
-actuate pumps or valves on its own.
+Control stays **manual and opt-in**. You build automations; TendrilGrow only
+acts on hardware when explicit opt-in safety guards (such as leak pump shutoff) are enabled.
+
+### Water Safety & Leak Monitoring
+
+TendrilGrow includes active water safety monitoring for recirculating hydroponics (RDWC) and irrigation setups:
+
+- **Flow Verification**: Maps an inline flow sensor (numeric rate like L/min or GPM via ESPHome `pulse_counter` / Tuya or a binary flow switch). If the circulation pump is ON but no flow is detected past the configurable grace period (default 30s), a `no_flow` safety alert is raised.
+- **Multi-Zone Leak Detection**: Maps one or more moisture sensors per grow space (e.g., Zigbee Aqara `lumi.sensor_wleak.aq1`, Third Reality, or Tuya probes). Recommended placement: tent floor liner, water chiller drip tray, and reservoir plumbing fittings.
+- **Opt-in Emergency Pump Shutoff**: When enabled in options (`leak_shutoff_enabled`), a confirmed leak immediately commands the mapped RDWC circulation pump `turn_off` via Home Assistant services to prevent reservoir drainage and water damage. TendrilGrow never auto-restarts a pump after an emergency shutoff.
 
 ## Install with HACS
 

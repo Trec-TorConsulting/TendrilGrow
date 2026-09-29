@@ -79,6 +79,27 @@ SENSOR_ROLE_TDS = "tds"
 SENSOR_ROLE_EC_TDS_LEGACY = "ec_tds"
 SENSOR_ROLE_CAMERA = "camera"
 
+SENSOR_ROLE_WATER_FLOW = "water_flow"
+SENSOR_ROLE_LEAK = "leak"
+
+CONF_LEAK_SHUTOFF_ENABLED = "leak_shutoff_enabled"
+CONF_NO_FLOW_GRACE_SECONDS = "no_flow_grace_seconds"
+CONF_LEAK_DEBOUNCE_SECONDS = "leak_debounce_seconds"
+
+DEFAULT_LEAK_SHUTOFF_ENABLED = False
+DEFAULT_NO_FLOW_GRACE_SECONDS = 60
+DEFAULT_LEAK_DEBOUNCE_SECONDS = 5
+
+WATER_SAFETY_STATUS_OK = "ok"
+WATER_SAFETY_STATUS_NO_FLOW = "no_flow"
+WATER_SAFETY_STATUS_LEAK = "leak"
+
+WATER_SAFETY_STATUSES: tuple[str, ...] = (
+    WATER_SAFETY_STATUS_OK,
+    WATER_SAFETY_STATUS_NO_FLOW,
+    WATER_SAFETY_STATUS_LEAK,
+)
+
 CONTROL_ROLE_LIGHTS = "lights"
 CONTROL_ROLE_FANS = "fans"
 CONTROL_ROLE_INLINE_FANS = "inline_fans"
@@ -106,6 +127,8 @@ SENSOR_ROLES: tuple[str, ...] = (
     SENSOR_ROLE_RDWC_PUMP_POWER,
     SENSOR_ROLE_CHILLER_PUMP_POWER,
     SENSOR_ROLE_AIR_PUMP_POWER,
+    SENSOR_ROLE_WATER_FLOW,
+    SENSOR_ROLE_LEAK,
 )
 
 # Sensor roles shown in config and options forms.
@@ -120,6 +143,8 @@ SENSOR_ROLES_CONFIGURABLE: tuple[str, ...] = (
     SENSOR_ROLE_TDS,
     SENSOR_ROLE_WATER_TEMPERATURE,
     SENSOR_ROLE_CAMERA,
+    SENSOR_ROLE_WATER_FLOW,
+    SENSOR_ROLE_LEAK,
     SENSOR_ROLE_RDWC_PUMP_POWER,
     SENSOR_ROLE_CHILLER_PUMP_POWER,
     SENSOR_ROLE_AIR_PUMP_POWER,
@@ -127,11 +152,13 @@ SENSOR_ROLES_CONFIGURABLE: tuple[str, ...] = (
 
 # When cloud Tuya is the effective water source (no local device bound), water
 # roles are auto-mapped from cloud sensors; the operator still maps canopy AIR
-# temperature/humidity (for VPD) and the camera here.
+# temperature/humidity (for VPD), the camera, flow, and leak sensors here.
 SENSOR_ROLES_TUYA_OPTIONAL: tuple[str, ...] = (
     SENSOR_ROLE_TEMPERATURE,
     SENSOR_ROLE_HUMIDITY,
     SENSOR_ROLE_CAMERA,
+    SENSOR_ROLE_WATER_FLOW,
+    SENSOR_ROLE_LEAK,
 )
 
 # Water-quality roles auto-mapped from a bound LocalTuya / Tuya Local device.
