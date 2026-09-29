@@ -6,8 +6,8 @@ from datetime import time
 
 from homeassistant.components.time import TimeEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, EntityCategory
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 

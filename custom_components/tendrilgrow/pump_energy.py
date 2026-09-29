@@ -27,14 +27,18 @@ def pump_energy_dispatcher_signal(entry_id: str) -> str:
     return f"{DOMAIN}_pump_energy_update_{entry_id}"
 
 
-def pump_power_entity_id(hass: HomeAssistant, entry: ConfigEntry, pump_role: str) -> str | None:
+def pump_power_entity_id(
+    hass: HomeAssistant, entry: ConfigEntry, pump_role: str
+) -> str | None:
     registry = get_entity_registry(hass)
     return registry.async_get_entity_id(
         "sensor", DOMAIN, f"{entry.entry_id}_{pump_role}_power"
     )
 
 
-def pump_switch_entity_id(hass: HomeAssistant, entry: ConfigEntry, pump_role: str) -> str | None:
+def pump_switch_entity_id(
+    hass: HomeAssistant, entry: ConfigEntry, pump_role: str
+) -> str | None:
     registry = get_entity_registry(hass)
     return registry.async_get_entity_id(
         "switch", DOMAIN, f"{entry.entry_id}_{pump_role}"

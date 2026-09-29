@@ -135,9 +135,7 @@ def test_find_unique_local_match_tolerates_triple_identifiers() -> None:
 
 def test_classify_local_water_sensors_by_class_unit_and_name() -> None:
     entities = {
-        "sensor.ph": _entity(
-            "sensor.ph", "dev-1", name="pH", device_class="ph"
-        ),
+        "sensor.ph": _entity("sensor.ph", "dev-1", name="pH", device_class="ph"),
         "sensor.ec": _entity("sensor.ec", "dev-1", name="EC"),
         "sensor.tds": _entity("sensor.tds", "dev-1", name="TDS"),
         "sensor.orp": _entity("sensor.orp", "dev-1", name="ORP"),
@@ -174,9 +172,7 @@ def test_classify_local_water_sensors_by_class_unit_and_name() -> None:
     }
 
     states = {
-        "sensor.ec": SimpleNamespace(
-            attributes={"unit_of_measurement": "mS/cm"}
-        ),
+        "sensor.ec": SimpleNamespace(attributes={"unit_of_measurement": "mS/cm"}),
         "sensor.tds": SimpleNamespace(attributes={"unit_of_measurement": "ppm"}),
         "sensor.orp": SimpleNamespace(attributes={"unit_of_measurement": "mV"}),
     }
@@ -241,9 +237,7 @@ def test_classify_tuya_local_probe_entity_names() -> None:
             device_class="battery",
         ),
     }
-    hass = SimpleNamespace(
-        states=SimpleNamespace(get=lambda _entity_id: None)
-    )
+    hass = SimpleNamespace(states=SimpleNamespace(get=lambda _entity_id: None))
     with patch(
         "custom_components.tendrilgrow.local_water_source.er.async_get",
         return_value=SimpleNamespace(entities=entities),
@@ -261,9 +255,7 @@ def test_classify_tuya_local_probe_entity_names() -> None:
 
 
 def test_apply_local_water_automap_preserves_existing() -> None:
-    grow_space = SimpleNamespace(
-        sensor_mappings={SENSOR_ROLE_PH: "sensor.manual_ph"}
-    )
+    grow_space = SimpleNamespace(sensor_mappings={SENSOR_ROLE_PH: "sensor.manual_ph"})
     auto_mapped: dict[str, str] = {}
     entry = SimpleNamespace(
         entry_id="entry-1",

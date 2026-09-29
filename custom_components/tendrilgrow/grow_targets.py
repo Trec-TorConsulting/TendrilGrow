@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import time
-from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -170,7 +169,9 @@ def compute_photoperiod_hours(on_time: time, off_time: time) -> float:
     return round(duration_minutes / 60.0, 2)
 
 
-def _number_entity_id(hass: HomeAssistant, entry: ConfigEntry, suffix: str) -> str | None:
+def _number_entity_id(
+    hass: HomeAssistant, entry: ConfigEntry, suffix: str
+) -> str | None:
     registry = get_entity_registry(hass)
     return registry.async_get_entity_id("number", DOMAIN, f"{entry.entry_id}_{suffix}")
 
@@ -199,7 +200,9 @@ def sync_lights_on_hours_from_schedule(hass: HomeAssistant, entry: ConfigEntry) 
     try:
         on_parts = [int(p) for p in str(on_state.state).split(":")]
         off_parts = [int(p) for p in str(off_state.state).split(":")]
-        on_time = time(on_parts[0], on_parts[1], on_parts[2] if len(on_parts) > 2 else 0)
+        on_time = time(
+            on_parts[0], on_parts[1], on_parts[2] if len(on_parts) > 2 else 0
+        )
         off_time = time(
             off_parts[0], off_parts[1], off_parts[2] if len(off_parts) > 2 else 0
         )
@@ -219,7 +222,9 @@ def sync_lights_on_hours_from_schedule(hass: HomeAssistant, entry: ConfigEntry) 
     )
 
 
-def dispatch_reseed_target_bands(hass: HomeAssistant, entry: ConfigEntry, stage: str) -> None:
+def dispatch_reseed_target_bands(
+    hass: HomeAssistant, entry: ConfigEntry, stage: str
+) -> None:
     async_dispatcher_send(
         hass,
         reseed_dispatcher_signal(entry.entry_id),

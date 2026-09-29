@@ -9,17 +9,25 @@ import pytest
 
 from custom_components.tendrilgrow.config_flow import TendrilGrowOptionsFlow
 from custom_components.tendrilgrow.const import (
+    CONF_AI_MODEL,
+    CONF_AI_PROVIDER,
+    CONF_API_KEY,
     CONF_CONTROL_MAPPINGS,
     CONF_SENSOR_MAPPINGS,
     CONF_TUYA_ACCESS_ID,
     CONF_TUYA_ACCESS_SECRET,
     CONF_TUYA_DEVICE_IDS,
     CONF_TUYA_ENABLED,
+    CONF_TUYA_REGION,
+    CONF_TUYA_SCAN_INTERVAL,
+    CONF_TUYA_UID,
     CONF_WATER_MONITOR_DEVICE_ID,
     CONTROL_ROLE_RDWC_PUMP,
     SENSOR_ROLE_PH,
 )
-from custom_components.tendrilgrow.local_water_source import async_resolve_water_monitor_device
+from custom_components.tendrilgrow.local_water_source import (
+    async_resolve_water_monitor_device,
+)
 from custom_components.tendrilgrow.switch import async_setup_entry
 
 
@@ -157,15 +165,48 @@ async def test_auto_bind_does_not_replace_existing_water_monitor_device() -> Non
     device_registry = MagicMock()
     device_registry.async_get = Mock(return_value=stored_device)
 
-    with patch(
-        "custom_components.tendrilgrow.local_water_source.dr.async_get",
-        return_value=device_registry,
-    ), patch(
-        "custom_components.tendrilgrow.local_water_source.find_unique_local_match",
-        Mock(return_value=("other-device", LOCALTUYA_DOMAIN)),
-    ) as find_match:
+    with (
+        patch(
+            "custom_components.tendrilgrow.local_water_source.dr.async_get",
+            return_value=device_registry,
+        ),
+        patch(
+            "custom_components.tendrilgrow.local_water_source.find_unique_local_match",
+            Mock(return_value=("other-device", LOCALTUYA_DOMAIN)),
+        ) as find_match,
+    ):
         result = await async_resolve_water_monitor_device(hass, entry, persist=True)
 
     assert result == ("stored-device", LOCALTUYA_DOMAIN)
     find_match.assert_not_called()
     hass.config_entries.async_update_entry.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_options_save_blank_ai_api_key_leaves_stored_key() -> None:
+    entry = SimpleNamespace(
+        data={
+            "grow_type": "rdwc",
+            CONF_SENSOR_MAPPINGS: {},
+            CONF_CONTROL_MAPPINGS: {},
+            CONF_AI_PROVIDER: "gemini",
+            CONF_AI_MODEL: "gemini-1.5-flash",
+            CONF_API_KEY: "stored-secret-api-key",
+        },
+        options={},
+    )
+    flow = TendrilGrowOptionsFlow(entry)
+    _patch_create_entry(flow)
+
+    result = await flow.async_step_init(
+        _minimal_options_payload(
+            ai_provider="gemini",
+            ai_model="gemini-1.5-flash",
+            api_key="",
+        )
+    )
+
+    assert result["type"] == "create_entry"
+    assert result["data"][CONF_API_KEY] == "stored-secret-api-key"
+    assert result["data"][CONF_AI_PROVIDER] == "gemini"
+    assert result["data"][CONF_AI_MODEL] == "gemini-1.5-flash"

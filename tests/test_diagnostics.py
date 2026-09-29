@@ -44,3 +44,37 @@ async def test_diagnostics_redacts_api_key() -> None:
     assert payload["runtime"]["effective_sensor_mappings"]["ec"] == "sensor.tuya_ec"
     assert payload["water_source"] == "localtuya"
     assert payload[CONF_WATER_MONITOR_DEVICE_ID] == "ha-device-1"
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_omits_raw_response() -> None:
+    entry = SimpleNamespace(
+        entry_id="123",
+        title="Tent A",
+        data={"grow_space_name": "Tent A"},
+        options={},
+    )
+    latest_result = SimpleNamespace(
+        to_dict=lambda: {
+            "score": 85,
+            "summary": "Looks good",
+            "raw_response": "SECRET_OR_LARGE_RAW_MODEL_OUTPUT",
+        }
+    )
+    ai_state = SimpleNamespace(
+        running=False,
+        last_error="",
+        history=[latest_result],
+        latest=latest_result,
+    )
+    runtime = SimpleNamespace(
+        auto_mapped_sensor_roles={},
+        grow_space=SimpleNamespace(sensor_mappings={}, control_mappings={}),
+        ai_health_state=ai_state,
+    )
+    hass = SimpleNamespace(data={"tendrilgrow": {"123": runtime}})
+
+    payload = await async_get_config_entry_diagnostics(hass=hass, entry=entry)
+    ai_health = payload["runtime"]["ai_health"]
+    assert "raw_response" not in ai_health["latest"]
+    assert ai_health["latest"]["score"] == 85

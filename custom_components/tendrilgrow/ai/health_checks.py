@@ -906,11 +906,12 @@ def _build_prompt(
 
 
 def _extract_json_payload(text: str) -> dict[str, Any]:
-    body = text.strip()
-    if body.startswith("```"):
-        body = body.strip("`")
-        if body.startswith("json"):
-            body = body[4:].strip()
+    lines = text.strip().splitlines()
+    if lines and lines[0].strip().startswith("```"):
+        lines.pop(0)
+    if lines and lines[-1].strip().startswith("```"):
+        lines.pop()
+    body = "\n".join(lines).strip()
 
     if body.startswith("{") and body.endswith("}"):
         return json.loads(body)
@@ -920,6 +921,16 @@ def _extract_json_payload(text: str) -> dict[str, Any]:
     if start == -1 or end == -1 or end <= start:
         raise ValueError("json_not_found")
     return json.loads(body[start : end + 1])
+
+
+def _coerce_string_list(raw_value: Any) -> list[str]:
+    """Coerce string list-fields to a single entry and ignore non-list values."""
+    if isinstance(raw_value, str):
+        cleaned = raw_value.strip()
+        return [cleaned] if cleaned else []
+    if isinstance(raw_value, list):
+        return [str(item).strip() for item in raw_value if str(item).strip()]
+    return []
 
 
 def _coerce_result(
@@ -968,24 +979,10 @@ def _coerce_result(
     summary = str(payload.get("summary", "")).strip() or "No summary returned"
     confidence_rationale = str(payload.get("confidence_rationale", "")).strip()
 
-    issues = [
-        str(item).strip() for item in payload.get("issues", []) if str(item).strip()
-    ]
-    actions = [
-        str(item).strip()
-        for item in payload.get("recommended_actions", [])
-        if str(item).strip()
-    ]
-    observations = [
-        str(item).strip()
-        for item in payload.get("observations", [])
-        if str(item).strip()
-    ]
-    feeding_schedule = [
-        str(item).strip()
-        for item in payload.get("feeding_schedule", [])
-        if str(item).strip()
-    ]
+    issues = _coerce_string_list(payload.get("issues"))
+    actions = _coerce_string_list(payload.get("recommended_actions"))
+    observations = _coerce_string_list(payload.get("observations"))
+    feeding_schedule = _coerce_string_list(payload.get("feeding_schedule"))
 
     return AIHealthResult(
         checked_at=checked_at,
@@ -1066,7 +1063,11 @@ async def run_ai_health_check(
     *,
     reason: str,
 ) -> AIHealthResult:
-    """Execute one AI health check and persist/update runtime state."""
+    if state.running:
+        if state.latest is not None:
+            return state.latest
+        raise ProviderExecutionError("ai_check_already_running")
+
     cfg = _entry_merged_config(entry)
     provider = str(cfg.get(CONF_AI_PROVIDER, PROVIDER_NONE)).strip().lower()
     model = str(cfg.get(CONF_AI_MODEL, "")).strip()

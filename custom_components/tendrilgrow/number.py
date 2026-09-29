@@ -12,8 +12,10 @@ from homeassistant.components.number import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.dispatcher import (
+    async_dispatcher_connect,
+    async_dispatcher_send,
+)
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
@@ -214,7 +216,9 @@ class TargetBandNumber(RestoreNumber):
             restored = True
         last_state = await self.async_get_last_state()
         if last_state is not None:
-            self._band_overridden = bool(last_state.attributes.get(BAND_OVERRIDDEN_ATTR))
+            self._band_overridden = bool(
+                last_state.attributes.get(BAND_OVERRIDDEN_ATTR)
+            )
         if not restored:
             stage = current_stage(self.hass, self._entry)
             seeded = seed_value_for_band(stage, self._spec)
@@ -223,7 +227,8 @@ class TargetBandNumber(RestoreNumber):
 
         @callback
         def _on_reseed(payload: dict) -> None:
-            self._apply_reseed(str(payload.get("stage") or current_stage(self.hass, self._entry)))
+            stage = str(payload.get("stage") or current_stage(self.hass, self._entry))
+            self._apply_reseed(stage)
 
         self._unsub_reseed = async_dispatcher_connect(
             self.hass,

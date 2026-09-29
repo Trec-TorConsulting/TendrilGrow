@@ -1,0 +1,239 @@
+"""Tuya cloud metric sensors for TendrilGrow."""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import (
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfTemperature,
+)
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from ..const import (
+    DOMAIN,
+    SENSOR_ROLE_CF,
+    SENSOR_ROLE_EC,
+    SENSOR_ROLE_ORP,
+    SENSOR_ROLE_PH,
+    SENSOR_ROLE_TDS,
+    SENSOR_ROLE_WATER_TEMPERATURE,
+)
+from ..coordinator import TendrilGrowTuyaCoordinator
+
+LOGGER = logging.getLogger(__name__)
+
+# Cloud Tuya metrics that auto-map onto water roles. Probe ambient humidity must
+# NOT bind to the canopy humidity role used for VPD.
+_METRIC_TO_ROLE: dict[str, str] = {
+    "ph": SENSOR_ROLE_PH,
+    "ec": SENSOR_ROLE_EC,
+    "cf": SENSOR_ROLE_CF,
+    "orp": SENSOR_ROLE_ORP,
+    "tds": SENSOR_ROLE_TDS,
+    "water_temp_c": SENSOR_ROLE_WATER_TEMPERATURE,
+}
+
+
+def _to_float(value: object) -> float | None:
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+
+
+@dataclass(slots=True, frozen=True)
+class TendrilGrowMetricDescription(SensorEntityDescription):
+    """Describes one normalized Tuya metric."""
+
+
+METRICS: tuple[TendrilGrowMetricDescription, ...] = (
+    TendrilGrowMetricDescription(key="ph", name="pH", suggested_display_precision=2),
+    TendrilGrowMetricDescription(
+        key="ec",
+        name="EC",
+        native_unit_of_measurement="mS/cm",
+        suggested_display_precision=3,
+    ),
+    TendrilGrowMetricDescription(
+        key="cf",
+        name="CF",
+        native_unit_of_measurement="mS/cm",
+        suggested_display_precision=3,
+    ),
+    TendrilGrowMetricDescription(
+        key="tds",
+        name="TDS",
+        native_unit_of_measurement="ppm",
+        suggested_display_precision=1,
+    ),
+    TendrilGrowMetricDescription(
+        key="orp",
+        name="ORP",
+        native_unit_of_measurement="mV",
+        suggested_display_precision=0,
+    ),
+    TendrilGrowMetricDescription(
+        key="water_temp_c",
+        name="Water Temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE,
+        suggested_display_precision=1,
+    ),
+    TendrilGrowMetricDescription(
+        key="ambient_humidity",
+        name="Humidity",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.HUMIDITY,
+        suggested_display_precision=0,
+    ),
+    TendrilGrowMetricDescription(
+        key="battery_pct",
+        name="Battery",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.BATTERY,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
+    ),
+)
+
+
+class TuyaMetricSensor(CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEntity):
+    """Sensor backed by normalized Tuya cloud metric data."""
+
+    entity_description: TendrilGrowMetricDescription
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: TendrilGrowTuyaCoordinator,
+        entry: ConfigEntry,
+        device_id: str,
+        description: TendrilGrowMetricDescription,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._device_id = device_id
+        self.entity_description = description
+
+        suffix = device_id[-6:] if len(device_id) >= 6 else device_id
+        self._attr_unique_id = f"{entry.entry_id}_{device_id}_{description.key}"
+        self._attr_name = f"{description.name} ({suffix})"
+
+    @property
+    def device_info(self):
+        name = self.coordinator.device_names.get(
+            self._device_id, f"Tuya {self._device_id[-6:]}"
+        )
+        return {
+            "identifiers": {
+                ("tendrilgrow", f"{self._entry.entry_id}_{self._device_id}")
+            },
+            "name": f"{self._entry.title} {name}",
+            "manufacturer": "Tuya",
+            "model": "Water Monitor",
+        }
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        if not isinstance(self.coordinator.data, dict):
+            return False
+        metrics = self.coordinator.data.get(self._device_id)
+        if not metrics:
+            return False
+        return self.entity_description.key in metrics
+
+    @property
+    def native_value(self):
+        if not isinstance(self.coordinator.data, dict):
+            return None
+        metrics = self.coordinator.data.get(self._device_id, {})
+        return metrics.get(self.entity_description.key)
+
+    async def async_added_to_hass(self) -> None:
+        """Backfill grow role mappings from Tuya entities when missing."""
+        await super().async_added_to_hass()
+        if not self.entity_id:
+            return
+
+        role = _METRIC_TO_ROLE.get(self.entity_description.key)
+        if not role:
+            return
+
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        grow_space = getattr(runtime, "grow_space", None)
+        if grow_space is None:
+            return
+
+        if grow_space.sensor_mappings.get(role):
+            return
+
+        grow_space.sensor_mappings[role] = self.entity_id
+        auto_map_store = getattr(runtime, "auto_mapped_sensor_roles", None)
+        if isinstance(auto_map_store, dict):
+            auto_map_store[role] = self.entity_id
+
+        LOGGER.info(
+            "Auto-mapped TendrilGrow role %s -> %s for entry %s",
+            role,
+            self.entity_id,
+            self._entry.entry_id,
+        )
+
+
+class TuyaLastUpdatedSensor(
+    CoordinatorEntity[TendrilGrowTuyaCoordinator], SensorEntity
+):
+    """Timestamp sensor showing when a device was last refreshed successfully."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: TendrilGrowTuyaCoordinator,
+        entry: ConfigEntry,
+        device_id: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._entry = entry
+        self._device_id = device_id
+
+        suffix = device_id[-6:] if len(device_id) >= 6 else device_id
+        self._attr_unique_id = f"{entry.entry_id}_{device_id}_last_updated"
+        self._attr_name = f"Last Updated ({suffix})"
+
+    @property
+    def device_info(self):
+        name = self.coordinator.device_names.get(
+            self._device_id, f"Tuya {self._device_id[-6:]}"
+        )
+        return {
+            "identifiers": {
+                ("tendrilgrow", f"{self._entry.entry_id}_{self._device_id}")
+            },
+            "name": f"{self._entry.title} {name}",
+            "manufacturer": "Tuya",
+            "model": "Water Monitor",
+        }
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return self._device_id in self.coordinator.device_last_updated
+
+    @property
+    def native_value(self):
+        return self.coordinator.device_last_updated.get(self._device_id)

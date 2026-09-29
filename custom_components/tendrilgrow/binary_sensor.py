@@ -19,7 +19,12 @@ from .ai.health_checks import ai_dispatcher_signal, has_critical_alert
 from .const import DOMAIN, FLUSH_DUE_SUFFIX
 from .entity import grow_device_info
 from .flush import flush_dispatcher_signal, flush_status
-from .metric_bands import METRIC_EC, METRIC_PH, METRIC_VPD, metric_band_dispatcher_signal
+from .metric_bands import (
+    METRIC_EC,
+    METRIC_PH,
+    METRIC_VPD,
+    metric_band_dispatcher_signal,
+)
 
 
 async def async_setup_entry(
@@ -289,6 +294,10 @@ class MetricBandSummaryBinarySensor(BinarySensorEntity):
             return False
         state = runtime.metric_band_state
         for metric, out in state.out_of_range.items():
-            if state.has_band.get(metric) and state.source_available.get(metric) and out:
+            if (
+                state.has_band.get(metric)
+                and state.source_available.get(metric)
+                and out
+            ):
                 return True
         return False

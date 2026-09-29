@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 
 from .const import (
+    CONF_API_KEY,
     CONF_CONTROL_MAPPINGS,
     CONF_SENSOR_MAPPINGS,
     CONF_TUYA_ACCESS_ID,
@@ -148,3 +149,7 @@ def resolved_tuya_access_id(user_input: dict[str, Any], stored: str) -> str:
 
 def resolved_tuya_access_secret(user_input: dict[str, Any], stored: str) -> str:
     return preserve_blank_str(user_input, CONF_TUYA_ACCESS_SECRET, stored)
+
+
+def resolved_ai_api_key(user_input: dict[str, Any], stored: str) -> str:
+    return preserve_blank_str(user_input, CONF_API_KEY, stored)

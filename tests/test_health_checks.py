@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from custom_components.tendrilgrow.ai.health_checks import (
     AIHealthResult,
+    AIHealthState,
     _build_prompt,
     _coerce_result,
     classify_reservoir_biology,
+    run_ai_health_check,
 )
 from custom_components.tendrilgrow.models.grow import GrowSpace
 
@@ -248,3 +256,72 @@ def test_telemetry_roundtrip() -> None:
     )
 
     assert restored.telemetry == {"ec": "1.2 mS/cm"}
+
+
+def test_coerce_result_string_issues_stores_one_issue() -> None:
+    raw = (
+        '{"score": 90, "summary": "fine", "issues": "tip burn", '
+        '"recommended_actions": "flush", "observations": 42}'
+    )
+    result = _coerce_result(raw, "gemini", "model-x", "manual")
+    assert result.issues == ["tip burn"]
+    assert result.recommended_actions == ["flush"]
+    assert result.observations == []
+
+
+def test_extract_json_payload_fenced_json_preserves_internal_backticks() -> None:
+    raw = (
+        "```json\n"
+        '{"summary": "Leaves show `minor` chlorosis", "issues": ["tip burn"]}\n'
+        "```"
+    )
+    result = _coerce_result(raw, "gemini", "model-x", "manual")
+    assert result.summary == "Leaves show `minor` chlorosis"
+    assert result.issues == ["tip burn"]
+
+
+@pytest.mark.asyncio
+async def test_second_check_does_not_call_provider_while_running() -> None:
+    hass = MagicMock()
+    entry = SimpleNamespace(
+        entry_id="e1",
+        data={"ai_provider": "gemini", "ai_model": "flash"},
+        options={},
+    )
+    grow_space = GrowSpace.new(name="Tent", grow_type="rdwc")
+    grow_space.sensor_mappings["camera"] = "camera.tent"
+    prior_result = AIHealthResult(
+        checked_at=datetime.now(UTC),
+        score=88,
+        severity="low",
+        summary="Previous check",
+        issues=[],
+        recommended_actions=[],
+        observations=[],
+        feeding_schedule=[],
+        confidence=90,
+        confidence_rationale="",
+        provider="gemini",
+        model="flash",
+        reason="initial",
+        raw_response="",
+    )
+    state = AIHealthState(latest=prior_result, history=[prior_result])
+    state.running = True
+    store = MagicMock()
+
+    with patch(
+        "custom_components.tendrilgrow.ai.health_checks.generate_vision_health_report"
+    ) as mock_report:
+        result = await run_ai_health_check(
+            hass,
+            entry,
+            grow_space,
+            state,
+            store,
+            reason="button_click",
+        )
+
+    mock_report.assert_not_called()
+    assert result == prior_result
+    assert state.running is True

@@ -103,6 +103,10 @@ async def test_cooldown_blocks_repeat_notify() -> None:
             "custom_components.tendrilgrow.metric_bands.stage_has_reservoir_band",
             return_value=True,
         ),
+        patch(
+            "custom_components.tendrilgrow.metric_bands._vpd_entity_id",
+            return_value=None,
+        ),
     ):
         await async_evaluate_metric_bands(hass, entry, runtime)
 
@@ -136,13 +140,10 @@ def test_operator_band_overrides_stage_table() -> None:
         }.get(eid)
     )
 
-    from homeassistant.helpers import entity_registry as er
-
-    original = er.async_get
-    er.async_get = MagicMock(return_value=registry)  # type: ignore[method-assign]
-    try:
+    with patch(
+        "custom_components.tendrilgrow.grow_targets.get_entity_registry",
+        return_value=registry,
+    ):
         low, high = read_band_bounds(hass, entry, "vegetative", "ph")
-    finally:
-        er.async_get = original  # type: ignore[method-assign]
 
     assert (low, high) == (5.0, 5.5)

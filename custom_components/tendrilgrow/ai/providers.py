@@ -6,6 +6,7 @@ import base64
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+import aiohttp
 from aiohttp import ClientError
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -52,10 +53,11 @@ class ProviderDefinition:
 
         if self.key == PROVIDER_GEMINI:
             api_key = config[CONF_API_KEY]
-            url = (
-                f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-            )
-            async with session.get(url) as resp:
+            url = "https://generativelanguage.googleapis.com/v1beta/models"
+            headers = {"x-goog-api-key": api_key}
+            async with session.get(
+                url, headers=headers, timeout=aiohttp.ClientTimeout(total=60)
+            ) as resp:
                 resp.raise_for_status()
                 payload = await resp.json()
             return [
@@ -67,7 +69,9 @@ class ProviderDefinition:
             api_key = config[CONF_API_KEY]
             headers = {"Authorization": f"Bearer {api_key}"}
             async with session.get(
-                "https://api.openai.com/v1/models", headers=headers
+                "https://api.openai.com/v1/models",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=60),
             ) as resp:
                 resp.raise_for_status()
                 payload = await resp.json()
@@ -75,7 +79,10 @@ class ProviderDefinition:
 
         if self.key == PROVIDER_OLLAMA:
             base_url = config[CONF_BASE_URL].rstrip("/")
-            async with session.get(f"{base_url}/api/tags") as resp:
+            async with session.get(
+                f"{base_url}/api/tags",
+                timeout=aiohttp.ClientTimeout(total=120),
+            ) as resp:
                 resp.raise_for_status()
                 payload = await resp.json()
             return [
@@ -146,6 +153,8 @@ async def discover_models(
 
     try:
         models = await definition.list_models(hass, config)
+    except TimeoutError as err:
+        raise ProviderDiscoveryError(f"{provider} request timed out") from err
     except ClientError as err:
         raise ProviderDiscoveryError(str(err)) from err
 
@@ -208,7 +217,11 @@ async def generate_vision_health_report(
     try:
         if provider == PROVIDER_GEMINI:
             api_key = str(config.get(CONF_API_KEY, "")).strip()
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+            headers = {
+                "x-goog-api-key": api_key,
+                "Content-Type": "application/json",
+            }
             payload = {
                 "contents": [
                     {
@@ -224,7 +237,12 @@ async def generate_vision_health_report(
                     }
                 ],
             }
-            async with session.post(url, json=payload) as resp:
+            async with session.post(
+                url,
+                headers=headers,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as resp:
                 body = await _read_json_or_raise(resp, provider)
             return _extract_gemini_text(body)
 
@@ -256,6 +274,7 @@ async def generate_vision_health_report(
                 "https://api.openai.com/v1/chat/completions",
                 headers=headers,
                 json=payload,
+                timeout=aiohttp.ClientTimeout(total=60),
             ) as resp:
                 body = await _read_json_or_raise(resp, provider)
             return _extract_openai_text(body)
@@ -273,9 +292,15 @@ async def generate_vision_health_report(
                     }
                 ],
             }
-            async with session.post(f"{base_url}/api/chat", json=payload) as resp:
+            async with session.post(
+                f"{base_url}/api/chat",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=120),
+            ) as resp:
                 body = await _read_json_or_raise(resp, provider)
             return str(body.get("message", {}).get("content", "")).strip()
+    except TimeoutError as err:
+        raise ProviderExecutionError(f"{provider} request timed out") from err
     except ClientError as err:
         raise ProviderExecutionError(str(err)) from err
 

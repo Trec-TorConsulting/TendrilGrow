@@ -17,8 +17,8 @@ from .const import (
     PUMP_CONTROL_ROLES,
     PUMP_LABELS,
 )
-from .entry_config import entry_merged_config
 from .entity import grow_device_info
+from .entry_config import entry_merged_config
 
 LOGGER = logging.getLogger(__name__)
 

@@ -62,8 +62,6 @@ from .const import (
     PROVIDER_OPENAI,
     PUMP_CONTROL_ROLES,
     PUMP_POWER_ROLE_FOR,
-    SENSOR_ROLE_EC_TDS_LEGACY,
-    SENSOR_ROLE_TDS,
     SENSOR_ROLES,
     SENSOR_ROLES_CONFIGURABLE,
     SENSOR_ROLES_TUYA_OPTIONAL,
@@ -76,6 +74,7 @@ from .entry_config import (
     normalize_sensor_mappings,
     options_visible_sensor_roles,
     preserve_blank_tuya_device_ids,
+    resolved_ai_api_key,
     resolved_tuya_access_id,
     resolved_tuya_access_secret,
     tuya_enabled_from_input,
@@ -304,9 +303,7 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         local_device_id = str(self._data.get(CONF_WATER_MONITOR_DEVICE_ID, "") or "")
         hide_water = hide_water_quality_fields(tuya_enabled, local_device_id)
         visible_sensor_roles = (
-            SENSOR_ROLES_CONFIGURABLE
-            if not hide_water
-            else SENSOR_ROLES_TUYA_OPTIONAL
+            SENSOR_ROLES_CONFIGURABLE if not hide_water else SENSOR_ROLES_TUYA_OPTIONAL
         )
         _optional_device_field(fields, CONF_WATER_MONITOR_DEVICE_ID, local_device_id)
         for role in visible_sensor_roles:
@@ -607,6 +604,30 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                             DEFAULT_TUYA_SCAN_INTERVAL,
                         )
                     ),
+                    CONF_AI_PROVIDER: str(
+                        user_input.get(
+                            CONF_AI_PROVIDER,
+                            current.get(CONF_AI_PROVIDER, PROVIDER_NONE),
+                        )
+                    )
+                    .strip()
+                    .lower(),
+                    CONF_AI_MODEL: str(
+                        user_input.get(
+                            CONF_AI_MODEL,
+                            current.get(CONF_AI_MODEL, ""),
+                        )
+                    ).strip(),
+                    CONF_API_KEY: resolved_ai_api_key(
+                        user_input,
+                        str(current.get(CONF_API_KEY, "") or ""),
+                    ),
+                    CONF_BASE_URL: str(
+                        user_input.get(
+                            CONF_BASE_URL,
+                            current.get(CONF_BASE_URL, ""),
+                        )
+                    ).strip(),
                     CONF_AI_HEALTH_INTERVAL_HOURS: int(
                         user_input.get(
                             CONF_AI_HEALTH_INTERVAL_HOURS,
@@ -734,6 +755,37 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                 ),
             )
         ] = vol.All(vol.Coerce(int), vol.Range(min=30, max=3600))
+        ai_provider_options = [
+            selector.SelectOptionDict(value=PROVIDER_NONE, label="None"),
+            *[
+                selector.SelectOptionDict(value=p.key, label=p.display_name)
+                for p in PROVIDERS.values()
+            ],
+        ]
+        fields[
+            vol.Optional(
+                CONF_AI_PROVIDER,
+                default=current.get(CONF_AI_PROVIDER, PROVIDER_NONE),
+            )
+        ] = selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=ai_provider_options,
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        )
+        fields[
+            vol.Optional(
+                CONF_AI_MODEL,
+                default=current.get(CONF_AI_MODEL, ""),
+            )
+        ] = str
+        fields[vol.Optional(CONF_API_KEY)] = str
+        fields[
+            vol.Optional(
+                CONF_BASE_URL,
+                default=current.get(CONF_BASE_URL, ""),
+            )
+        ] = str
         fields[
             vol.Optional(
                 CONF_AI_HEALTH_INTERVAL_HOURS,

@@ -229,6 +229,10 @@
     "timelapse_not_allowlisted": {
       "title": "TendrilGrow: allow-list your timelapse directory",
       "description": "Timelapse capture for {grow_space} failed because the directory is not allow-listed. Add {path} to homeassistant.allowlist_external_dirs, then capture a frame again to resume scheduling."
+    },
+    "retired_stage_clock": {
+      "title": "TendrilGrow: update retired stage-clock entity",
+      "description": "A Lovelace dashboard still references the retired stage-clock entity {retired_entity}. Replace it with {replacement_entity}."
     }
   }
 }

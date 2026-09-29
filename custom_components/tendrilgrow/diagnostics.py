@@ -42,7 +42,10 @@ async def async_get_config_entry_diagnostics(
         )
         ai_state = getattr(runtime, "ai_health_state", None)
         if ai_state is not None:
-            latest = ai_state.latest.to_dict() if ai_state.latest else None
+            latest = None
+            if ai_state.latest:
+                latest = ai_state.latest.to_dict()
+                latest.pop("raw_response", None)
             ai_health = {
                 "running": bool(getattr(ai_state, "running", False)),
                 "last_error": str(getattr(ai_state, "last_error", "") or ""),

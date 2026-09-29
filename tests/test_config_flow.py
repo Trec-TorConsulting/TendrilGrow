@@ -194,8 +194,7 @@ async def test_options_flow_edit_creates_options_payload() -> None:
     assert result["data"][CONF_TIMELAPSE_INTERVAL_HOURS] == 8
     assert result["data"][CONF_TIMELAPSE_RETENTION_FRAMES] == 300
     assert (
-        result["data"][CONF_TIMELAPSE_DIR]
-        == "/config/www/tendrilgrow/tent-a/timelapse"
+        result["data"][CONF_TIMELAPSE_DIR] == "/config/www/tendrilgrow/tent-a/timelapse"
     )
 
 

@@ -319,9 +319,9 @@ def classify_local_water_sensors(
     if SENSOR_ROLE_ORP not in result:
         for entity in candidates:
             text = _entity_text(entity)
-            if (
-                "orp" in text or "redox" in text or "oxidation" in text
-            ) and _claim(entity):
+            if ("orp" in text or "redox" in text or "oxidation" in text) and _claim(
+                entity
+            ):
                 result[SENSOR_ROLE_ORP] = entity.entity_id
                 break
 
@@ -412,7 +412,5 @@ async def async_prepare_local_water_source(
     await async_resolve_water_monitor_device(hass, entry, persist=True)
     source = effective_water_source(hass, entry)
     if source in (WATER_SOURCE_LOCALTUYA, WATER_SOURCE_TUYA_LOCAL):
-        apply_local_water_automap(
-            hass, entry, grow_space, auto_mapped_store
-        )
+        apply_local_water_automap(hass, entry, grow_space, auto_mapped_store)
     return source

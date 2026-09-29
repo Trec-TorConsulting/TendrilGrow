@@ -6,6 +6,15 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-09-29
+
+### Fixed
+- AI health checks: guard scheduler against unconfigured providers, prevent overlapping concurrent runs with single-flight locks, add provider timeouts, and pass Gemini API keys securely via headers.
+- Dashboards: eliminate unprompted Lovelace file rewrites during setup; register non-destructive Home Assistant repairs when retired entity IDs are detected.
+
+### Changed
+- Refactored sensor platform into domain-specific submodules (`ai`, `environment`, `flush`, `pump_power`, `stage`, `timelapse`, `tuya`) and isolated services and stage migration logic.
+
 ## [0.3.8] - 2026-09-25
 
 ### Changed

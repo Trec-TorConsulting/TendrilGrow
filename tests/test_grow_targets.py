@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import time
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -21,7 +21,6 @@ from custom_components.tendrilgrow.grow_targets import (
     seed_value_for_band,
 )
 from custom_components.tendrilgrow.number import TargetBandNumber
-from custom_components.tendrilgrow.grow_targets import TargetBandSpec
 
 
 def test_vegetative_stage_seeds_ph_band() -> None:
@@ -89,14 +88,11 @@ def test_read_band_bounds_prefers_operator_numbers() -> None:
         }.get(eid)
     )
 
-    from homeassistant.helpers import entity_registry as er
-
-    original = er.async_get
-    er.async_get = MagicMock(return_value=registry)  # type: ignore[method-assign]
-    try:
+    with patch(
+        "custom_components.tendrilgrow.grow_targets.get_entity_registry",
+        return_value=registry,
+    ):
         low, high = read_band_bounds(hass, entry, "vegetative", "ph")
-    finally:
-        er.async_get = original  # type: ignore[method-assign]
 
     assert low == 5.0
     assert high == 6.2

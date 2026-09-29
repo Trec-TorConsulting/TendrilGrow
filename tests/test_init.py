@@ -14,10 +14,12 @@ from custom_components.tendrilgrow import (
     SERVICE_REBUILD_AUTOMAP,
     SERVICE_RUN_AI_HEALTH_CHECK,
     SERVICE_SET_PUMP,
+    _async_scan_lovelace_stage_clock_repairs,
     _migrate_ai_entity_ids,
     _migrate_stage_clock_entity_ids,
     async_setup_entry,
     async_unload_entry,
+    find_stale_stage_clock_references,
     rewrite_lovelace_stage_clock,
 )
 
@@ -826,3 +828,221 @@ def test_rewrite_lovelace_does_not_duplicate_existing_date() -> None:
         "date.3x3_mothers_tent_stage_started",
         "sensor.3x3_mothers_tent_week_in_stage",
     ]
+
+
+@pytest.mark.asyncio
+async def test_setup_with_no_ai_provider_does_not_schedule_startup_ai_check() -> None:
+    entry = SimpleNamespace(
+        entry_id="entry-no-ai",
+        title="Tent No AI",
+        data={
+            "space_id": "space-no-ai",
+            "name": "Tent No AI",
+            "grow_space_name": "Tent No AI",
+            "grow_type": "rdwc",
+            "grow_size": "4x4",
+            "ai_provider": "none",
+            "sensor_mappings": {},
+            "control_mappings": {},
+        },
+        options={},
+        add_update_listener=Mock(return_value=lambda: None),
+    )
+
+    hass = SimpleNamespace(
+        data={},
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(async_register=Mock(), async_remove=Mock()),
+    )
+
+    with patch("custom_components.tendrilgrow.async_call_later") as mock_call_later:
+        assert await async_setup_entry(hass, entry)
+        delays = [call[0][1] for call in mock_call_later.call_args_list]
+        assert 120 not in delays
+
+
+@pytest.mark.asyncio
+async def test_setup_entry_never_calls_lovelace_async_save() -> None:
+    """Setup scans storage dashboards read-only and never calls async_save."""
+    entry = SimpleNamespace(
+        entry_id="entry-lovelace-save",
+        title="Tent Lovelace",
+        data={
+            "space_id": "space-ll",
+            "name": "Tent Lovelace",
+            "grow_space_name": "Tent Lovelace",
+            "grow_type": "rdwc",
+            "grow_size": "4x4",
+            "ai_provider": "none",
+            "sensor_mappings": {},
+            "control_mappings": {},
+        },
+        options={},
+        add_update_listener=Mock(return_value=lambda: None),
+    )
+
+    mock_dash = SimpleNamespace(
+        config={"views": [{"cards": [{"type": "markdown", "content": "hello"}]}]},
+        async_save=AsyncMock(),
+        async_load=AsyncMock(),
+    )
+    hass = SimpleNamespace(
+        data={"lovelace": SimpleNamespace(dashboards={"main": mock_dash})},
+        config_entries=SimpleNamespace(
+            async_entries=Mock(return_value=[entry]),
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(async_register=Mock(), async_remove=Mock()),
+    )
+
+    with patch("custom_components.tendrilgrow.async_call_later") as mock_call_later:
+        assert await async_setup_entry(hass, entry)
+        delays = [call[0][1] for call in mock_call_later.call_args_list]
+        # Delayed 15s Lovelace migration callback must no longer be scheduled
+        assert 15 not in delays
+        mock_dash.async_save.assert_not_called()
+
+
+def test_find_stale_stage_clock_references() -> None:
+    """find_stale_stage_clock_references finds old ids in nested structures."""
+    config = {
+        "views": [
+            {
+                "cards": [
+                    {
+                        "type": "entities",
+                        "entities": [
+                            "sensor.temperature",
+                            {"entity": "number.tent_week_in_stage"},
+                        ],
+                    },
+                    {
+                        "type": "markdown",
+                        "content": (
+                            "Current week: {{ states('number.other_week_in_stage') }}"
+                        ),
+                    },
+                ]
+            }
+        ]
+    }
+    targets = {
+        "number.tent_week_in_stage",
+        "number.other_week_in_stage",
+        "number.unused_week",
+    }
+    found = find_stale_stage_clock_references(config, targets)
+    assert found == {"number.tent_week_in_stage", "number.other_week_in_stage"}
+    assert "number.unused_week" not in found
+    assert find_stale_stage_clock_references(config, set()) == set()
+
+
+@pytest.mark.asyncio
+async def test_lovelace_scan_creates_repair_and_preserves_config(
+    monkeypatch,
+) -> None:
+    """Stale entity in dashboard creates a repair and does not mutate config."""
+    import copy
+
+    create_issue = Mock()
+    delete_issue = Mock()
+
+    from custom_components.tendrilgrow import repairs as repairs_module
+
+    monkeypatch.setattr(repairs_module.ir, "async_create_issue", create_issue)
+    monkeypatch.setattr(repairs_module.ir, "async_delete_issue", delete_issue)
+
+    entry = SimpleNamespace(
+        entry_id="entry-stale",
+        title="3x3 Mothers Tent",
+        data={
+            "space_id": "mothers_tent",
+            "name": "3x3 Mothers Tent",
+            "grow_space_name": "3x3 Mothers Tent",
+        },
+    )
+
+    dashboard_config = {
+        "views": [
+            {
+                "cards": [
+                    {
+                        "type": "entities",
+                        "entities": ["number.3x3_mothers_tent_week_in_stage"],
+                    }
+                ]
+            }
+        ]
+    }
+    original_config = copy.deepcopy(dashboard_config)
+
+    mock_dash = SimpleNamespace(
+        config=dashboard_config,
+        async_save=AsyncMock(),
+    )
+    registry = Mock()
+    registry.async_get_entity_id.side_effect = lambda domain, comp, uid: (
+        "sensor.3x3_mothers_tent_week_in_stage"
+        if domain == "sensor"
+        else "date.3x3_mothers_tent_stage_started"
+    )
+    registry.async_get.return_value = None
+
+    hass = SimpleNamespace(
+        data={
+            "lovelace": SimpleNamespace(dashboards={"main": mock_dash}),
+            "tendrilgrow": {},
+        },
+        config_entries=SimpleNamespace(
+            async_entries=Mock(return_value=[entry]),
+        ),
+    )
+
+    with patch.object(tg.er, "async_get", return_value=registry):
+        await _async_scan_lovelace_stage_clock_repairs(hass)
+
+    # 1. Config was NOT mutated
+    assert dashboard_config == original_config
+    # 2. async_save was NOT called
+    mock_dash.async_save.assert_not_called()
+    # 3. Repair issue was created naming retired and replacement entity
+    create_issue.assert_called_once()
+    kwargs = create_issue.call_args.kwargs
+    assert kwargs["translation_key"] == "retired_stage_clock"
+    assert (
+        kwargs["translation_placeholders"]["retired_entity"]
+        == "number.3x3_mothers_tent_week_in_stage"
+    )
+    assert (
+        kwargs["translation_placeholders"]["replacement_entity"]
+        == "sensor.3x3_mothers_tent_week_in_stage"
+    )
+
+    # Now simulate user fixing the card in the dashboard:
+    mock_dash.config = {
+        "views": [
+            {
+                "cards": [
+                    {
+                        "type": "entities",
+                        "entities": ["sensor.3x3_mothers_tent_week_in_stage"],
+                    }
+                ]
+            }
+        ]
+    }
+    with patch.object(tg.er, "async_get", return_value=registry):
+        await _async_scan_lovelace_stage_clock_repairs(hass)
+
+    # 4. Repair issue was dismissed
+    delete_issue.assert_called_once()
+    assert (
+        delete_issue.call_args[0][2]
+        == "retired_stage_clock_number.3x3_mothers_tent_week_in_stage"
+    )

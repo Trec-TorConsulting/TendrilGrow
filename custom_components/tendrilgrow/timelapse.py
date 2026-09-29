@@ -70,11 +70,7 @@ def resolve_timelapse_paths(
         directory = candidate
     else:
         directory = (
-            base_config
-            / "www"
-            / "tendrilgrow"
-            / slugify(grow_space_name)
-            / "timelapse"
+            base_config / "www" / "tendrilgrow" / slugify(grow_space_name) / "timelapse"
         )
 
     return TimelapsePaths(

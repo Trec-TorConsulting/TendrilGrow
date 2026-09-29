@@ -21,10 +21,12 @@ _DOCS_URL = "https://trec-torconsulting.github.io/TendrilGrow/troubleshooting/"
 ISSUE_AI_NO_CAMERA = "ai_no_camera"
 ISSUE_AI_NO_MODEL = "ai_no_model"
 ISSUE_TIMELAPSE_NOT_ALLOWLISTED = "timelapse_not_allowlisted"
+ISSUE_RETIRED_STAGE_CLOCK = "retired_stage_clock"
 _ALL_ISSUES = (
     ISSUE_AI_NO_CAMERA,
     ISSUE_AI_NO_MODEL,
     ISSUE_TIMELAPSE_NOT_ALLOWLISTED,
+    ISSUE_RETIRED_STAGE_CLOCK,
 )
 
 
@@ -113,3 +115,35 @@ def async_clear_timelapse_allowlist_issue(
         DOMAIN,
         _issue_id(entry.entry_id, ISSUE_TIMELAPSE_NOT_ALLOWLISTED),
     )
+
+
+@callback
+def async_raise_retired_stage_clock_issue(
+    hass: HomeAssistant,
+    issue_id: str,
+    retired_entity: str,
+    replacement_entity: str,
+) -> None:
+    """Create or update a repair issue for a retired stage-clock entity reference."""
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=ISSUE_RETIRED_STAGE_CLOCK,
+        translation_placeholders={
+            "retired_entity": retired_entity,
+            "replacement_entity": replacement_entity,
+        },
+        learn_more_url=_DOCS_URL,
+    )
+
+
+@callback
+def async_clear_retired_stage_clock_issue(
+    hass: HomeAssistant,
+    issue_id: str,
+) -> None:
+    """Clear a retired stage-clock repair issue."""
+    ir.async_delete_issue(hass, DOMAIN, issue_id)
