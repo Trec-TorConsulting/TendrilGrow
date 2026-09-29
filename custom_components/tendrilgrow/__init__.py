@@ -287,7 +287,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     try:
-        await async_prepare_local_water_source(hass, entry, grow_space)
+        await async_prepare_local_water_source(
+            hass,
+            entry,
+            grow_space,
+            runtime.auto_mapped_sensor_roles,
+        )
     except Exception:  # noqa: BLE001
         LOGGER.debug(
             "Local water source preparation failed for %s",

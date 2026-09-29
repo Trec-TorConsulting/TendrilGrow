@@ -360,7 +360,7 @@ def apply_local_water_automap(
     hass: HomeAssistant,
     entry: ConfigEntry,
     grow_space: Any,
-    auto_mapped_store: dict[str, str],
+    auto_mapped_store: dict[str, str] | None = None,
     *,
     device_id: str | None = None,
 ) -> dict[str, str]:
@@ -390,7 +390,8 @@ def apply_local_water_automap(
         if not entity_id:
             continue
         grow_space.sensor_mappings[role] = entity_id
-        auto_mapped_store[role] = entity_id
+        if auto_mapped_store is not None:
+            auto_mapped_store[role] = entity_id
         newly[role] = entity_id
         LOGGER.info(
             "Auto-mapped TendrilGrow role %s -> %s from local device %s (%s)",
@@ -406,7 +407,7 @@ async def async_prepare_local_water_source(
     hass: HomeAssistant,
     entry: ConfigEntry,
     grow_space: Any,
-    auto_mapped_store: dict[str, str],
+    auto_mapped_store: dict[str, str] | None = None,
 ) -> str:
     """Resolve/bind local device, auto-map water roles, return effective source."""
     await async_resolve_water_monitor_device(hass, entry, persist=True)

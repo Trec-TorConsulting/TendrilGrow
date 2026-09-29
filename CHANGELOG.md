@@ -6,7 +6,11 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
-## [0.3.9] - 2026-09-29
+## [0.3.10] - 2026-09-29
+
+### Fixed
+- Local water monitor auto-mapping: pass `runtime.auto_mapped_sensor_roles` during setup and allow `auto_mapped_store` to default gracefully, ensuring Tuya Local and LocalTuya water sensors (pH, EC, TDS, ORP, CF, water temperature) automatically bind to grow spaces on startup without throwing a silent `TypeError`.
+
 
 ### Fixed
 - AI health checks: guard scheduler against unconfigured providers, prevent overlapping concurrent runs with single-flight locks, add provider timeouts, and pass Gemini API keys securely via headers.

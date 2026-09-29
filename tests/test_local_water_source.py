@@ -30,6 +30,7 @@ from custom_components.tendrilgrow.const import (
 )
 from custom_components.tendrilgrow.local_water_source import (
     apply_local_water_automap,
+    async_prepare_local_water_source,
     classify_local_water_sensors,
     effective_water_source,
     find_unique_local_match,
@@ -421,3 +422,66 @@ async def test_sensor_setup_creates_tuya_sensors_for_cloud() -> None:
     assert metric_count == len(METRICS)
     assert any(type(entity).__name__ == "TuyaLastUpdatedSensor" for entity in entities)
     assert any(type(entity).__name__ == "TendrilGrowVpdSensor" for entity in entities)
+
+
+@pytest.mark.asyncio
+async def test_async_prepare_local_water_source_auto_maps_and_populates_store() -> None:
+    grow_space = SimpleNamespace(sensor_mappings={})
+    auto_mapped: dict[str, str] = {}
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        data={CONF_WATER_MONITOR_DEVICE_ID: "dev-1"},
+        options={},
+    )
+    devices = {"dev-1": _device("dev-1", LOCALTUYA_DOMAIN, "tuya-1")}
+    hass = SimpleNamespace()
+    with (
+        patch(
+            "custom_components.tendrilgrow.local_water_source.dr.async_get",
+            return_value=SimpleNamespace(devices=devices, async_get=devices.get),
+        ),
+        patch(
+            "custom_components.tendrilgrow.local_water_source.classify_local_water_sensors",
+            return_value={
+                SENSOR_ROLE_PH: "sensor.auto_ph",
+                SENSOR_ROLE_EC: "sensor.auto_ec",
+            },
+        ),
+    ):
+        source = await async_prepare_local_water_source(
+            hass, entry, grow_space, auto_mapped
+        )
+
+    assert source == WATER_SOURCE_LOCALTUYA
+    assert grow_space.sensor_mappings[SENSOR_ROLE_PH] == "sensor.auto_ph"
+    assert grow_space.sensor_mappings[SENSOR_ROLE_EC] == "sensor.auto_ec"
+    assert auto_mapped[SENSOR_ROLE_PH] == "sensor.auto_ph"
+    assert auto_mapped[SENSOR_ROLE_EC] == "sensor.auto_ec"
+
+
+@pytest.mark.asyncio
+async def test_async_prepare_local_water_source_works_without_store_param() -> None:
+    grow_space = SimpleNamespace(sensor_mappings={})
+    entry = SimpleNamespace(
+        entry_id="entry-1",
+        data={CONF_WATER_MONITOR_DEVICE_ID: "dev-1"},
+        options={},
+    )
+    devices = {"dev-1": _device("dev-1", TUYA_LOCAL_DOMAIN, "tuya-1")}
+    hass = SimpleNamespace()
+    with (
+        patch(
+            "custom_components.tendrilgrow.local_water_source.dr.async_get",
+            return_value=SimpleNamespace(devices=devices, async_get=devices.get),
+        ),
+        patch(
+            "custom_components.tendrilgrow.local_water_source.classify_local_water_sensors",
+            return_value={
+                SENSOR_ROLE_PH: "sensor.auto_ph",
+            },
+        ),
+    ):
+        source = await async_prepare_local_water_source(hass, entry, grow_space)
+
+    assert source == WATER_SOURCE_TUYA_LOCAL
+    assert grow_space.sensor_mappings[SENSOR_ROLE_PH] == "sensor.auto_ph"
