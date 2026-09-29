@@ -28,9 +28,9 @@ sensor from the instance when more than one water monitor exists.
 - **THEN** the integration does not auto-bind either device
 
 ### Requirement: Match stored Tuya device ids to a local HA device
-When a grow space has stored Tuya device ids and no bound local device, the
-integration SHALL attempt to bind a `localtuya` (then `tuya_local`) device whose
-registry identifiers contain one of those Tuya device ids. It MUST bind only when
+The integration SHALL attempt to bind a `localtuya` (then `tuya_local`) device whose
+registry identifiers contain one of the stored Tuya device ids when a grow space
+has stored Tuya device ids and no bound local device. It MUST bind only when
 the match is unique for that grow space.
 
 #### Scenario: Unique match auto-binds
