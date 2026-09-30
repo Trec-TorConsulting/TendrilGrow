@@ -13,19 +13,35 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.entity_registry import async_get as get_entity_registry
+from homeassistant.helpers.event import (
+    async_call_later,
+    async_track_state_change_event,
+    async_track_time_interval,
+)
 from homeassistant.util import dt as dt_util
 
 from .ai.health_checks import ai_dispatcher_signal, has_critical_alert
-from .const import DOMAIN, FLUSH_DUE_SUFFIX
+from .const import (
+    CTX_STAGE,
+    DOMAIN,
+    FLUSH_DUE_SUFFIX,
+    MOLD_RISK_SUFFIX,
+    SENSOR_ROLE_HUMIDITY,
+    SENSOR_ROLE_LEAF_TEMPERATURE,
+    SENSOR_ROLE_TEMPERATURE,
+)
 from .entity import grow_device_info
 from .flush import flush_dispatcher_signal, flush_status
+from .insights import compute_dew_point_margin, compute_mold_risk
 from .metric_bands import (
     METRIC_EC,
     METRIC_PH,
     METRIC_VPD,
     metric_band_dispatcher_signal,
 )
+from .models.grow import GrowSpace
+from .sensors.tuya import _to_float
 from .water_safety import water_safety_dispatcher_signal
 
 
@@ -45,6 +61,7 @@ async def async_setup_entry(
             MetricBandSummaryBinarySensor(hass, entry),
             FlowOkBinarySensor(hass, entry),
             LeakDetectedBinarySensor(hass, entry),
+            TendrilGrowMoldRiskBinarySensor(hass, entry),
         ]
     )
 
@@ -419,3 +436,134 @@ class LeakDetectedBinarySensor(BinarySensorEntity):
             "active_leaks": mon.active_leaks,
             "shutoff_triggered": mon.shutoff_triggered,
         }
+
+
+class TendrilGrowMoldRiskBinarySensor(BinarySensorEntity):
+    """Turns on when dew point margin is critical or humidity >=65% in flower/cure."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Mold Risk"
+    _attr_icon = "mdi:shield-alert"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_should_poll = False
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_{MOLD_RISK_SUFFIX}"
+        self._state_unsubs: list = []
+        self._timer_unsubs: list = []
+
+    @property
+    def device_info(self):
+        return grow_device_info(self._entry)
+
+    def _grow_space(self):
+        runtime = self.hass.data.get(DOMAIN, {}).get(self._entry.entry_id)
+        return getattr(runtime, "grow_space", None)
+
+    def _tracked_entity_ids(self) -> list[str]:
+        grow_space = self._grow_space()
+        if grow_space is None:
+            return []
+        registry = get_entity_registry(self.hass)
+        stage_eid = registry.async_get_entity_id(
+            "select", DOMAIN, f"{self._entry.entry_id}_{CTX_STAGE}"
+        )
+        candidates = [
+            grow_space.sensor_mappings.get(SENSOR_ROLE_TEMPERATURE),
+            grow_space.sensor_mappings.get(SENSOR_ROLE_HUMIDITY),
+            grow_space.sensor_mappings.get(SENSOR_ROLE_LEAF_TEMPERATURE),
+            stage_eid,
+        ]
+        return [eid for eid in candidates if eid]
+
+    def _eval(self) -> tuple[bool, list[str], str, float | None, float | None]:
+        grow_space = self._grow_space()
+        if grow_space is None:
+            return False, [], "Grow space unavailable", None, None
+        temp_id = grow_space.sensor_mappings.get(SENSOR_ROLE_TEMPERATURE)
+        hum_id = grow_space.sensor_mappings.get(SENSOR_ROLE_HUMIDITY)
+        leaf_id = grow_space.sensor_mappings.get(SENSOR_ROLE_LEAF_TEMPERATURE)
+
+        temp_state = self.hass.states.get(temp_id) if temp_id else None
+        hum_state = self.hass.states.get(hum_id) if hum_id else None
+        leaf_state = self.hass.states.get(leaf_id) if leaf_id else None
+
+        if temp_state is None or hum_state is None:
+            return False, [], "Missing temperature or humidity data", None, None
+
+        temp_c = GrowSpace.to_celsius(
+            _to_float(temp_state.state),
+            temp_state.attributes.get("unit_of_measurement"),
+        )
+        hum_pct = _to_float(hum_state.state)
+        leaf_c = (
+            GrowSpace.to_celsius(
+                _to_float(leaf_state.state),
+                leaf_state.attributes.get("unit_of_measurement"),
+            )
+            if leaf_state
+            else None
+        )
+
+        registry = get_entity_registry(self.hass)
+        stage_eid = registry.async_get_entity_id(
+            "select", DOMAIN, f"{self._entry.entry_id}_{CTX_STAGE}"
+        )
+        stage_state = self.hass.states.get(stage_eid) if stage_eid else None
+        stage = stage_state.state if stage_state else None
+
+        margin_c = compute_dew_point_margin(temp_c, hum_pct, leaf_temp_c=leaf_c)
+        is_risk, factors, rec = compute_mold_risk(margin_c, hum_pct, stage=stage)
+        return is_risk, factors, rec, margin_c, hum_pct
+
+    @property
+    def is_on(self) -> bool:
+        is_risk, _factors, _rec, _margin, _hum = self._eval()
+        return is_risk
+
+    @property
+    def extra_state_attributes(self):
+        _is_risk, factors, rec, margin, hum = self._eval()
+        return {
+            "risk_factors": factors,
+            "recommendation": rec,
+            "dew_point_margin_c": margin,
+            "humidity_pct": hum,
+        }
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._resubscribe()
+        self._timer_unsubs.append(
+            async_call_later(self.hass, 20, self._handle_delayed_resolve)
+        )
+
+    @callback
+    def _handle_delayed_resolve(self, _now) -> None:
+        self._resubscribe()
+
+    @callback
+    def _resubscribe(self) -> None:
+        for unsub in self._state_unsubs:
+            unsub()
+        self._state_unsubs = []
+        tracked = self._tracked_entity_ids()
+        if tracked:
+            self._state_unsubs.append(
+                async_track_state_change_event(
+                    self.hass, tracked, self._handle_source_change
+                )
+            )
+        self.async_write_ha_state()
+
+    @callback
+    def _handle_source_change(self, _event) -> None:
+        self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        for unsub in (*self._timer_unsubs, *self._state_unsubs):
+            unsub()
+        self._timer_unsubs = []
+        self._state_unsubs = []

@@ -6,8 +6,9 @@ be unit-tested directly and reused by sensors, the calendar, and repairs.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from math import exp, log
+from typing import Any
 
 # Magnus-Tetens coefficients (over water), matching the VPD formula's basis.
 _MAGNUS_A = 17.27
@@ -36,6 +37,267 @@ def compute_vapor_pressure_kpa(temperature_c: float | None) -> float | None:
     if temperature_c is None:
         return None
     return 0.6108 * exp((_MAGNUS_A * temperature_c) / (temperature_c + _MAGNUS_B))
+
+
+def compute_leaf_vpd_kpa(
+    air_temp_c: float | None,
+    humidity_pct: float | None,
+    leaf_temp_c: float | None = None,
+    offset_f: float | None = None,
+) -> float | None:
+    """Compute true leaf VPD (kPa) using measured or offset leaf temperature.
+
+    Leaf VPD = e_s(T_leaf) - e_a(T_air, RH).
+    If leaf_temp_c is not provided and offset_f is provided,
+    T_leaf_c = air_temp_c + (offset_f * 5.0 / 9.0).
+    """
+    if air_temp_c is None or humidity_pct is None:
+        return None
+    if humidity_pct <= 0 or humidity_pct > 100:
+        return None
+
+    if leaf_temp_c is None and offset_f is not None:
+        effective_leaf_c = air_temp_c + (offset_f * 5.0 / 9.0)
+    elif leaf_temp_c is not None:
+        effective_leaf_c = leaf_temp_c
+    else:
+        effective_leaf_c = air_temp_c
+
+    e_s_leaf = compute_vapor_pressure_kpa(effective_leaf_c)
+    e_s_air = compute_vapor_pressure_kpa(air_temp_c)
+    if e_s_leaf is None or e_s_air is None:
+        return None
+
+    e_a = e_s_air * (humidity_pct / 100.0)
+    vpd = e_s_leaf - e_a
+    return round(max(0.0, vpd), 2)
+
+
+def compute_dew_point_margin(
+    air_temp_c: float | None,
+    humidity_pct: float | None,
+    leaf_temp_c: float | None = None,
+) -> float | None:
+    """Calculate dew point margin in Celsius (T_surface - T_dew).
+
+    Uses leaf temperature when available, otherwise air temperature.
+    """
+    dew_point_c = compute_dew_point_c(air_temp_c, humidity_pct)
+    if dew_point_c is None:
+        return None
+    target_temp = leaf_temp_c if leaf_temp_c is not None else air_temp_c
+    if target_temp is None:
+        return None
+    return round(target_temp - dew_point_c, 1)
+
+
+def compute_mold_risk(
+    margin_c: float | None,
+    humidity_pct: float | None,
+    stage: str | None = None,
+) -> tuple[bool, list[str], str]:
+    """Evaluate Botrytis / powdery mildew risk based on margin, RH, and stage.
+
+    Returns (is_risk, risk_factors, recommendation).
+    """
+    if margin_c is None and humidity_pct is None:
+        return False, [], "No climate data available."
+
+    factors: list[str] = []
+    # Condensation boundary threshold (< 2.0 C / 3.6 F)
+    if margin_c is not None and margin_c <= 2.0:
+        factors.append("dew_point_margin_critical")
+
+    # High humidity in flowering / drying / curing
+    flower_or_cure = (stage or "").lower() in (
+        "mid_flower",
+        "late_flower",
+        "flush",
+        "dry",
+        "cure",
+    )
+    if humidity_pct is not None:
+        if flower_or_cure and humidity_pct >= 65.0:
+            factors.append("high_humidity_in_vulnerable_stage")
+        elif humidity_pct >= 75.0:
+            factors.append("excessive_relative_humidity")
+
+    if factors:
+        rec = (
+            "High mold / Botrytis risk! Increase airflow and dehumidification to "
+            "widen dew point margin."
+        )
+        return True, factors, rec
+    return False, [], "Climate within safe mold-prevention margins."
+
+
+def diagnose_reservoir_drift(
+    samples: list[tuple[datetime, float, float, float | None]],
+    current_ec: float | None,
+    current_ph: float | None,
+    current_water: float | None = None,
+) -> dict[str, Any]:
+    """Diagnose RDWC reservoir dynamics from rolling EC, pH, and water trend.
+
+    Samples are (timestamp, ec, ph, water_level).
+    """
+    from .const import DRIFT_DILUTE, DRIFT_EQUILIBRIUM, DRIFT_FEED, DRIFT_ROOT_CHECK
+
+    result: dict[str, Any] = {
+        "status": DRIFT_EQUILIBRIUM,
+        "ec_delta_24h": None,
+        "ph_delta_24h": None,
+        "water_delta_24h": None,
+        "recommendation": "Nutrient solution is in equilibrium.",
+    }
+
+    if current_ph is not None and current_ph < 5.2:
+        result["status"] = DRIFT_ROOT_CHECK
+        result["recommendation"] = (
+            f"Critical acid plunge detected (pH {current_ph:.2f} < 5.2). "
+            "Inspect root zone immediately for Pythium/root rot, slime, and "
+            "verify oxygenation."
+        )
+        return result
+
+    if current_ec is None or current_ph is None or not samples:
+        return result
+
+    # Find oldest sample within the last 12-24 hours
+    now = samples[-1][0] if samples else datetime.now()
+    baseline_sample = None
+    for ts, ec, ph, wl in samples:
+        age_hours = (now - ts).total_seconds() / 3600.0
+        if age_hours >= 6.0:  # At least 6h of trend
+            baseline_sample = (ts, ec, ph, wl)
+            break
+
+    if baseline_sample is None:
+        result["recommendation"] = "Collecting baseline data for drift analysis."
+        return result
+
+    _bts, base_ec, base_ph, base_wl = baseline_sample
+    ec_delta = round(current_ec - base_ec, 2)
+    ph_delta = round(current_ph - base_ph, 2)
+    water_delta = (
+        round(current_water - base_wl, 2)
+        if current_water is not None and base_wl is not None
+        else None
+    )
+
+    result["ec_delta_24h"] = ec_delta
+    result["ph_delta_24h"] = ph_delta
+    result["water_delta_24h"] = water_delta
+
+    # Pathogen root plunge check: pH drop >= 0.4 while EC is steady or rising
+    if ph_delta <= -0.40 and ec_delta >= -0.05:
+        result["status"] = DRIFT_ROOT_CHECK
+        result["recommendation"] = (
+            f"Abnormal pH drop ({ph_delta:+.2f}) with steady/rising EC "
+            f"({ec_delta:+.2f}). Possible root pathogen activity or hypoxia."
+        )
+    # Transpiration > feeding: salts concentrating (EC rising, pH falling)
+    elif (ec_delta >= 0.10 and ph_delta <= -0.15) or ec_delta >= 0.15:
+        result["status"] = DRIFT_DILUTE
+        result["recommendation"] = (
+            f"Transpiration is outstripping nutrient uptake (EC {ec_delta:+.2f}, "
+            f"pH {ph_delta:+.2f}). Dilute with fresh pH-balanced top-off water."
+        )
+    # Feeding > transpiration: plants hungry (EC falling, pH rising)
+    elif (ec_delta <= -0.10 and ph_delta >= 0.15) or ec_delta <= -0.15:
+        result["status"] = DRIFT_FEED
+        result["recommendation"] = (
+            f"Heavy nutrient uptake observed (EC {ec_delta:+.2f}, "
+            f"pH {ph_delta:+.2f}). Top off reservoir with nutrient solution."
+        )
+    else:
+        result["status"] = DRIFT_EQUILIBRIUM
+        result["recommendation"] = "Nutrient and water consumption are balanced."
+
+    return result
+
+
+def compute_transpiration_rate(
+    samples: list[tuple[datetime, float]],
+) -> dict[str, Any]:
+    """Compute daily transpiration rate from water level time-series.
+
+    Returns dict with 'rate_daily', 'status' ('normal', 'stalled', or 'unknown').
+    """
+    if len(samples) < 2:
+        return {"rate_daily": None, "status": "unknown"}
+
+    t_start, w_start = samples[0]
+    t_end, w_end = samples[-1]
+    duration_days = (t_end - t_start).total_seconds() / 86400.0
+
+    if duration_days < 0.25:  # Need at least 6 hours
+        return {"rate_daily": None, "status": "unknown"}
+
+    delta_water = w_start - w_end  # Water consumed
+    rate_daily = round(delta_water / duration_days, 2)
+
+    status = "normal"
+    if duration_days >= 0.75 and delta_water <= 0.05:
+        status = "stalled"
+
+    return {"rate_daily": rate_daily, "status": status}
+
+
+def compute_days_since_flip(
+    stage: str | None,
+    stage_started: object | None,
+    now: datetime,
+    flip_date: object | None = None,
+) -> int | None:
+    """Calculate elapsed days since the 12/12 photoperiod flip.
+
+    Returns None for non-flowering stages (seedling, mother, clone, vegetative).
+    """
+    stage_str = (stage or "").strip().lower()
+    if stage_str not in ("early_flower", "mid_flower", "late_flower", "flush"):
+        return None
+
+    started = _parse_iso_date(flip_date) or _parse_iso_date(stage_started)
+    if started is None:
+        return None
+    return max(0, (now.date() - started).days)
+
+
+def compute_photoperiod_hours(
+    lights_on: str | time | None,
+    lights_off: str | time | None,
+) -> float | None:
+    """Calculate photoperiod hours from lights on and lights off times.
+
+    Supports crossover past midnight (e.g. 18:00 on, 12:00 off -> 18.0 hours).
+    """
+    from datetime import time as dt_time
+
+    def _to_minutes(val: str | time | None) -> int | None:
+        if val is None:
+            return None
+        if isinstance(val, dt_time):
+            return val.hour * 60 + val.minute
+        if isinstance(val, str) and ":" in val:
+            parts = val.split(":")
+            try:
+                return int(parts[0]) * 60 + int(parts[1])
+            except (ValueError, IndexError):
+                return None
+        return None
+
+    on_min = _to_minutes(lights_on)
+    off_min = _to_minutes(lights_off)
+    if on_min is None or off_min is None:
+        return None
+
+    if off_min >= on_min:
+        diff_min = off_min - on_min
+    else:
+        diff_min = (1440 - on_min) + off_min
+
+    return round(diff_min / 60.0, 1)
 
 
 def compute_dli(

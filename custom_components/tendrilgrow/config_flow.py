@@ -30,6 +30,7 @@ from .const import (
     CONF_GROW_SIZE,
     CONF_GROW_SPACE_NAME,
     CONF_GROW_TYPE,
+    CONF_LEAF_TEMP_OFFSET,
     CONF_LEAK_DEBOUNCE_SECONDS,
     CONF_LEAK_SHUTOFF_ENABLED,
     CONF_NO_FLOW_GRACE_SECONDS,
@@ -52,6 +53,7 @@ from .const import (
     DEFAULT_AI_HEALTH_INTERVAL_HOURS,
     DEFAULT_AI_RESULT_RETENTION_DAYS,
     DEFAULT_AI_SEVERE_THRESHOLD,
+    DEFAULT_LEAF_TEMP_OFFSET,
     DEFAULT_LEAK_DEBOUNCE_SECONDS,
     DEFAULT_LEAK_SHUTOFF_ENABLED,
     DEFAULT_NO_FLOW_GRACE_SECONDS,
@@ -774,6 +776,15 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
                             ),
                         )
                     ),
+                    CONF_LEAF_TEMP_OFFSET: float(
+                        user_input.get(
+                            CONF_LEAF_TEMP_OFFSET,
+                            current.get(
+                                CONF_LEAF_TEMP_OFFSET,
+                                DEFAULT_LEAF_TEMP_OFFSET,
+                            ),
+                        )
+                    ),
                 },
             )
 
@@ -969,6 +980,18 @@ class TendrilGrowOptionsFlow(config_entries.OptionsFlow):
         ] = selector.NumberSelector(
             selector.NumberSelectorConfig(
                 min=0, max=60, step=1, mode=selector.NumberSelectorMode.BOX
+            )
+        )
+        fields[
+            vol.Optional(
+                CONF_LEAF_TEMP_OFFSET,
+                default=float(
+                    current.get(CONF_LEAF_TEMP_OFFSET, DEFAULT_LEAF_TEMP_OFFSET)
+                ),
+            )
+        ] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=-10.0, max=5.0, step=0.5, mode=selector.NumberSelectorMode.BOX
             )
         )
 

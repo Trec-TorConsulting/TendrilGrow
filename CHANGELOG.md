@@ -6,7 +6,17 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
-## [0.3.12] - 2026-09-30
+## [0.3.13] - 2026-09-30
+
+### Added
+- Cultivation Intelligence suite (`add-cultivation-intelligence`):
+  - **RDWC EC vs. pH Drift Diagnostic Engine**: Analyzes rolling 12h–24h trends in EC and pH; classifies conditions into `equilibrium`, `dilute_recommended` (transpiration outstripping uptake), `feed_recommended` (hungry plants), and `root_health_check` (acute acid plunge < 5.2 or sudden drops indicating anaerobic pathogens/Pythium). Exposes `sensor.<grow>_reservoir_drift_diagnosis`.
+  - **Leaf Surface Temperature & True Leaf VPD**: Computes physiological leaf VPD using mapped infrared leaf temperature probes (`SENSOR_ROLE_LEAF_TEMPERATURE`) or configurable LED offset (`CONF_LEAF_TEMP_OFFSET`, default -3.0°F / -1.67°C). Exposes `sensor.<grow>_leaf_vpd`.
+  - **Powdery Mildew & Botrytis Risk Index**: Derives dew point margin ($T_{leaf/air} - T_{dew}$); flags `binary_sensor.<grow>_mold_risk` on critical condensation margins (< 2.0°C / 3.6°F) or elevated relative humidity (≥ 65%) during vulnerable flowering, drying, and curing stages. Exposes `sensor.<grow>_dew_point_margin`.
+  - **Photoperiod & 12/12 Flip Tracking**: Exposes dynamic `sensor.<grow>_photoperiod_hours` and automatically tracks `sensor.<grow>_days_since_flip` for flowering stages.
+  - **Reservoir Water Level & Daily Transpiration Rate**: Adds `SENSOR_ROLE_WATER_LEVEL`, calculates `sensor.<grow>_transpiration_rate_daily`, and flags stalled water consumption as an early warning for root rot or hypoxia.
+  - **60/60 Harvest Drying & Curing Phase**: Automatically seeds target VPD bands (0.65–0.78 kPa) adhering to the 60°F ± 2°F and 60% RH ± 3% gold standard for terpene preservation in `dry` and `cure` stages.
+
 
 ### Fixed
 - Config flow entity mapping: apply `_optional_entity_field` to initial setup flow (`async_step_entity_mapping`) so multi-leak selection and flow domain filters are consistent between initial setup and options flow.

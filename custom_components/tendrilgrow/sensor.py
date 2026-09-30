@@ -28,9 +28,14 @@ from .sensors.ai import (
     _compose_report,
 )
 from .sensors.environment import (
+    TendrilGrowDewPointMarginSensor,
     TendrilGrowDewPointSensor,
     TendrilGrowDliSensor,
     TendrilGrowEnergyCostSensor,
+    TendrilGrowLeafVpdSensor,
+    TendrilGrowPhotoperiodSensor,
+    TendrilGrowReservoirDriftSensor,
+    TendrilGrowTranspirationRateSensor,
     TendrilGrowVpdSensor,
     _DerivedGrowSensor,
 )
@@ -47,6 +52,7 @@ from .sensors.pump_power import (
     _resolve_pump_power_source,
 )
 from .sensors.stage import (
+    TendrilGrowDaysSinceFlipSensor,
     TendrilGrowStageProjectionSensor,
     TendrilGrowWeekInStageSensor,
     compute_stage_projection,
@@ -81,16 +87,21 @@ __all__ = [
     "FlushDaysUntilSensor",
     "FlushLastSensor",
     "FlushNextDueSensor",
-    "METRICS",
+    "TendrilGrowDaysSinceFlipSensor",
+    "TendrilGrowDewPointMarginSensor",
     "TendrilGrowDewPointSensor",
     "TendrilGrowDliSensor",
     "TendrilGrowEnergyCostSensor",
+    "TendrilGrowLeafVpdSensor",
     "TendrilGrowMetricDescription",
+    "TendrilGrowPhotoperiodSensor",
     "TendrilGrowPumpPowerSensor",
+    "TendrilGrowReservoirDriftSensor",
     "TendrilGrowStageProjectionSensor",
     "TendrilGrowTimelapseFramesSensor",
     "TendrilGrowTimelapseLastFrameSensor",
     "TendrilGrowTotalPumpPowerSensor",
+    "TendrilGrowTranspirationRateSensor",
     "TendrilGrowVpdSensor",
     "TendrilGrowWeekInStageSensor",
     "TimelapseBaseSensor",
@@ -174,11 +185,17 @@ async def async_setup_entry(
     # Lifecycle stage clock and projection (independent of Tuya).
     entities.append(TendrilGrowWeekInStageSensor(hass, entry))
     entities.append(TendrilGrowStageProjectionSensor(hass, entry))
+    entities.append(TendrilGrowDaysSinceFlipSensor(hass, entry))
 
     # Derived climate/light/energy insights (independent of Tuya).
     entities.extend(
         [
             TendrilGrowDewPointSensor(hass, entry),
+            TendrilGrowDewPointMarginSensor(hass, entry),
+            TendrilGrowLeafVpdSensor(hass, entry),
+            TendrilGrowPhotoperiodSensor(hass, entry),
+            TendrilGrowReservoirDriftSensor(hass, entry),
+            TendrilGrowTranspirationRateSensor(hass, entry),
             TendrilGrowDliSensor(hass, entry),
             TendrilGrowEnergyCostSensor(hass, entry),
             TendrilGrowTimelapseFramesSensor(hass, entry),

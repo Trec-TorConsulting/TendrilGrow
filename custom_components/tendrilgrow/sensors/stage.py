@@ -23,12 +23,13 @@ from ..const import (
     CTX_STAGE,
     CTX_STAGE_STARTED,
     CTX_WEEK_IN_STAGE,
+    DAYS_SINCE_FLIP_SUFFIX,
     DOMAIN,
     STAGE_DURATIONS_DAYS,
     STAGE_PIPELINE,
 )
 from ..entity import assign_prefixed_entity_id, grow_device_info
-from ..insights import days_in_stage, weeks_in_stage
+from ..insights import compute_days_since_flip, days_in_stage, weeks_in_stage
 
 
 def resolve_stage_clock(
@@ -278,6 +279,91 @@ class TendrilGrowStageProjectionSensor(SensorEntity):
             self.hass, _refresh, timedelta(minutes=30)
         )
         # The sensor platform loads before select/date; retry once they exist.
+        async_call_later(self.hass, 15, _refresh)
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_state is not None:
+            self._unsub_state()
+            self._unsub_state = None
+        if self._unsub_timer is not None:
+            self._unsub_timer()
+            self._unsub_timer = None
+
+
+class TendrilGrowDaysSinceFlipSensor(SensorEntity):
+    """Elapsed days since the 12/12 photoperiod flip (flowering transition)."""
+
+    _attr_should_poll = False
+    _attr_has_entity_name = True
+    _attr_name = "Days Since Flip"
+    _attr_native_unit_of_measurement = UnitOfTime.DAYS
+    _attr_icon = "mdi:flower"
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._attr_unique_id = f"{entry.entry_id}_{DAYS_SINCE_FLIP_SUFFIX}"
+        self._attr_device_info = grow_device_info(entry)
+        self._unsub_state = None
+        self._unsub_timer = None
+
+    def _source_entity_ids(self) -> list[str]:
+        registry = get_entity_registry(self.hass)
+        ids = []
+        for domain, suffix in (
+            ("select", CTX_STAGE),
+            ("date", CTX_STAGE_STARTED),
+        ):
+            eid = registry.async_get_entity_id(
+                domain, DOMAIN, f"{self._entry.entry_id}_{suffix}"
+            )
+            if eid:
+                ids.append(eid)
+        return ids
+
+    @property
+    def available(self) -> bool:
+        return self._entry.entry_id in self.hass.data.get(DOMAIN, {})
+
+    @property
+    def native_value(self):
+        stage, started, _week = resolve_stage_clock(self.hass, self._entry.entry_id)
+        return compute_days_since_flip(stage, started, dt_util.now())
+
+    @property
+    def extra_state_attributes(self):
+        stage, started, _week = resolve_stage_clock(self.hass, self._entry.entry_id)
+        return {
+            "current_stage": stage,
+            "stage_started": started,
+            "in_flower": (stage or "").lower()
+            in ("early_flower", "mid_flower", "late_flower", "flush"),
+        }
+
+    @callback
+    def _subscribe(self) -> None:
+        if self._unsub_state is not None:
+            return
+        source_ids = self._source_entity_ids()
+        if source_ids:
+            self._unsub_state = async_track_state_change_event(
+                self.hass, source_ids, self._async_source_changed
+            )
+
+    @callback
+    def _async_source_changed(self, _event) -> None:
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        @callback
+        def _refresh(*_args) -> None:
+            self._subscribe()
+            self.async_write_ha_state()
+
+        self._subscribe()
+        self._unsub_timer = async_track_time_interval(
+            self.hass, _refresh, timedelta(hours=1)
+        )
         async_call_later(self.hass, 15, _refresh)
 
     async def async_will_remove_from_hass(self) -> None:

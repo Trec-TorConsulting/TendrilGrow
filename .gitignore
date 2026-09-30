@@ -13,3 +13,5 @@ site/
 .env.local
 .ha_validation.env
 
+uv.lock
+

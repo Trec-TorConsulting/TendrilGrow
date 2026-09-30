@@ -122,3 +122,18 @@ async def test_editing_target_does_not_touch_config_entry() -> None:
     hass.config_entries.async_update_entry.assert_not_called()
     assert entry.data["water_monitor_device_id"] == "dev-1"
     assert entry.data["tuya_access_secret"] == "secret"
+
+
+def test_dry_and_cure_seed_60_60_vpd_targets() -> None:
+    from custom_components.tendrilgrow.const import (
+        CTX_TARGET_VPD_HIGH,
+        CTX_TARGET_VPD_LOW,
+    )
+
+    vpd_low_spec = next(s for s in TARGET_BAND_SPECS if s.key == CTX_TARGET_VPD_LOW)
+    vpd_high_spec = next(s for s in TARGET_BAND_SPECS if s.key == CTX_TARGET_VPD_HIGH)
+
+    assert seed_value_for_band("dry", vpd_low_spec) == 0.65
+    assert seed_value_for_band("dry", vpd_high_spec) == 0.78
+    assert seed_value_for_band("cure", vpd_low_spec) == 0.65
+    assert seed_value_for_band("cure", vpd_high_spec) == 0.78

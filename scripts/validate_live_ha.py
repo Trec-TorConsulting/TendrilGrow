@@ -63,6 +63,17 @@ WATER_SAFETY_REPORT = (
     ("leak_detected", "leak detected"),
 )
 
+# Cultivation intelligence entities (change: add-cultivation-intelligence).
+CULTIVATION_INTELLIGENCE_REPORT = (
+    ("reservoir_drift_diagnosis", "drift diagnosis"),
+    ("leaf_vpd", "leaf VPD"),
+    ("dew_point_margin", "dew point margin"),
+    ("mold_risk", "mold risk"),
+    ("photoperiod_hours", "photoperiod hours"),
+    ("days_since_flip", "days since flip"),
+    ("transpiration_rate_daily", "transpiration rate"),
+)
+
 # Plausible ranges for sanity-checking live readings.
 PLAUSIBLE: dict[str, tuple[float, float]] = {
     "ph": (3.5, 8.5),
@@ -448,6 +459,24 @@ def validate_space(
             f"leak_detected={ws_diag.get('leak_detected')} "
             f"shutoff_enabled={ws_diag.get('shutoff_enabled')}"
         )
+
+    ci_by_suffix: dict[str, str] = {}
+    for ent in ents:
+        uid = str(ent.get("unique_id", ""))
+        for suffix, _label in CULTIVATION_INTELLIGENCE_REPORT:
+            if uid.endswith(f"_{suffix}"):
+                ci_by_suffix[suffix] = ent.get("entity_id")
+                break
+    if ci_by_suffix:
+        for suffix, label in CULTIVATION_INTELLIGENCE_REPORT:
+            entity_id = ci_by_suffix.get(suffix)
+            if not entity_id:
+                continue
+            st = states.get(entity_id)
+            val = st.get("state") if st else "no state"
+            uom = st.get("attributes", {}).get("unit_of_measurement", "") if st else ""
+            unit_str = f" {uom}" if uom else ""
+            r.ok(f"cultivation intelligence {label} -> {entity_id} = {val}{unit_str}")
 
     reg_suffixes = {
         suffix

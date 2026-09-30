@@ -35,6 +35,8 @@
           "air_pump_power": "Air pump power sensor (optional)",
           "water_flow": "Circulation flow sensor (optional rate or flow switch)",
           "leak": "Leak detection sensors (optional, select one or more)",
+          "leaf_temperature": "Canopy leaf temperature sensor (infrared IR probe, optional)",
+          "water_level": "Reservoir water level sensor (optional volume, distance, or level probe)",
           "leak_shutoff_enabled": "Automatically shut off RDWC pump on confirmed leak",
           "no_flow_grace_seconds": "No-flow grace period (seconds)",
           "leak_debounce_seconds": "Leak detection debounce (seconds)",
@@ -106,9 +108,12 @@
           "air_pump_power": "Air pump power sensor (optional)",
           "water_flow": "Circulation flow sensor (optional rate or flow switch)",
           "leak": "Leak detection sensors (optional, select one or more)",
+          "leaf_temperature": "Canopy leaf temperature sensor (infrared IR probe, optional)",
+          "water_level": "Reservoir water level sensor (optional volume, distance, or level probe)",
           "leak_shutoff_enabled": "Automatically shut off RDWC pump on confirmed leak",
           "no_flow_grace_seconds": "No-flow grace period (seconds)",
           "leak_debounce_seconds": "Leak detection debounce (seconds)",
+          "leaf_temp_offset": "LED leaf temperature offset (°F below ambient, default -3.0)",
           "water_monitor_device_id": "Local water monitor (LocalTuya or Tuya Local)",
           "tuya_enabled": "Enable Tuya cloud polling (fallback only)",
           "tuya_access_id": "Tuya access ID (cloud fallback)",
@@ -186,6 +191,9 @@
       },
       "leak_detected": {
         "name": "Leak Detected"
+      },
+      "mold_risk": {
+        "name": "Mold Risk"
       }
     },
     "button": {
@@ -201,6 +209,30 @@
           "no_flow": "No Flow",
           "leak": "Leak Detected"
         }
+      },
+      "reservoir_drift_diagnosis": {
+        "name": "Reservoir Drift Diagnosis",
+        "state": {
+          "equilibrium": "Equilibrium",
+          "dilute_recommended": "Dilute Recommended",
+          "feed_recommended": "Feed Recommended",
+          "root_health_check": "Root Health Check"
+        }
+      },
+      "leaf_vpd": {
+        "name": "Leaf VPD"
+      },
+      "dew_point_margin": {
+        "name": "Dew Point Margin"
+      },
+      "photoperiod_hours": {
+        "name": "Photoperiod Hours"
+      },
+      "days_since_flip": {
+        "name": "Days Since Flip"
+      },
+      "transpiration_rate_daily": {
+        "name": "Daily Transpiration Rate"
       },
       "timelapse_frames": {
         "name": "Timelapse Frames"

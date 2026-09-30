@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -10,7 +11,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_registry import async_get as get_entity_registry
@@ -21,19 +22,38 @@ from homeassistant.helpers.event import (
 from homeassistant.util import dt as dt_util
 
 from ..const import (
+    CONF_LEAF_TEMP_OFFSET,
+    CTX_LIGHTS_OFF_TIME,
     CTX_LIGHTS_ON_HOURS,
+    CTX_LIGHTS_ON_TIME,
     CTX_PRICE_PER_KWH,
+    DEFAULT_LEAF_TEMP_OFFSET,
+    DEW_POINT_MARGIN_SUFFIX,
     DOMAIN,
+    DRIFT_DIAGNOSIS_SUFFIX,
+    LEAF_VPD_SUFFIX,
+    PHOTOPERIOD_HOURS_SUFFIX,
     PUMP_CONTROL_ROLES,
+    SENSOR_ROLE_EC,
     SENSOR_ROLE_HUMIDITY,
+    SENSOR_ROLE_LEAF_TEMPERATURE,
     SENSOR_ROLE_LIGHT,
+    SENSOR_ROLE_PH,
+    SENSOR_ROLE_TDS,
     SENSOR_ROLE_TEMPERATURE,
+    SENSOR_ROLE_WATER_LEVEL,
+    TRANSPIRATION_RATE_SUFFIX,
 )
 from ..entity import grow_device_info
 from ..entry_config import entry_merged_config
 from ..insights import (
     compute_dew_point_c,
+    compute_dew_point_margin,
     compute_dli,
+    compute_leaf_vpd_kpa,
+    compute_photoperiod_hours,
+    compute_transpiration_rate,
+    diagnose_reservoir_drift,
     estimate_daily_cost,
 )
 from ..models.grow import GrowSpace
@@ -371,3 +391,349 @@ class TendrilGrowEnergyCostSensor(_DerivedGrowSensor):
         result = dict(attrs)
         result["energy_kwh_per_day"] = round(energy, 3) if energy is not None else None
         return result
+
+
+class TendrilGrowLeafVpdSensor(_DerivedGrowSensor):
+    """True Leaf VPD derived from measured leaf temperature or configured offset."""
+
+    _attr_native_unit_of_measurement = "kPa"
+    _attr_suggested_display_precision = 2
+    _attr_icon = "mdi:leaf"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(hass, entry, LEAF_VPD_SUFFIX, "Leaf VPD")
+
+    def _sensor_ids(self) -> tuple[str | None, str | None, str | None]:
+        grow_space = self._grow_space()
+        if grow_space is None:
+            return None, None, None
+        return (
+            grow_space.sensor_mappings.get(SENSOR_ROLE_TEMPERATURE),
+            grow_space.sensor_mappings.get(SENSOR_ROLE_HUMIDITY),
+            grow_space.sensor_mappings.get(SENSOR_ROLE_LEAF_TEMPERATURE),
+        )
+
+    def _source_entity_ids(self) -> list[str]:
+        return [eid for eid in self._sensor_ids() if eid]
+
+    @property
+    def native_value(self):
+        temp_id, hum_id, leaf_id = self._sensor_ids()
+        temp_state = self.hass.states.get(temp_id) if temp_id else None
+        hum_state = self.hass.states.get(hum_id) if hum_id else None
+        leaf_state = self.hass.states.get(leaf_id) if leaf_id else None
+
+        if temp_state is None or hum_state is None:
+            return None
+
+        temp_c = GrowSpace.to_celsius(
+            _to_float(temp_state.state),
+            temp_state.attributes.get("unit_of_measurement"),
+        )
+        hum_pct = _to_float(hum_state.state)
+        leaf_c = (
+            GrowSpace.to_celsius(
+                _to_float(leaf_state.state),
+                leaf_state.attributes.get("unit_of_measurement"),
+            )
+            if leaf_state
+            else None
+        )
+
+        offset_f = entry_merged_config(self._entry).get(
+            CONF_LEAF_TEMP_OFFSET, DEFAULT_LEAF_TEMP_OFFSET
+        )
+        try:
+            offset_f = float(offset_f)
+        except (ValueError, TypeError):
+            offset_f = DEFAULT_LEAF_TEMP_OFFSET
+
+        return compute_leaf_vpd_kpa(
+            temp_c, hum_pct, leaf_temp_c=leaf_c, offset_f=offset_f
+        )
+
+    @property
+    def extra_state_attributes(self):
+        temp_id, hum_id, leaf_id = self._sensor_ids()
+        leaf_state = self.hass.states.get(leaf_id) if leaf_id else None
+        offset_f = entry_merged_config(self._entry).get(
+            CONF_LEAF_TEMP_OFFSET, DEFAULT_LEAF_TEMP_OFFSET
+        )
+        return {
+            "air_temperature_entity": temp_id,
+            "air_humidity_entity": hum_id,
+            "leaf_temperature_entity": leaf_id,
+            "leaf_temperature_source": "sensor" if leaf_state else "offset",
+            "leaf_temp_offset_applied": offset_f if not leaf_state else None,
+        }
+
+
+class TendrilGrowDewPointMarginSensor(_DerivedGrowSensor):
+    """Dew point margin (T_surface - T_dew) to monitor condensation risk."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_suggested_display_precision = 1
+    _attr_icon = "mdi:thermometer-chevron-up"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(hass, entry, DEW_POINT_MARGIN_SUFFIX, "Dew Point Margin")
+
+    def _sensor_ids(self) -> tuple[str | None, str | None, str | None]:
+        grow_space = self._grow_space()
+        if grow_space is None:
+            return None, None, None
+        return (
+            grow_space.sensor_mappings.get(SENSOR_ROLE_TEMPERATURE),
+            grow_space.sensor_mappings.get(SENSOR_ROLE_HUMIDITY),
+            grow_space.sensor_mappings.get(SENSOR_ROLE_LEAF_TEMPERATURE),
+        )
+
+    def _source_entity_ids(self) -> list[str]:
+        return [eid for eid in self._sensor_ids() if eid]
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        temp_id, _hum_id, _leaf_id = self._sensor_ids()
+        state = self.hass.states.get(temp_id) if temp_id else None
+        unit = (state.attributes.get("unit_of_measurement") if state else "") or ""
+        if "f" in unit.lower():
+            return UnitOfTemperature.FAHRENHEIT
+        return UnitOfTemperature.CELSIUS
+
+    @property
+    def native_value(self):
+        temp_id, hum_id, leaf_id = self._sensor_ids()
+        temp_state = self.hass.states.get(temp_id) if temp_id else None
+        hum_state = self.hass.states.get(hum_id) if hum_id else None
+        leaf_state = self.hass.states.get(leaf_id) if leaf_id else None
+
+        if temp_state is None or hum_state is None:
+            return None
+
+        temp_c = GrowSpace.to_celsius(
+            _to_float(temp_state.state),
+            temp_state.attributes.get("unit_of_measurement"),
+        )
+        hum_pct = _to_float(hum_state.state)
+        leaf_c = (
+            GrowSpace.to_celsius(
+                _to_float(leaf_state.state),
+                leaf_state.attributes.get("unit_of_measurement"),
+            )
+            if leaf_state
+            else None
+        )
+
+        margin_c = compute_dew_point_margin(temp_c, hum_pct, leaf_temp_c=leaf_c)
+        if margin_c is None:
+            return None
+
+        if self.native_unit_of_measurement == UnitOfTemperature.FAHRENHEIT:
+            return round(margin_c * 1.8, 1)
+        return margin_c
+
+    @property
+    def extra_state_attributes(self):
+        temp_id, hum_id, leaf_id = self._sensor_ids()
+        temp_state = self.hass.states.get(temp_id) if temp_id else None
+        hum_state = self.hass.states.get(hum_id) if hum_id else None
+        temp_c = (
+            GrowSpace.to_celsius(
+                _to_float(temp_state.state),
+                temp_state.attributes.get("unit_of_measurement"),
+            )
+            if temp_state
+            else None
+        )
+        hum_pct = _to_float(hum_state.state) if hum_state else None
+        dew_point_c = compute_dew_point_c(temp_c, hum_pct)
+        return {
+            "dew_point_c": dew_point_c,
+            "surface_temperature_source": "leaf" if leaf_id else "air",
+        }
+
+
+class TendrilGrowReservoirDriftSensor(_DerivedGrowSensor):
+    """RDWC reservoir EC vs. pH drift diagnostic classification."""
+
+    _attr_icon = "mdi:chart-bell-curve-cumulative"
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(
+            hass, entry, DRIFT_DIAGNOSIS_SUFFIX, "Reservoir Drift Diagnosis"
+        )
+        self._samples: list[tuple[datetime, float, float, float | None]] = []
+        self._last_sample_time: datetime | None = None
+
+    def _water_ids(self) -> tuple[str | None, str | None, str | None]:
+        grow_space = self._grow_space()
+        if grow_space is None:
+            return None, None, None
+        return (
+            grow_space.sensor_mappings.get(SENSOR_ROLE_EC)
+            or grow_space.sensor_mappings.get(SENSOR_ROLE_TDS),
+            grow_space.sensor_mappings.get(SENSOR_ROLE_PH),
+            grow_space.sensor_mappings.get(SENSOR_ROLE_WATER_LEVEL),
+        )
+
+    def _source_entity_ids(self) -> list[str]:
+        return [eid for eid in self._water_ids() if eid]
+
+    def _record_sample(
+        self,
+        now: datetime,
+        ec: float | None,
+        ph: float | None,
+        water: float | None,
+    ) -> None:
+        if ec is None or ph is None:
+            return
+        if self._last_sample_time is not None:
+            if (now - self._last_sample_time).total_seconds() < 300:  # 5 min
+                return
+        self._last_sample_time = now
+        self._samples.append((now, ec, ph, water))
+        cutoff = now - timedelta(hours=24)
+        self._samples = [s for s in self._samples if s[0] >= cutoff]
+
+    def _diagnose(self) -> dict[str, Any]:
+        ec_id, ph_id, water_id = self._water_ids()
+        ec = self._read_float(ec_id)
+        ph = self._read_float(ph_id)
+        water = self._read_float(water_id)
+
+        now = dt_util.now()
+        self._record_sample(now, ec, ph, water)
+        return diagnose_reservoir_drift(self._samples, ec, ph, water)
+
+    @property
+    def native_value(self):
+        diag = self._diagnose()
+        return diag.get("status")
+
+    @property
+    def extra_state_attributes(self):
+        diag = self._diagnose()
+        ec_id, ph_id, water_id = self._water_ids()
+        return {
+            "ec_current": self._read_float(ec_id),
+            "ph_current": self._read_float(ph_id),
+            "water_current": self._read_float(water_id),
+            "ec_delta_24h": diag.get("ec_delta_24h"),
+            "ph_delta_24h": diag.get("ph_delta_24h"),
+            "water_delta_24h": diag.get("water_delta_24h"),
+            "recommendation": diag.get("recommendation"),
+            "sample_count": len(self._samples),
+        }
+
+
+class TendrilGrowTranspirationRateSensor(_DerivedGrowSensor):
+    """Daily water consumption / transpiration rate derived from water level."""
+
+    _attr_icon = "mdi:water-minus"
+    _attr_suggested_display_precision = 2
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(
+            hass, entry, TRANSPIRATION_RATE_SUFFIX, "Daily Transpiration Rate"
+        )
+        self._water_samples: list[tuple[datetime, float]] = []
+        self._last_sample_time: datetime | None = None
+
+    def _water_level_id(self) -> str | None:
+        grow_space = self._grow_space()
+        if grow_space is None:
+            return None
+        return grow_space.sensor_mappings.get(SENSOR_ROLE_WATER_LEVEL)
+
+    def _source_entity_ids(self) -> list[str]:
+        eid = self._water_level_id()
+        return [eid] if eid else []
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        eid = self._water_level_id()
+        if not eid:
+            return "units/d"
+        state = self.hass.states.get(eid)
+        unit = (state.attributes.get("unit_of_measurement") if state else "") or ""
+        return f"{unit}/d" if unit else "units/d"
+
+    def _record_sample(self, now: datetime, water: float | None) -> None:
+        if water is None:
+            return
+        if self._last_sample_time is not None:
+            if (now - self._last_sample_time).total_seconds() < 600:  # 10 min
+                return
+        self._last_sample_time = now
+        self._water_samples.append((now, water))
+        cutoff = now - timedelta(hours=24)
+        self._water_samples = [s for s in self._water_samples if s[0] >= cutoff]
+
+    def _eval(self) -> dict[str, Any]:
+        eid = self._water_level_id()
+        water = self._read_float(eid)
+        now = dt_util.now()
+        self._record_sample(now, water)
+        return compute_transpiration_rate(self._water_samples)
+
+    @property
+    def native_value(self):
+        res = self._eval()
+        return res.get("rate_daily")
+
+    @property
+    def extra_state_attributes(self):
+        res = self._eval()
+        eid = self._water_level_id()
+        return {
+            "consumption_status": res.get("status"),
+            "stalled_alert": res.get("status") == "stalled",
+            "water_level_entity": eid,
+            "sample_count": len(self._water_samples),
+        }
+
+
+class TendrilGrowPhotoperiodSensor(_DerivedGrowSensor):
+    """Photoperiod hours computed from schedule clock or lights-on setting."""
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.HOURS
+    _attr_suggested_display_precision = 1
+    _attr_icon = "mdi:weather-sunny-alert"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        super().__init__(hass, entry, PHOTOPERIOD_HOURS_SUFFIX, "Photoperiod Hours")
+
+    def _schedule_entities(self) -> tuple[str | None, str | None]:
+        registry = get_entity_registry(self.hass)
+        return (
+            registry.async_get_entity_id(
+                "time", DOMAIN, f"{self._entry.entry_id}_{CTX_LIGHTS_ON_TIME}"
+            ),
+            registry.async_get_entity_id(
+                "time", DOMAIN, f"{self._entry.entry_id}_{CTX_LIGHTS_OFF_TIME}"
+            ),
+        )
+
+    def _source_entity_ids(self) -> list[str]:
+        on_id, off_id = self._schedule_entities()
+        hours_id = self._number_entity(CTX_LIGHTS_ON_HOURS)
+        return [eid for eid in (on_id, off_id, hours_id) if eid]
+
+    @property
+    def native_value(self):
+        on_id, off_id = self._schedule_entities()
+        on_state = self.hass.states.get(on_id) if on_id else None
+        off_state = self.hass.states.get(off_id) if off_id else None
+
+        if on_state and off_state and on_state.state and off_state.state:
+            hours = compute_photoperiod_hours(on_state.state, off_state.state)
+            if hours is not None:
+                return hours
+
+        return self._read_float(self._number_entity(CTX_LIGHTS_ON_HOURS))

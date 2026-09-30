@@ -139,6 +139,8 @@ def parse_stage_range(
 
 
 def seed_value_for_band(stage: str, spec: TargetBandSpec) -> float | None:
+    if stage in ("dry", "cure") and spec.stage_field == "vpd_kpa":
+        return 0.65 if spec.bound == "low" else 0.78
     low, high = parse_stage_range(stage, spec.stage_field)
     if low is None or high is None:
         return None

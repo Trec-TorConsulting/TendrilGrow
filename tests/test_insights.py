@@ -5,14 +5,27 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 
+from custom_components.tendrilgrow.const import (
+    DRIFT_DILUTE,
+    DRIFT_EQUILIBRIUM,
+    DRIFT_FEED,
+    DRIFT_ROOT_CHECK,
+)
 from custom_components.tendrilgrow.insights import (
     build_grow_events,
     build_grow_tasks,
     compose_weekly_journal,
     compute_daily_energy_kwh,
+    compute_days_since_flip,
     compute_dew_point_c,
+    compute_dew_point_margin,
     compute_dli,
+    compute_leaf_vpd_kpa,
+    compute_mold_risk,
+    compute_photoperiod_hours,
+    compute_transpiration_rate,
     days_in_stage,
+    diagnose_reservoir_drift,
     estimate_daily_cost,
     weeks_in_stage,
 )
@@ -149,3 +162,114 @@ def test_days_in_stage_prefers_start_date() -> None:
     assert days_in_stage(now, week_in_stage="2") == 14
     assert weeks_in_stage(14) == 2.0
     assert days_in_stage(now, stage_started="2026-07-15", week_in_stage="9") == 14
+
+
+def test_leaf_vpd_with_measured_and_offset() -> None:
+    # Air 25 C, 60% RH:
+    # Saturated air VP = ~3.17 kPa, ea = 3.17 * 0.6 = ~1.90 kPa
+    # Leaf 23 C: es_leaf = ~2.81 kPa -> VPD = 2.81 - 1.90 = ~0.91 kPa
+    vpd_measured = compute_leaf_vpd_kpa(25.0, 60.0, leaf_temp_c=23.0)
+    assert vpd_measured is not None
+    assert 0.85 <= vpd_measured <= 0.95
+
+    # With -3.0 F offset (-1.67 C) on 25 C -> ~23.33 C leaf
+    vpd_offset = compute_leaf_vpd_kpa(25.0, 60.0, offset_f=-3.0)
+    assert vpd_offset is not None
+    assert 0.90 <= vpd_offset <= 1.05
+
+    # Missing inputs
+    assert compute_leaf_vpd_kpa(None, 60.0) is None
+    assert compute_leaf_vpd_kpa(25.0, 0.0) is None
+    assert compute_leaf_vpd_kpa(25.0, 110.0) is None
+
+
+def test_dew_point_margin_and_mold_risk() -> None:
+    # Air 20 C, 50% RH -> Dew point ~9.3 C -> Margin ~10.7 C
+    margin = compute_dew_point_margin(20.0, 50.0)
+    assert margin == 10.7
+
+    # With leaf temp 18 C -> Margin = 18 - 9.3 = 8.7 C
+    margin_leaf = compute_dew_point_margin(20.0, 50.0, leaf_temp_c=18.0)
+    assert margin_leaf == 8.7
+
+    # Critical margin (margin <= 2.0 C)
+    is_risk, factors, rec = compute_mold_risk(1.5, 60.0, "vegetative")
+    assert is_risk is True
+    assert "dew_point_margin_critical" in factors
+
+    # High humidity in late flower (RH >= 65%)
+    is_risk, factors, rec = compute_mold_risk(4.0, 68.0, "late_flower")
+    assert is_risk is True
+    assert "high_humidity_in_vulnerable_stage" in factors
+
+    # Safe vegetative conditions (RH 64%, margin 4.0 C)
+    is_risk, factors, rec = compute_mold_risk(4.0, 64.0, "vegetative")
+    assert is_risk is False
+    assert factors == []
+
+
+def test_diagnose_reservoir_drift() -> None:
+    now = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
+    t_start = now - timedelta(hours=18)
+
+    # 1. Critical pH plunge (< 5.2)
+    diag = diagnose_reservoir_drift([], 1.2, 5.0)
+    assert diag["status"] == DRIFT_ROOT_CHECK
+
+    # 2. Anaerobic root rot pattern: pH drops 0.5 with steady EC
+    samples = [(t_start, 1.2, 6.0, 10.0), (now, 1.2, 5.5, 9.0)]
+    diag = diagnose_reservoir_drift(samples, 1.2, 5.5, 9.0)
+    assert diag["status"] == DRIFT_ROOT_CHECK
+
+    # 3. Transpiration outstrips feeding: EC rises, pH drops
+    samples = [(t_start, 1.2, 6.0, 10.0), (now, 1.35, 5.8, 8.5)]
+    diag = diagnose_reservoir_drift(samples, 1.35, 5.8, 8.5)
+    assert diag["status"] == DRIFT_DILUTE
+
+    # 4. Hungry plants: EC drops, pH rises
+    samples = [(t_start, 1.4, 5.8, 10.0), (now, 1.2, 6.1, 8.5)]
+    diag = diagnose_reservoir_drift(samples, 1.2, 6.1, 8.5)
+    assert diag["status"] == DRIFT_FEED
+
+    # 5. Equilibrium
+    samples = [(t_start, 1.2, 5.9, 10.0), (now, 1.22, 5.95, 8.5)]
+    diag = diagnose_reservoir_drift(samples, 1.22, 5.95, 8.5)
+    assert diag["status"] == DRIFT_EQUILIBRIUM
+
+
+def test_transpiration_rate_and_stalled() -> None:
+    now = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
+    t_start = now - timedelta(hours=24)
+
+    # Normal: 1.0 gallon consumed over 24h
+    samples = [(t_start, 10.0), (now, 9.0)]
+    res = compute_transpiration_rate(samples)
+    assert res["status"] == "normal"
+    assert res["rate_daily"] == 1.0
+
+    # Stalled: < 0.05 gallons consumed over 24h
+    samples_stalled = [(t_start, 10.0), (now, 9.98)]
+    res_stalled = compute_transpiration_rate(samples_stalled)
+    assert res_stalled["status"] == "stalled"
+
+
+def test_compute_days_since_flip() -> None:
+    now = datetime(2026, 7, 30, 12, 0, tzinfo=UTC)
+    # Non-flowering stages return None
+    assert compute_days_since_flip("vegetative", "2026-07-10", now) is None
+    assert compute_days_since_flip("mother", "2026-07-10", now) is None
+
+    # Flowering stages return days
+    assert compute_days_since_flip("early_flower", "2026-07-16", now) == 14
+    assert compute_days_since_flip("mid_flower", "2026-07-10", now) == 20
+
+
+def test_compute_photoperiod_hours() -> None:
+    # 06:00 to 24:00 (00:00) -> 18h
+    assert compute_photoperiod_hours("06:00", "00:00") == 18.0
+    # 18:00 to 12:00 next day (overnight) -> 18h
+    assert compute_photoperiod_hours("18:00", "12:00") == 18.0
+    # 08:00 to 20:00 -> 12h
+    assert compute_photoperiod_hours("08:00", "20:00") == 12.0
+    # Invalid inputs
+    assert compute_photoperiod_hours(None, "12:00") is None

@@ -81,14 +81,18 @@ SENSOR_ROLE_CAMERA = "camera"
 
 SENSOR_ROLE_WATER_FLOW = "water_flow"
 SENSOR_ROLE_LEAK = "leak"
+SENSOR_ROLE_LEAF_TEMPERATURE = "leaf_temperature"
+SENSOR_ROLE_WATER_LEVEL = "water_level"
 
 CONF_LEAK_SHUTOFF_ENABLED = "leak_shutoff_enabled"
 CONF_NO_FLOW_GRACE_SECONDS = "no_flow_grace_seconds"
 CONF_LEAK_DEBOUNCE_SECONDS = "leak_debounce_seconds"
+CONF_LEAF_TEMP_OFFSET = "leaf_temp_offset"
 
 DEFAULT_LEAK_SHUTOFF_ENABLED = False
 DEFAULT_NO_FLOW_GRACE_SECONDS = 60
 DEFAULT_LEAK_DEBOUNCE_SECONDS = 5
+DEFAULT_LEAF_TEMP_OFFSET = -3.0
 
 WATER_SAFETY_STATUS_OK = "ok"
 WATER_SAFETY_STATUS_NO_FLOW = "no_flow"
@@ -98,6 +102,19 @@ WATER_SAFETY_STATUSES: tuple[str, ...] = (
     WATER_SAFETY_STATUS_OK,
     WATER_SAFETY_STATUS_NO_FLOW,
     WATER_SAFETY_STATUS_LEAK,
+)
+
+# RDWC reservoir EC vs pH drift statuses.
+DRIFT_EQUILIBRIUM = "equilibrium"
+DRIFT_DILUTE = "dilute_recommended"
+DRIFT_FEED = "feed_recommended"
+DRIFT_ROOT_CHECK = "root_health_check"
+
+DRIFT_STATUSES: tuple[str, ...] = (
+    DRIFT_EQUILIBRIUM,
+    DRIFT_DILUTE,
+    DRIFT_FEED,
+    DRIFT_ROOT_CHECK,
 )
 
 CONTROL_ROLE_LIGHTS = "lights"
@@ -129,6 +146,8 @@ SENSOR_ROLES: tuple[str, ...] = (
     SENSOR_ROLE_AIR_PUMP_POWER,
     SENSOR_ROLE_WATER_FLOW,
     SENSOR_ROLE_LEAK,
+    SENSOR_ROLE_LEAF_TEMPERATURE,
+    SENSOR_ROLE_WATER_LEVEL,
 )
 
 # Sensor roles shown in config and options forms.
@@ -145,6 +164,8 @@ SENSOR_ROLES_CONFIGURABLE: tuple[str, ...] = (
     SENSOR_ROLE_CAMERA,
     SENSOR_ROLE_WATER_FLOW,
     SENSOR_ROLE_LEAK,
+    SENSOR_ROLE_LEAF_TEMPERATURE,
+    SENSOR_ROLE_WATER_LEVEL,
     SENSOR_ROLE_RDWC_PUMP_POWER,
     SENSOR_ROLE_CHILLER_PUMP_POWER,
     SENSOR_ROLE_AIR_PUMP_POWER,
@@ -152,13 +173,15 @@ SENSOR_ROLES_CONFIGURABLE: tuple[str, ...] = (
 
 # When cloud Tuya is the effective water source (no local device bound), water
 # roles are auto-mapped from cloud sensors; the operator still maps canopy AIR
-# temperature/humidity (for VPD), the camera, flow, and leak sensors here.
+# temperature/humidity (for VPD), camera, flow, leak, leaf temp, and water level here.
 SENSOR_ROLES_TUYA_OPTIONAL: tuple[str, ...] = (
     SENSOR_ROLE_TEMPERATURE,
     SENSOR_ROLE_HUMIDITY,
     SENSOR_ROLE_CAMERA,
     SENSOR_ROLE_WATER_FLOW,
     SENSOR_ROLE_LEAK,
+    SENSOR_ROLE_LEAF_TEMPERATURE,
+    SENSOR_ROLE_WATER_LEVEL,
 )
 
 # Water-quality roles auto-mapped from a bound LocalTuya / Tuya Local device.
@@ -218,6 +241,15 @@ FLUSH_DAYS_SINCE_SUFFIX = "days_since_flush"
 FLUSH_DAYS_UNTIL_SUFFIX = "days_until_flush"
 FLUSH_NEXT_DUE_SUFFIX = "next_flush_due"
 FLUSH_DUE_SUFFIX = "flush_due"
+
+# Cultivation intelligence suffixes
+DRIFT_DIAGNOSIS_SUFFIX = "reservoir_drift_diagnosis"
+LEAF_VPD_SUFFIX = "leaf_vpd"
+DEW_POINT_MARGIN_SUFFIX = "dew_point_margin"
+MOLD_RISK_SUFFIX = "mold_risk"
+PHOTOPERIOD_HOURS_SUFFIX = "photoperiod_hours"
+DAYS_SINCE_FLIP_SUFFIX = "days_since_flip"
+TRANSPIRATION_RATE_SUFFIX = "transpiration_rate_daily"
 
 # Default growth stage, pinned by name so option ordering can change freely.
 DEFAULT_STAGE = "vegetative"
@@ -299,13 +331,16 @@ STAGE_OBJECTIVES: dict[str, str] = {
         "deficiency, and do not push EC back up while this stage is selected."
     ),
     "dry": (
-        "Buds are drying, not on a reservoir. Assess the drying environment "
-        "(target 60-70 F, 55-65% RH, dark, gentle airflow) and watch for mold "
-        "or over-drying; aim for a slow 7-14 day dry. Ignore pH/EC."
+        "Buds are drying, not on an active reservoir. Adhere strictly to the 60/60 "
+        "rule: maintain 60°F ± 2°F (15.5°C) and 60% RH ± 3% (VPD ~0.7 kPa) in complete "
+        "darkness with gentle, indirect airflow. Prevent rapid drying to preserve "
+        "terpenes and allow chlorophyll breakdown, while keeping dew point margin "
+        "wide enough to prevent Botrytis (bud rot). Ignore pH/EC."
     ),
     "cure": (
-        "Buds are curing in sealed jars. Assess jar humidity (target 55-65% "
-        "RH), burping cadence, and mold/ammonia risk; ignore pH/EC/VPD."
+        "The harvest is curing. Target 58–62°F (14.5–16.5°C) and 58–62% RH (VPD ~0.7 "
+        "kPa). Monitor for moisture spikes, burp or regulate humidity to preserve "
+        "volatile terpenes, and inspect for mold or ammonia odors. Ignore pH/EC."
     ),
     "ready": (
         "The harvest is cured and ready for storage/use. Assess storage quality "
@@ -374,6 +409,9 @@ GROW_CONTEXT_LABELS: dict[str, str] = {
     # Flush cadence context (collision-safe suffixes only; see note above).
     CTX_FLUSH_INTERVAL_DAYS: "flush_interval_days",
     FLUSH_DAYS_SINCE_SUFFIX: "days_since_last_flush",
+    # Cultivation intelligence context
+    DAYS_SINCE_FLIP_SUFFIX: "days_since_flip",
+    DRIFT_DIAGNOSIS_SUFFIX: "reservoir_drift_diagnosis",
 }
 
 CONTROL_ROLES: tuple[str, ...] = (
