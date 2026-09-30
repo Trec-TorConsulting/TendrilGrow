@@ -37,6 +37,7 @@ from ..const import (
     PROVIDER_NONE,
     SENSOR_ROLE_CAMERA,
     SENSOR_ROLE_HUMIDITY,
+    SENSOR_ROLE_LEAK,
     SENSOR_ROLE_LIGHT,
     SENSOR_ROLE_TEMPERATURE,
     STAGE_OBJECTIVES,
@@ -44,6 +45,7 @@ from ..const import (
 )
 from ..insights import compute_dew_point_c, compute_dli, days_in_stage, weeks_in_stage
 from ..models.grow import GrowSpace
+from ..water_safety import parse_leak_entities
 from .providers import ProviderExecutionError, generate_vision_health_report
 
 LOGGER = logging.getLogger(__name__)
@@ -61,6 +63,8 @@ METRIC_ROLE_LABELS: dict[str, str] = {
     "rdwc_pump_power": "RDWC pump power",
     "chiller_pump_power": "Chiller pump power",
     "air_pump_power": "Air pump power",
+    "water_flow": "Return water flow",
+    "leak": "Leak sensors",
     "dli_mol_m2_d": "Derived DLI",
     "dew_point": "Derived dew point",
     "vpd_kpa": "Derived air VPD",
@@ -1008,6 +1012,18 @@ def _collect_metric_state_values(
     values: dict[str, Any] = {}
     for role, entity_id in grow_space.sensor_mappings.items():
         if not entity_id or role == SENSOR_ROLE_CAMERA:
+            continue
+        if role == SENSOR_ROLE_LEAK:
+            leak_eids = parse_leak_entities(entity_id)
+            tripped = [
+                eid
+                for eid in leak_eids
+                if (st := hass.states.get(eid)) is not None and st.state == "on"
+            ]
+            values[role] = (
+                f"{len(tripped)}/{len(leak_eids)} detected" if tripped else "clear",
+                "",
+            )
             continue
         state = hass.states.get(entity_id)
         if state is None:

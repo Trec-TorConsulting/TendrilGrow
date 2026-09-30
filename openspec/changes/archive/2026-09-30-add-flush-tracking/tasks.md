@@ -56,4 +56,4 @@
 - [x] 8.1 Full test pass for the flush helper, button, number, sensors, binary sensor, and service
 - [x] 8.2 `ruff check .` clean and `hassfest`/HACS validation pass
 - [x] 8.3 Extend `scripts/validate_live_ha.py` to report per-space last-flush, days-since/until, and due state
-- [ ] 8.4 Manual live check: press "Flush Now"; confirm timestamp, days-since/until, next-due, and due binary update; set interval to trip overdue and confirm one reminder fires; record a flush and confirm it clears
+- [x] 8.4 Manual live check: press "Flush Now"; confirm timestamp, days-since/until, next-due, and due binary update; set interval to trip overdue and confirm one reminder fires; record a flush and confirm it clears

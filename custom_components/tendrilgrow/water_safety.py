@@ -169,8 +169,11 @@ class WaterSafetyMonitor:
         if not flow_eid:
             return None
         st = self.hass.states.get(flow_eid)
-        if st is None or st.state in (STATE_OFF, "unavailable", "unknown"):
-            self.flow_rate = 0.0 if st and st.state == STATE_OFF else None
+        if st is None or st.state in ("unavailable", "unknown"):
+            return None
+
+        if st.state == STATE_OFF:
+            self.flow_rate = 0.0
             return False
 
         if st.state in (STATE_ON, "flowing", "true", "True"):
@@ -217,7 +220,6 @@ class WaterSafetyMonitor:
                 self.leak_detected = False
                 self.active_leaks = []
                 self.shutoff_triggered = False
-                self._update_status()
                 self.hass.bus.async_fire(
                     "tendrilgrow_water_safety_event",
                     {
@@ -248,7 +250,6 @@ class WaterSafetyMonitor:
                 self._unsub_flow_timer = None
             if not self.flow_ok:
                 self.flow_ok = True
-                self._update_status()
                 self.hass.bus.async_fire(
                     "tendrilgrow_water_safety_event",
                     {
@@ -267,12 +268,12 @@ class WaterSafetyMonitor:
         active = self._active_leak_entities()
         if active:
             self._apply_leak_confirmed(active)
+            self._update_status()
 
     def _apply_leak_confirmed(self, active_leaks: list[str]) -> None:
         """Confirm a leak and trigger alert and optional shutoff."""
         self.leak_detected = True
         self.active_leaks = active_leaks
-        self._update_status()
 
         LOGGER.error(
             "TendrilGrow [%s]: Water leak detected on %s!",
@@ -300,11 +301,11 @@ class WaterSafetyMonitor:
         self._unsub_flow_timer = None
         if self._is_pump_on() and self._is_flow_present() is False:
             self._apply_no_flow_confirmed()
+            self._update_status()
 
     def _apply_no_flow_confirmed(self) -> None:
         """Confirm a no-flow condition."""
         self.flow_ok = False
-        self._update_status()
         LOGGER.warning(
             "TendrilGrow [%s]: RDWC circulation pump is ON but no water flow detected!",
             self.grow_space.name,

@@ -63,6 +63,7 @@ async def async_get_config_entry_diagnostics(
                 "active_leaks": ws_mon.active_leaks,
                 "flow_rate": ws_mon.flow_rate,
                 "shutoff_triggered": ws_mon.shutoff_triggered,
+                "shutoff_enabled": ws_mon._leak_shutoff_enabled,
                 "leak_shutoff_enabled": ws_mon._leak_shutoff_enabled,
             }
 

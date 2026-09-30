@@ -6,6 +6,16 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-09-30
+
+### Fixed
+- Config flow entity mapping: apply `_optional_entity_field` to initial setup flow (`async_step_entity_mapping`) so multi-leak selection and flow domain filters are consistent between initial setup and options flow.
+- Config flow list serialization: normalize list values to comma-space separated strings on initial setup to avoid bracket formatting artifacts.
+- Water safety flow presence: treat `unavailable` and `unknown` sensor states as indeterminate (`None`) rather than zero-flow to prevent false no-flow trips during wireless sensor reconnects.
+- Water safety dispatcher deduplication: streamline status dispatch calls so state transitions only trigger a single update per evaluation cycle.
+- AI health check telemetry: safely handle multi-leak sensor mappings in `_collect_metric_state_values` avoiding invalid entity lookups when multiple sensors are mapped.
+- Diagnostics: expose consistent `shutoff_enabled` key matching live validation requirements.
+
 ## [0.3.11] - 2026-09-29
 
 ### Added

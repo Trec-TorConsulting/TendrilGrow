@@ -89,6 +89,7 @@ from .entry_config import (
     water_monitor_device_id_from_input,
 )
 from .models.grow import GrowSpace
+from .water_safety import parse_leak_entities
 
 TUYA_REGIONS: tuple[str, ...] = ("us", "eu", "cn", "in")
 
@@ -118,8 +119,7 @@ def _optional_leak_sensor_field(
     role: str,
     mapping: dict[str, str],
 ) -> None:
-    raw = mapping.get(role, "")
-    existing = [part.strip() for part in str(raw).split(",") if part.strip()]
+    existing = parse_leak_entities(mapping.get(role, ""))
     selector_obj = selector.EntitySelector(
         selector.EntitySelectorConfig(
             multiple=True,
@@ -278,11 +278,15 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 SENSOR_ROLES if not hide_water else SENSOR_ROLES_TUYA_OPTIONAL
             )
             if allowed_sensor_roles:
-                sensor_mappings = {
-                    role: value
-                    for role, value in user_input.items()
-                    if role in allowed_sensor_roles and value
-                }
+                sensor_mappings = {}
+                for role, value in user_input.items():
+                    if role in allowed_sensor_roles and value:
+                        if isinstance(value, list):
+                            sensor_mappings[role] = ", ".join(
+                                str(v).strip() for v in value if str(v).strip()
+                            )
+                        else:
+                            sensor_mappings[role] = str(value)
 
             # Add power sensor mappings (extracted from form fields).
             for pump_role in PUMP_CONTROL_ROLES:
@@ -360,12 +364,12 @@ class TendrilGrowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
         _optional_device_field(fields, CONF_WATER_MONITOR_DEVICE_ID, local_device_id)
         for role in visible_sensor_roles:
-            fields[vol.Optional(role)] = _entity_selector()
+            _optional_entity_field(fields, role, {})
 
         # Add non-pump control roles with generic selector.
         for role in CONTROL_ROLES:
             if role not in PUMP_CONTROL_ROLES:
-                fields[vol.Optional(role)] = _entity_selector()
+                _optional_entity_field(fields, role, {})
 
         # Add pump control roles with switch/input_boolean domain filtering.
         for role in PUMP_CONTROL_ROLES:
