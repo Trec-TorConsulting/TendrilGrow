@@ -9,9 +9,17 @@ and refreshes the overview automatically.
 How it discovers entities:
 - Role-mapped sensors and the camera come from each entry's diagnostics
   (``runtime.effective_sensor_mappings``), so mapped Tuya/air sensors are used.
-- Integration helper entities (AI health, reservoir flush, stage projection, and
-  cultivation-context helpers) come from the entity registry, matched by their
-  ``<entry_id>_<suffix>`` unique ids.
+- Role-mapped controls (lights, fans, inline fans) come from each entry's
+  diagnostics (``runtime.effective_control_mappings``) or entry config mappings.
+- Pumps (RDWC, Air, Chiller) are discovered from integration proxy switches or
+  tent-associated power devices in the registry.
+- Hardware controller schedule sensors and ambient lung-room sensors are
+  discovered from tent-associated controller devices.
+- Integration helper entities (AI health, reservoir flush, stage projection,
+  cultivation-intelligence suite, and cultivation-context helpers) come from
+  the entity registry, matched by their ``<entry_id>_<suffix>`` unique ids.
+- Grow space to-do task lists (``todo.<slug>_grow_tasks``) are bound directly to
+  interactive task cards.
 
 Security:
 - Reads ``HA_URL`` and ``HA_TOKEN`` from the environment or a local ``.env``.
@@ -130,6 +138,7 @@ SUFFIX_LABELS = {
     "ai_health_summary": "Summary",
     "ai_health_last_check": "Last check",
     "ai_health_critical_alert": "Critical alert",
+    "ai_weekly_journal": "Weekly journal",
     "run_ai_health_check": "Run AI health check",
     "flush_due": "Flush due",
     "days_until_flush": "Days until flush",
@@ -146,7 +155,40 @@ SUFFIX_LABELS = {
     "chiller_pump_power": "Chiller pump power",
     "air_pump_power": "Air pump power",
     "metric_band_summary": "Metrics out of range",
+    "leaf_vpd": "Leaf VPD",
+    "dew_point": "Dew point",
+    "dew_point_margin": "Dew point margin",
+    "mold_risk": "Mold risk",
+    "photoperiod_hours": "Photoperiod",
+    "daily_transpiration_rate": "Transpiration rate",
+    "reservoir_drift_diagnosis": "Drift diagnosis",
+    "water_safety_status": "Water safety",
+    "flow_ok": "Water flow",
+    "leak_detected": "Leak detected",
+    "days_since_flip": "Days since flip",
 }
+INTELLIGENCE_TILE_SUFFIXES = (
+    ("leaf_vpd", "Leaf VPD"),
+    ("dew_point", "Dew point"),
+    ("dew_point_margin", "Dew point margin"),
+    ("daily_transpiration_rate", "Transpiration rate"),
+    ("photoperiod_hours", "Photoperiod"),
+    ("mold_risk", "Mold risk"),
+    ("reservoir_drift_diagnosis", "Drift diagnosis"),
+    ("water_safety_status", "Water safety"),
+    ("flow_ok", "Water flow"),
+    ("leak_detected", "Leak detected"),
+)
+CONTROLLER_SCHEDULE_ROLES = (
+    ("plan_light_schedule", "Light Schedule", "mdi:weather-sunset"),
+    ("plan_circulator_fan_schedule", "Circulation Fan Schedule", "mdi:fan-clock"),
+    ("plan_duct_fan_schedule", "Duct Fan Schedule", "mdi:fan-auto"),
+)
+LUNG_ROOM_ROLES = (
+    ("outside_temperature", "Outside Temperature"),
+    ("outside_humidity", "Outside Humidity"),
+    ("outside_vpd", "Outside VPD"),
+)
 PROJECTION_ATTRS = (
     ("Projected stage end", "projected_stage_end"),
     ("Projected harvest", "projected_harvest_date"),
@@ -161,6 +203,7 @@ CARD_TYPES = frozenset(
         "entities",
         "markdown",
         "history-graph",
+        "todo-list",
     }
 )
 
@@ -210,10 +253,18 @@ def classify(
     entry_id: str,
     title: str,
     registry: list,
-    eff_sensors: dict,
+    eff_info: dict,
     states: dict[str, dict] | None = None,
+    devices: dict[str, dict] | None = None,
 ) -> dict:
     """Bucket a grow space's entities into the parts each card needs."""
+    if "sensors" in eff_info:
+        eff_sensors = eff_info.get("sensors", {})
+        eff_controls = eff_info.get("controls", {})
+    else:
+        eff_sensors = eff_info
+        eff_controls = {}
+
     reg: dict[str, str] = {}
     last_updated: str | None = None
     for ent in registry:
@@ -231,19 +282,94 @@ def classify(
         state = (states.get(last_updated) or {}).get("state")
         if state in (None, "unavailable", "unknown"):
             last_updated = None
+
+    controls: dict[str, str] = {}
+    for role in ("lights", "fans", "inline_fans"):
+        if eff_controls.get(role):
+            controls[role] = eff_controls[role]
+
+    pumps: dict[str, str] = {}
+    for role in PUMP_ROLES:
+        if reg.get(role):
+            pumps[role] = reg[role]
+
+    slug = _slug(title)
+    kw = (
+        "3x3"
+        if "3x3" in slug
+        else ("4x4" if "4x4" in slug else ("clone" if "clone" in slug else slug))
+    )
+    if devices:
+        power_dev_ids = [
+            d_id
+            for d_id, d in devices.items()
+            if kw in (d.get("name_by_user") or d.get("name") or "").lower()
+            and "power" in (d.get("name_by_user") or d.get("name") or "").lower()
+        ]
+        if power_dev_ids:
+            for ent in registry:
+                if ent.get("device_id") in power_dev_ids:
+                    e_id = ent["entity_id"]
+                    orig = (ent.get("name") or ent.get("original_name") or "").lower()
+                    st_name = (
+                        (
+                            states.get(e_id, {})
+                            .get("attributes", {})
+                            .get("friendly_name")
+                            or ""
+                        ).lower()
+                        if states
+                        else ""
+                    )
+                    label = orig or st_name
+                    if "rdwc" in label and "rdwc_pump" not in pumps:
+                        pumps["rdwc_pump"] = e_id
+                    elif "air" in label and "air_pump" not in pumps:
+                        pumps["air_pump"] = e_id
+                    elif "chiller" in label and "chiller_pump" not in pumps:
+                        pumps["chiller_pump"] = e_id
+
+    controller_extras: dict[str, str] = {}
+    if devices:
+        ctrl_dev_ids = [
+            d_id
+            for d_id, d in devices.items()
+            if kw in (d.get("name_by_user") or d.get("name") or "").lower()
+            and "controller" in (d.get("name_by_user") or d.get("name") or "").lower()
+        ]
+        if ctrl_dev_ids:
+            for ent in registry:
+                if ent.get("device_id") in ctrl_dev_ids:
+                    e_id = ent["entity_id"]
+                    for role, _, _ in CONTROLLER_SCHEDULE_ROLES:
+                        if role in e_id:
+                            controller_extras[role] = e_id
+                    for role, _ in LUNG_ROOM_ROLES:
+                        if role in e_id:
+                            controller_extras[role] = e_id
+                    if "connected" in e_id and ent.get("domain") == "binary_sensor":
+                        controller_extras["connected"] = e_id
+
+    todo_id = f"todo.{slug}_grow_tasks"
+    grow_tasks = todo_id if (states and todo_id in states) else None
+
     return {
         "entry_id": entry_id,
         "title": title,
-        "slug": _slug(title),
+        "slug": slug,
         "camera": eff_sensors.get("camera"),
         "sensors": {r: eff_sensors[r] for r in SENSOR_ROLE_ORDER if eff_sensors.get(r)},
+        "controls": controls,
+        "pumps": pumps,
+        "controller_extras": controller_extras,
+        "grow_tasks": grow_tasks,
         "reg": reg,
         "last_updated": last_updated,
     }
 
 
 def _camera_card(space: dict) -> dict | None:
-    if not space["camera"]:
+    if not space.get("camera"):
         return None
     return {
         "type": "picture-entity",
@@ -259,13 +385,24 @@ def _heading(text: str, *, style: str = "subtitle") -> dict:
     return {"type": "heading", "heading": text, "heading_style": style}
 
 
-def _tile(entity_id: str, name: str) -> dict:
-    return {"type": "tile", "entity": entity_id, "name": name}
+def _tile(
+    entity_id: str,
+    name: str,
+    *,
+    features: list | None = None,
+    icon: str | None = None,
+) -> dict:
+    t: dict[str, Any] = {"type": "tile", "entity": entity_id, "name": name}
+    if features:
+        t["features"] = features
+    if icon:
+        t["icon"] = icon
+    return t
 
 
 def _suffix_tiles(reg: dict, suffixes: tuple[str, ...]) -> list[dict]:
     return [
-        _tile(reg[suffix], SUFFIX_LABELS[suffix])
+        _tile(reg[suffix], SUFFIX_LABELS.get(suffix, suffix))
         for suffix in suffixes
         if reg.get(suffix)
     ]
@@ -301,12 +438,18 @@ def _score_gauge(entity_id: str, name: str) -> dict:
     }
 
 
-def _badge(entity_id: str) -> dict:
+def _badge(entity_id: str, *, when_state: str = "on") -> dict:
     return {
         "type": "entity",
         "entity": entity_id,
-        "visibility": [{"condition": "state", "entity": entity_id, "state": "on"}],
+        "visibility": [
+            {"condition": "state", "entity": entity_id, "state": when_state}
+        ],
     }
+
+
+def _stage_badge(entity_id: str) -> dict:
+    return {"type": "entity", "entity": entity_id}
 
 
 def _attr_template(entity_id: str, attr: str) -> str:
@@ -328,9 +471,86 @@ def _pump_suffixes() -> tuple[str, ...]:
     return ("total_pump_power", *switches, *power)
 
 
+def _controls_cards(space: dict) -> list[dict]:
+    controls = space.get("controls") or {}
+    pumps = space.get("pumps") or {}
+    reg = space.get("reg") or {}
+    scheds = space.get("controller_extras") or {}
+
+    cards: list[dict] = []
+    if controls.get("lights"):
+        cards.append(
+            _tile(
+                controls["lights"],
+                "Grow Light",
+                features=[{"type": "light-brightness"}],
+            )
+        )
+    if controls.get("fans"):
+        cards.append(
+            _tile(
+                controls["fans"],
+                "Circulation Fan",
+                features=[{"type": "fan-speed"}],
+            )
+        )
+    if controls.get("inline_fans"):
+        cards.append(
+            _tile(
+                controls["inline_fans"],
+                "Inline Duct Fan",
+                features=[{"type": "fan-speed"}],
+            )
+        )
+
+    rdwc = pumps.get("rdwc_pump") or reg.get("rdwc_pump")
+    if rdwc:
+        cards.append(_tile(rdwc, "RDWC Pump", icon="mdi:pump"))
+
+    air = pumps.get("air_pump") or reg.get("air_pump")
+    if air:
+        cards.append(_tile(air, "Air Pump", icon="mdi:air-filter"))
+
+    chiller = pumps.get("chiller_pump") or reg.get("chiller_pump")
+    if chiller:
+        cards.append(_tile(chiller, "Water Chiller Pump", icon="mdi:snowflake"))
+
+    schedule_rows = [
+        {"entity": scheds[role], "name": label, "icon": icon}
+        for role, label, icon in CONTROLLER_SCHEDULE_ROLES
+        if scheds.get(role)
+    ]
+    if schedule_rows:
+        cards.append(
+            {
+                "type": "entities",
+                "title": "Controller Schedule Status",
+                "entities": schedule_rows,
+            }
+        )
+
+    return cards
+
+
+def _lung_room_card(space: dict) -> dict | None:
+    extras = space.get("controller_extras") or {}
+    rows = [
+        {"entity": extras[role], "name": label}
+        for role, label in LUNG_ROOM_ROLES
+        if extras.get(role)
+    ]
+    if not rows:
+        return None
+    return {
+        "type": "entities",
+        "title": "Lung Room (Ambient)",
+        "entities": rows,
+    }
+
+
 def _reservoir_tiles(space: dict) -> list[dict]:
-    sensors = space["sensors"]
-    reg = space["reg"]
+    sensors = space.get("sensors") or {}
+    reg = space.get("reg") or {}
     tiles: list[dict] = []
     if sensors.get("ph"):
         tiles.append(_tile(sensors["ph"], ROLE_LABELS["ph"]))
@@ -344,6 +564,9 @@ def _reservoir_tiles(space: dict) -> list[dict]:
         entity_id = sensors.get(role)
         if entity_id:
             tiles.append(_tile(entity_id, ROLE_LABELS[role]))
+    for suffix, label in INTELLIGENCE_TILE_SUFFIXES:
+        if reg.get(suffix):
+            tiles.append(_tile(reg[suffix], label))
     for suffix, label in BAND_TILE_SUFFIXES:
         if reg.get(suffix):
             tiles.append(_tile(reg[suffix], label))
@@ -406,8 +629,76 @@ def _operations_cards(reg: dict) -> list[dict]:
     return _suffix_tiles(reg, (*FLUSH_SUFFIXES, *_pump_suffixes()))
 
 
+def _trends_cards(space: dict) -> list[dict]:
+    sensors = space.get("sensors") or {}
+    reg = space.get("reg") or {}
+    cards: list[dict] = []
+
+    climate_entities = [
+        eid
+        for eid in (
+            sensors.get("temperature"),
+            sensors.get("humidity"),
+            reg.get("vpd"),
+            reg.get("leaf_vpd"),
+        )
+        if eid
+    ]
+    if climate_entities:
+        cards.append(
+            {
+                "type": "history-graph",
+                "title": "Canopy Climate History (24h)",
+                "hours_to_show": 24,
+                "entities": climate_entities,
+            }
+        )
+
+    reservoir_entities = [
+        eid
+        for eid in (
+            sensors.get("ph"),
+            sensors.get("ec"),
+            sensors.get("water_temperature"),
+            sensors.get("orp"),
+        )
+        if eid
+    ]
+    if reservoir_entities:
+        cards.append(
+            {
+                "type": "history-graph",
+                "title": "Hydroponic Reservoir History (24h)",
+                "hours_to_show": 24,
+                "entities": reservoir_entities,
+            }
+        )
+
+    return cards
+
+
+def _space_badges(space: dict) -> list[dict]:
+    reg = space.get("reg") or {}
+    extras = space.get("controller_extras") or {}
+    badges: list[dict] = []
+    for suffix in (
+        "ai_health_critical_alert",
+        "mold_risk",
+        "leak_detected",
+        "flush_due",
+        "metric_band_summary",
+    ):
+        if reg.get(suffix):
+            badges.append(_badge(reg[suffix]))
+    if reg.get("ctx_stage"):
+        badges.append(_stage_badge(reg["ctx_stage"]))
+    if extras.get("connected"):
+        badges.append(_badge(extras["connected"], when_state="off"))
+    return badges
+
+
 def build_space_view(space: dict) -> dict:
-    reg = space["reg"]
+    reg = space.get("reg") or {}
     sections: list[dict] = []
 
     camera = _camera_card(space)
@@ -415,7 +706,14 @@ def build_space_view(space: dict) -> dict:
     if watch:
         sections.append(watch)
 
+    controls_cards = _controls_cards(space)
+    controls = _section("Controls", controls_cards)
+    if controls:
+        sections.append(controls)
+
     lifecycle = _suffix_tiles(reg, LIFECYCLE_SUFFIXES)
+    if reg.get("days_since_flip"):
+        lifecycle.append(_tile(reg["days_since_flip"], "Days since flip"))
     if reg.get("stage_projection"):
         lifecycle.append(_projection_markdown(reg["stage_projection"]))
     life = _section(space["title"], lifecycle, heading_style="title")
@@ -426,6 +724,8 @@ def build_space_view(space: dict) -> dict:
     if reg.get("ai_health_score"):
         ai.append(_score_gauge(reg["ai_health_score"], f"{space['title']} AI Health"))
     ai.extend(_suffix_tiles(reg, AI_TILE_SUFFIXES))
+    if reg.get("ai_weekly_journal"):
+        ai.append(_tile(reg["ai_weekly_journal"], "Weekly journal"))
     ai_section = _section("AI", ai)
     if ai_section:
         sections.append(ai_section)
@@ -434,6 +734,9 @@ def build_space_view(space: dict) -> dict:
     bands = _target_band_card(reg)
     if bands:
         reservoir.append(bands)
+    lung_room = _lung_room_card(space)
+    if lung_room:
+        reservoir.append(lung_room)
     reservoir_section = _section("Reservoir", reservoir)
     if reservoir_section:
         sections.append(reservoir_section)
@@ -442,6 +745,10 @@ def build_space_view(space: dict) -> dict:
     if operations:
         sections.append(operations)
 
+    trends = _section("Trends", _trends_cards(space), column_span=2)
+    if trends:
+        sections.append(trends)
+
     advisor_cards = (
         _advisor_cards(reg["ai_health_score"]) if reg.get("ai_health_score") else []
     )
@@ -449,12 +756,23 @@ def build_space_view(space: dict) -> dict:
     if advisor:
         sections.append(advisor)
 
-    plan = _plan_card(reg)
-    plan_section = _section("Plan", [plan] if plan else [])
+    plan_cards = []
+    plan_card = _plan_card(reg)
+    if plan_card:
+        plan_cards.append(plan_card)
+    if space.get("grow_tasks"):
+        plan_cards.append(
+            {
+                "type": "todo-list",
+                "entity": space["grow_tasks"],
+                "title": "Grow Tasks",
+            }
+        )
+    plan_section = _section("Plan", plan_cards)
     if plan_section:
         sections.append(plan_section)
 
-    return {
+    view: dict[str, Any] = {
         "path": f"zone-{space['slug']}",
         "title": space["title"],
         "icon": "mdi:sprout",
@@ -462,20 +780,25 @@ def build_space_view(space: dict) -> dict:
         "max_columns": 2,
         "sections": sections,
     }
+    badges = _space_badges(space)
+    if badges:
+        view["badges"] = badges
+    return view
 
 
 def _trend_entities(spaces: list[dict]) -> list[str]:
     trend: list[str] = []
     for space in spaces:
+        sensors = space.get("sensors") or {}
         for role in ("water_temperature", "ph"):
-            entity_id = space["sensors"].get(role)
+            entity_id = sensors.get(role)
             if entity_id:
                 trend.append(entity_id)
     return trend
 
 
 def _status_cards(space: dict) -> list[dict]:
-    reg = space["reg"]
+    reg = space.get("reg") or {}
     cards: list[dict] = []
     camera = _camera_card(space)
     if camera:
@@ -489,9 +812,11 @@ def _status_cards(space: dict) -> list[dict]:
         "metric_band_summary",
         "flush_due",
         "days_until_flush",
+        "mold_risk",
+        "water_safety_status",
     ):
         if reg.get(suffix):
-            cards.append(_tile(reg[suffix], SUFFIX_LABELS[suffix]))
+            cards.append(_tile(reg[suffix], SUFFIX_LABELS.get(suffix, suffix)))
     return cards
 
 
@@ -508,8 +833,14 @@ def build_overview(spaces: list[dict]) -> dict:
                 ],
             }
         )
-        for suffix in ("metric_band_summary", "flush_due"):
-            entity_id = space["reg"].get(suffix)
+        reg = space.get("reg") or {}
+        for suffix in (
+            "metric_band_summary",
+            "flush_due",
+            "mold_risk",
+            "ai_health_critical_alert",
+        ):
+            entity_id = reg.get(suffix)
             if entity_id:
                 badges.append(_badge(entity_id))
 
@@ -554,8 +885,15 @@ async def fetch_diagnostics(session, url, token, entry_id, ssl_ctx) -> dict:
             body = await resp.json()
     except (aiohttp.ClientError, ValueError):
         return {}
-    runtime = body.get("data", {}).get("runtime", {})
-    return runtime.get("effective_sensor_mappings", {}) or {}
+    data = body.get("data", {})
+    runtime = data.get("runtime", {})
+    return {
+        "sensors": runtime.get("effective_sensor_mappings", {}) or {},
+        "controls": runtime.get("effective_control_mappings", {})
+        or data.get("options", {}).get("control_mappings", {})
+        or data.get("data", {}).get("control_mappings", {})
+        or {},
+    }
 
 
 async def main() -> int:
@@ -608,6 +946,13 @@ async def main() -> int:
                 await ws_call(ws, 2, {"type": "config/entity_registry/list"})
             ).get("result", [])
 
+            devices_res = await ws_call(ws, 3, {"type": "config/device_registry/list"})
+            devices = (
+                {d["id"]: d for d in devices_res.get("result", [])}
+                if devices_res.get("success", True)
+                else {}
+            )
+
             grow_entries = [e for e in entries if e.get("domain") == DOMAIN]
             grow_entries.sort(key=lambda e: str(e.get("title", "")))
             if not grow_entries:
@@ -619,7 +964,7 @@ async def main() -> int:
                 entry_id = entry["entry_id"]
                 eff = await fetch_diagnostics(session, url, token, entry_id, ssl_ctx)
                 title = str(entry.get("title") or entry_id)
-                spaces.append(classify(entry_id, title, registry, eff, states))
+                spaces.append(classify(entry_id, title, registry, eff, states, devices))
 
             config = {
                 "title": DEFAULT_TITLE,
@@ -647,7 +992,7 @@ async def main() -> int:
                 return 0
 
             current = await ws_call(
-                ws, 3, {"type": "lovelace/config", "url_path": url_path}
+                ws, 4, {"type": "lovelace/config", "url_path": url_path}
             )
             if current.get("success"):
                 backup = (
@@ -663,7 +1008,7 @@ async def main() -> int:
 
             saved = await ws_call(
                 ws,
-                4,
+                5,
                 {
                     "type": "lovelace/config/save",
                     "url_path": url_path,

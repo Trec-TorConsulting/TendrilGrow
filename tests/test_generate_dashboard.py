@@ -126,15 +126,18 @@ def test_populated_zone_is_a_sections_cockpit():
     assert view["max_columns"] == 2
     assert _section_names(view, space) == [
         "Watch",
+        "Controls",
         "Lifecycle",
         "AI",
         "Reservoir",
         "Operations",
+        "Trends",
         "Advisor",
         "Plan",
     ]
     assert _card_types(view) <= GEN.CARD_TYPES
     assert _section(view, "Watch", space)["column_span"] == 2
+    assert _section(view, "Trends", space)["column_span"] == 2
     assert _section(view, "Advisor", space)["column_span"] == 2
 
     lifecycle = _section(view, "Lifecycle", space)
@@ -313,6 +316,73 @@ def test_executive_omits_the_trend_without_water_temperature_or_ph():
     view = GEN.build_overview([space])
     assert "history-graph" not in _card_types(view)
     assert [_heading(section) for section in view["sections"]] == ["Tent A"]
+
+
+def test_controls_section_features_and_pumps():
+    space = _space("3x3 Mothers Tent", "3x3_mothers_tent", "tent")
+    space["controls"] = {
+        "lights": "light.tent_light",
+        "fans": "fan.tent_circulation",
+        "inline_fans": "fan.tent_duct",
+    }
+    space["controller_extras"] = {
+        "plan_light_schedule": "sensor.tent_light_sched",
+        "plan_circulator_fan_schedule": "sensor.tent_fan_sched",
+        "plan_duct_fan_schedule": "sensor.tent_duct_sched",
+    }
+    view = GEN.build_space_view(space)
+    controls = _section(view, "Controls", space)
+    tiles = _tile_entities(controls)
+    assert "light.tent_light" in tiles
+    assert "fan.tent_circulation" in tiles
+    assert "fan.tent_duct" in tiles
+    assert space["reg"]["rdwc_pump"] in tiles
+    assert space["reg"]["chiller_pump"] in tiles
+    assert space["reg"]["air_pump"] in tiles
+
+    light_card = next(
+        c for c in controls["cards"] if c.get("entity") == "light.tent_light"
+    )
+    assert light_card["features"] == [{"type": "light-brightness"}]
+    fan_card = next(
+        c for c in controls["cards"] if c.get("entity") == "fan.tent_circulation"
+    )
+    assert fan_card["features"] == [{"type": "fan-speed"}]
+    duct_card = next(c for c in controls["cards"] if c.get("entity") == "fan.tent_duct")
+    assert duct_card["features"] == [{"type": "fan-speed"}]
+
+    sched_card = next(c for c in controls["cards"] if c["type"] == "entities")
+    sched_entities = [row["entity"] for row in sched_card["entities"]]
+    assert "sensor.tent_light_sched" in sched_entities
+    assert "sensor.tent_fan_sched" in sched_entities
+    assert "sensor.tent_duct_sched" in sched_entities
+
+
+def test_trends_section_history_graphs():
+    space = _space("3x3 Mothers Tent", "3x3_mothers_tent", "tent")
+    space["sensors"]["temperature"] = "sensor.tent_temp"
+    space["sensors"]["humidity"] = "sensor.tent_humidity"
+    space["sensors"]["orp"] = "sensor.tent_orp"
+    view = GEN.build_space_view(space)
+    trends = _section(view, "Trends", space)
+    graphs = [c for c in trends["cards"] if c["type"] == "history-graph"]
+    assert len(graphs) == 2
+    assert graphs[0]["title"] == "Canopy Climate History (24h)"
+    assert "sensor.tent_temp" in graphs[0]["entities"]
+    assert "sensor.tent_humidity" in graphs[0]["entities"]
+    assert graphs[1]["title"] == "Hydroponic Reservoir History (24h)"
+    assert space["sensors"]["ph"] in graphs[1]["entities"]
+    assert "sensor.tent_orp" in graphs[1]["entities"]
+
+
+def test_plan_section_includes_grow_tasks_when_present():
+    space = _space("3x3 Mothers Tent", "3x3_mothers_tent", "tent")
+    space["grow_tasks"] = "todo.tent_grow_tasks"
+    view = GEN.build_space_view(space)
+    plan = _section(view, "Plan", space)
+    todo = next(c for c in plan["cards"] if c["type"] == "todo-list")
+    assert todo["entity"] == "todo.tent_grow_tasks"
+    assert todo["title"] == "Grow Tasks"
 
 
 def test_dry_run_returns_before_lovelace_save():

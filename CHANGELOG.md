@@ -6,6 +6,19 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.14] - 2026-09-30
+
+### Added
+- **Ultimate Zone Cockpit Dashboards**:
+  - Overhauled `/tendrial-grow/zone-3x3_mothers_tent` and `/tendrial-grow/zone-4x4_full_cycle_tent` into 9-section cockpits while keeping the Executive Overview intact.
+  - Interactive equipment controls: Grow light tile with brightness slider, Circulation and Inline Duct fan tiles with speed sliders, and power-strip RDWC, air, and chiller pump controls.
+  - Vivosun controller plan schedule status cards for light, circulation, and duct fan automated programming.
+  - In-place cultivation controls: growth stage selector, stage start date picker, target setpoint band editors (pH, EC, VPD), flush operations with interval controls, and cultivation parameter forms.
+  - Native Home Assistant to-do list card integration (`todo.<grow>_grow_tasks`) for tracking zone chores.
+  - Full cultivation telemetry display: 7-parameter water monitoring, derived canopy & leaf VPD, dew point margin, mold risk alerts, photoperiod hours, 12/12 flip tracking, and ambient lung room monitoring.
+  - Dual 24-hour history graphs for canopy microclimate and hydroponic reservoir chemistry.
+  - Automated dynamic discovery in `scripts/generate_dashboard.py` supporting both `light` and `switch` domain pump entities and Vivosun controllers.
+
 ## [0.3.13] - 2026-09-30
 
 ### Added

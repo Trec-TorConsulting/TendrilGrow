@@ -8,13 +8,15 @@ the example YAML, or generate tabs from the live entity registry.
 `scripts/generate_dashboard.py` emits a sections view. A section is left out
 when that grow space has none of its entities.
 
-1. **Watch** — camera snapshot
-2. **Lifecycle** — stage, stage started, week in stage, days left, and projected dates
-3. **AI** — health-score gauge, summary, last check, critical alert, and the run button
-4. **Reservoir** — pH, EC, and VPD first, then any other mapped readings, band alerts, and the target-band numbers
-5. **Operations** — flush status and pump switches plus power
-6. **Advisor** — AI health report and feeding schedule
-7. **Plan** — cultivation helpers that are not already in the sections above
+1. **Watch** — camera snapshot with live more-info stream
+2. **Controls** — grow light with brightness slider, circulation and duct fans with speed control, RDWC/air/chiller pumps, and controller plan schedules
+3. **Lifecycle** — stage dropdown, stage started date picker, week in stage, days left, days since flip, and projected dates
+4. **AI** — health-score gauge, summary, last check, weekly journal, critical alert, and run check button
+5. **Reservoir** — pH, EC, and VPD first, then intelligence telemetry (leaf VPD, dew point, margin, transpiration, mold risk, drift diagnosis, water safety), target setpoints, and lung-room ambient comparison
+6. **Operations** — flush status, flush now button, flush interval slider, and pump power
+7. **Trends** — 24h history graphs for canopy climate and reservoir chemistry
+8. **Advisor** — AI health report and feeding schedule
+9. **Plan** — cultivation parameters setpoint editor and grow space tasks to-do list
 
 The Executive view is one status section per grow space (camera, AI score, out-of-range, flush) plus a 24-hour water-temperature and pH graph. Badges for an out-of-range summary or a flush due show only while that sensor is on.
 

@@ -42,6 +42,12 @@ views:
     - type: tile
       entity: sensor.3x3_mothers_tent_days_until_flush
       name: Days until flush
+    - type: tile
+      entity: binary_sensor.3x3_mothers_tent_mold_risk
+      name: Mold risk
+    - type: tile
+      entity: sensor.3x3_mothers_tent_water_safety_status
+      name: Water safety
   - type: grid
     cards:
     - type: heading
@@ -75,6 +81,12 @@ views:
     - type: tile
       entity: sensor.4x4_full_cycle_tent_days_until_flush
       name: Days until flush
+    - type: tile
+      entity: binary_sensor.4x4_full_cycle_tent_mold_risk
+      name: Mold risk
+    - type: tile
+      entity: sensor.4x4_full_cycle_tent_water_safety_status
+      name: Water safety
   - type: grid
     cards:
     - type: heading
@@ -101,6 +113,12 @@ views:
     - type: tile
       entity: sensor.clone_days_until_flush
       name: Days until flush
+    - type: tile
+      entity: binary_sensor.basement_clone_mold_risk
+      name: Mold risk
+    - type: tile
+      entity: sensor.basement_clone_water_safety_status
+      name: Water safety
   - type: grid
     column_span: 3
     cards:
@@ -129,6 +147,18 @@ views:
       entity: binary_sensor.3x3_mothers_tent_flush_due
       state: 'on'
   - type: entity
+    entity: binary_sensor.3x3_mothers_tent_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
+      state: 'on'
+  - type: entity
     entity: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
     visibility:
     - condition: state
@@ -141,6 +171,18 @@ views:
       entity: binary_sensor.4x4_full_cycle_tent_flush_due
       state: 'on'
   - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
+      state: 'on'
+  - type: entity
     entity: binary_sensor.basement_clone_metrics_out_of_range
     visibility:
     - condition: state
@@ -151,6 +193,18 @@ views:
     visibility:
     - condition: state
       entity: binary_sensor.clone_flush_due
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.basement_clone_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.basement_clone_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.clone_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.clone_ai_health_critical_alert
       state: 'on'
 - path: zone-3x3_mothers_tent
   title: 3x3 Mothers Tent
@@ -174,6 +228,50 @@ views:
   - type: grid
     cards:
     - type: heading
+      heading: Controls
+      heading_style: subtitle
+    - type: tile
+      entity: light.3x3_controller_grow_light
+      name: Grow Light
+      features:
+      - type: light-brightness
+    - type: tile
+      entity: fan.3x3_controller_circulation_fan
+      name: Circulation Fan
+      features:
+      - type: fan-speed
+    - type: tile
+      entity: fan.3x3_controller_duct_fan
+      name: Inline Duct Fan
+      features:
+      - type: fan-speed
+    - type: tile
+      entity: light.power01_light
+      name: RDWC Pump
+      icon: mdi:pump
+    - type: tile
+      entity: light.power01_light_2
+      name: Air Pump
+      icon: mdi:air-filter
+    - type: tile
+      entity: light.power01_light_3
+      name: Water Chiller Pump
+      icon: mdi:snowflake
+    - type: entities
+      title: Controller Schedule Status
+      entities:
+      - entity: sensor.3x3_controller_plan_light_schedule
+        name: Light Schedule
+        icon: mdi:weather-sunset
+      - entity: sensor.3x3_controller_plan_circulator_fan_schedule
+        name: Circulation Fan Schedule
+        icon: mdi:fan-clock
+      - entity: sensor.3x3_controller_plan_duct_fan_schedule
+        name: Duct Fan Schedule
+        icon: mdi:fan-auto
+  - type: grid
+    cards:
+    - type: heading
       heading: 3x3 Mothers Tent
       heading_style: title
     - type: tile
@@ -188,6 +286,9 @@ views:
     - type: tile
       entity: sensor.3x3_mothers_tent_stage_projection
       name: Days left in stage
+    - type: tile
+      entity: sensor.3x3_mothers_tent_days_since_flip
+      name: Days since flip
     - type: markdown
       title: Projections
       content: '**Projected stage end:** {{ state_attr(''sensor.3x3_mothers_tent_stage_projection'',''projected_stage_end'')
@@ -226,6 +327,9 @@ views:
     - type: tile
       entity: button.3x3_mothers_tent_run_ai_health_check
       name: Run AI health check
+    - type: tile
+      entity: sensor.3x3_mothers_tent_ai_weekly_journal
+      name: Weekly journal
   - type: grid
     cards:
     - type: heading
@@ -259,6 +363,33 @@ views:
       entity: sensor.3x3_controller_inside_humidity
       name: Humidity
     - type: tile
+      entity: sensor.3x3_mothers_tent_leaf_vpd
+      name: Leaf VPD
+    - type: tile
+      entity: sensor.3x3_mothers_tent_dew_point
+      name: Dew point
+    - type: tile
+      entity: sensor.3x3_mothers_tent_dew_point_margin
+      name: Dew point margin
+    - type: tile
+      entity: sensor.3x3_mothers_tent_photoperiod_hours
+      name: Photoperiod
+    - type: tile
+      entity: binary_sensor.3x3_mothers_tent_mold_risk
+      name: Mold risk
+    - type: tile
+      entity: sensor.3x3_mothers_tent_reservoir_drift_diagnosis
+      name: Drift diagnosis
+    - type: tile
+      entity: sensor.3x3_mothers_tent_water_safety_status
+      name: Water safety
+    - type: tile
+      entity: binary_sensor.3x3_mothers_tent_flow_ok
+      name: Water flow
+    - type: tile
+      entity: binary_sensor.3x3_mothers_tent_leak_detected
+      name: Leak detected
+    - type: tile
       entity: binary_sensor.3x3_mothers_tent_ph_out_of_range
       name: pH band
     - type: tile
@@ -277,6 +408,15 @@ views:
       - number.3x3_mothers_tent_target_ec_high
       - number.3x3_mothers_tent_target_vpd_low
       - number.3x3_mothers_tent_target_vpd_high
+    - type: entities
+      title: Lung Room (Ambient)
+      entities:
+      - entity: sensor.3x3_controller_outside_temperature
+        name: Outside Temperature
+      - entity: sensor.3x3_controller_outside_humidity
+        name: Outside Humidity
+      - entity: sensor.3x3_controller_outside_vpd
+        name: Outside VPD
   - type: grid
     cards:
     - type: heading
@@ -303,6 +443,28 @@ views:
     - type: tile
       entity: number.3x3_mothers_tent_flush_interval
       name: Flush interval
+  - type: grid
+    cards:
+    - type: heading
+      heading: Trends
+      heading_style: subtitle
+    - type: history-graph
+      title: Canopy Climate History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.3x3_controller_inside_temperature
+      - sensor.3x3_controller_inside_humidity
+      - sensor.3x3_mothers_tent_vpd
+      - sensor.3x3_mothers_tent_leaf_vpd
+    - type: history-graph
+      title: Hydroponic Reservoir History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.3x3_water_monitor_ph
+      - sensor.3x3_water_monitor_electrical_conductivity
+      - sensor.3x3_water_monitor_temperature
+      - sensor.3x3_water_monitor_oxidation_reduction_potential
+    column_span: 2
   - type: grid
     cards:
     - type: heading
@@ -339,6 +501,42 @@ views:
       - text.3x3_mothers_tent_base_nutrients
       - text.3x3_mothers_tent_additives
       - number.3x3_mothers_tent_electricity_price
+    - type: todo-list
+      entity: todo.3x3_mothers_tent_grow_tasks
+      title: Grow Tasks
+  badges:
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_leak_detected
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_leak_detected
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_flush_due
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_flush_due
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_metrics_out_of_range
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_metrics_out_of_range
+      state: 'on'
+  - type: entity
+    entity: select.3x3_mothers_tent_growth_stage
 - path: zone-4x4_full_cycle_tent
   title: 4x4 Full Cycle Tent
   icon: mdi:sprout
@@ -361,6 +559,50 @@ views:
   - type: grid
     cards:
     - type: heading
+      heading: Controls
+      heading_style: subtitle
+    - type: tile
+      entity: light.4x4_controller_grow_light
+      name: Grow Light
+      features:
+      - type: light-brightness
+    - type: tile
+      entity: fan.4x4_controller_circulation_fan
+      name: Circulation Fan
+      features:
+      - type: fan-speed
+    - type: tile
+      entity: fan.4x4_controller_duct_fan
+      name: Inline Duct Fan
+      features:
+      - type: fan-speed
+    - type: tile
+      entity: switch.power_4x4_grow_tent_switch
+      name: RDWC Pump
+      icon: mdi:pump
+    - type: tile
+      entity: switch.power_4x4_grow_tent_switch_2
+      name: Air Pump
+      icon: mdi:air-filter
+    - type: tile
+      entity: switch.power_4x4_grow_tent_switch_3
+      name: Water Chiller Pump
+      icon: mdi:snowflake
+    - type: entities
+      title: Controller Schedule Status
+      entities:
+      - entity: sensor.4x4_controller_plan_light_schedule
+        name: Light Schedule
+        icon: mdi:weather-sunset
+      - entity: sensor.4x4_controller_plan_circulator_fan_schedule
+        name: Circulation Fan Schedule
+        icon: mdi:fan-clock
+      - entity: sensor.4x4_controller_plan_duct_fan_schedule
+        name: Duct Fan Schedule
+        icon: mdi:fan-auto
+  - type: grid
+    cards:
+    - type: heading
       heading: 4x4 Full Cycle Tent
       heading_style: title
     - type: tile
@@ -375,6 +617,9 @@ views:
     - type: tile
       entity: sensor.4x4_full_cycle_tent_stage_projection
       name: Days left in stage
+    - type: tile
+      entity: sensor.4x4_full_cycle_tent_days_since_flip
+      name: Days since flip
     - type: markdown
       title: Projections
       content: '**Projected stage end:** {{ state_attr(''sensor.4x4_full_cycle_tent_stage_projection'',''projected_stage_end'')
@@ -413,6 +658,9 @@ views:
     - type: tile
       entity: button.4x4_full_cycle_tent_run_ai_health_check
       name: Run AI health check
+    - type: tile
+      entity: sensor.4x4_full_cycle_tent_ai_weekly_journal
+      name: Weekly journal
   - type: grid
     cards:
     - type: heading
@@ -446,6 +694,33 @@ views:
       entity: sensor.4x4_controller_inside_humidity
       name: Humidity
     - type: tile
+      entity: sensor.4x4_full_cycle_tent_leaf_vpd
+      name: Leaf VPD
+    - type: tile
+      entity: sensor.4x4_full_cycle_tent_dew_point
+      name: Dew point
+    - type: tile
+      entity: sensor.4x4_full_cycle_tent_dew_point_margin
+      name: Dew point margin
+    - type: tile
+      entity: sensor.4x4_full_cycle_tent_photoperiod_hours
+      name: Photoperiod
+    - type: tile
+      entity: binary_sensor.4x4_full_cycle_tent_mold_risk
+      name: Mold risk
+    - type: tile
+      entity: sensor.4x4_full_cycle_tent_reservoir_drift_diagnosis
+      name: Drift diagnosis
+    - type: tile
+      entity: sensor.4x4_full_cycle_tent_water_safety_status
+      name: Water safety
+    - type: tile
+      entity: binary_sensor.4x4_full_cycle_tent_flow_ok
+      name: Water flow
+    - type: tile
+      entity: binary_sensor.4x4_full_cycle_tent_leak_detected
+      name: Leak detected
+    - type: tile
       entity: binary_sensor.4x4_full_cycle_tent_ph_out_of_range
       name: pH band
     - type: tile
@@ -464,6 +739,15 @@ views:
       - number.4x4_full_cycle_tent_target_ec_high
       - number.4x4_full_cycle_tent_target_vpd_low
       - number.4x4_full_cycle_tent_target_vpd_high
+    - type: entities
+      title: Lung Room (Ambient)
+      entities:
+      - entity: sensor.4x4_controller_outside_temperature
+        name: Outside Temperature
+      - entity: sensor.4x4_controller_outside_humidity
+        name: Outside Humidity
+      - entity: sensor.4x4_controller_outside_vpd
+        name: Outside VPD
   - type: grid
     cards:
     - type: heading
@@ -490,6 +774,28 @@ views:
     - type: tile
       entity: number.4x4_full_cycle_tent_flush_interval
       name: Flush interval
+  - type: grid
+    cards:
+    - type: heading
+      heading: Trends
+      heading_style: subtitle
+    - type: history-graph
+      title: Canopy Climate History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.4x4_controller_inside_temperature
+      - sensor.4x4_controller_inside_humidity
+      - sensor.4x4_full_cycle_tent_vpd
+      - sensor.4x4_full_cycle_tent_leaf_vpd
+    - type: history-graph
+      title: Hydroponic Reservoir History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.4x4_water_monitor_ph
+      - sensor.4x4_water_monitor_electrical_conductivity
+      - sensor.4x4_water_monitor_temperature
+      - sensor.4x4_water_monitor_oxidation_reduction_potential
+    column_span: 2
   - type: grid
     cards:
     - type: heading
@@ -526,6 +832,42 @@ views:
       - text.4x4_full_cycle_tent_base_nutrients
       - text.4x4_full_cycle_tent_additives
       - number.4x4_full_cycle_tent_electricity_price
+    - type: todo-list
+      entity: todo.4x4_full_cycle_tent_grow_tasks
+      title: Grow Tasks
+  badges:
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_leak_detected
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_leak_detected
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_flush_due
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_flush_due
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
+      state: 'on'
+  - type: entity
+    entity: select.4x4_full_cycle_tent_growth_stage
 - path: zone-clone
   title: Clone
   icon: mdi:sprout
@@ -549,6 +891,9 @@ views:
     - type: tile
       entity: sensor.clone_stage_projection
       name: Days left in stage
+    - type: tile
+      entity: sensor.basement_clone_days_since_flip
+      name: Days since flip
     - type: markdown
       title: Projections
       content: '**Projected stage end:** {{ state_attr(''sensor.clone_stage_projection'',''projected_stage_end'')
@@ -587,6 +932,9 @@ views:
     - type: tile
       entity: button.clone_run_ai_health_check
       name: Run AI health check
+    - type: tile
+      entity: sensor.basement_clone_ai_weekly_journal
+      name: Weekly journal
   - type: grid
     cards:
     - type: heading
@@ -595,6 +943,33 @@ views:
     - type: tile
       entity: sensor.basement_clone_vpd
       name: VPD
+    - type: tile
+      entity: sensor.basement_clone_leaf_vpd
+      name: Leaf VPD
+    - type: tile
+      entity: sensor.basement_clone_dew_point
+      name: Dew point
+    - type: tile
+      entity: sensor.basement_clone_dew_point_margin
+      name: Dew point margin
+    - type: tile
+      entity: sensor.basement_clone_photoperiod_hours
+      name: Photoperiod
+    - type: tile
+      entity: binary_sensor.basement_clone_mold_risk
+      name: Mold risk
+    - type: tile
+      entity: sensor.basement_clone_reservoir_drift_diagnosis
+      name: Drift diagnosis
+    - type: tile
+      entity: sensor.basement_clone_water_safety_status
+      name: Water safety
+    - type: tile
+      entity: binary_sensor.basement_clone_flow_ok
+      name: Water flow
+    - type: tile
+      entity: binary_sensor.basement_clone_leak_detected
+      name: Leak detected
     - type: tile
       entity: binary_sensor.basement_clone_ph_out_of_range
       name: pH band
@@ -643,6 +1018,18 @@ views:
   - type: grid
     cards:
     - type: heading
+      heading: Trends
+      heading_style: subtitle
+    - type: history-graph
+      title: Canopy Climate History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.basement_clone_vpd
+      - sensor.basement_clone_leaf_vpd
+    column_span: 2
+  - type: grid
+    cards:
+    - type: heading
       heading: Advisor
       heading_style: subtitle
     - type: markdown
@@ -676,3 +1063,36 @@ views:
       - text.clone_base_nutrients
       - text.clone_additives
       - number.basement_clone_electricity_price
+  badges:
+  - type: entity
+    entity: binary_sensor.clone_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.clone_ai_health_critical_alert
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.basement_clone_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.basement_clone_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.basement_clone_leak_detected
+    visibility:
+    - condition: state
+      entity: binary_sensor.basement_clone_leak_detected
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.clone_flush_due
+    visibility:
+    - condition: state
+      entity: binary_sensor.clone_flush_due
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.basement_clone_metrics_out_of_range
+    visibility:
+    - condition: state
+      entity: binary_sensor.basement_clone_metrics_out_of_range
+      state: 'on'
+  - type: entity
+    entity: select.clone_growth_stage
