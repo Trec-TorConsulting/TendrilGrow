@@ -2201,27 +2201,42 @@ class TendrilGrowTrendsCard extends HTMLElement {
     this._hours = 24; // 6 | 12 | 24
     this._historyData = {}; // entityId -> [{val, time}]
     this._lastFetchTime = 0;
-    this._hoverData = null; // { spaceIdx, x, y, time, val, label }
+    this._hoverData = null;
+    this._spaceChartData = {};
+  }
+
+  static getStubConfig() {
+    return {
+      title: "Cultivation Telemetry Curves",
+      hours_to_show: 24,
+      spaces: [],
+    };
   }
 
   setConfig(config) {
+    if (!config) throw new Error("Invalid configuration");
     this._config = {
-      title: config.title || "24-Hour Telemetry Intelligence & Trends",
+      title: config.title || "Cultivation Telemetry Curves",
       hours_to_show: config.hours_to_show || 24,
-      spaces: config.spaces || [],
+      spaces: Array.isArray(config.spaces) ? config.spaces : [],
       ...config,
     };
     this._hours = this._config.hours_to_show;
+    this._spaceChartData = {};
     this._render();
   }
 
   set hass(hass) {
-    const oldHass = this._hass;
-    this._hass = hass;
-    if (!oldHass || Date.now() - this._lastFetchTime > 60000) {
-      this._fetchHistory();
-    } else {
-      this._updateStats();
+    try {
+      const oldHass = this._hass;
+      this._hass = hass;
+      if (!oldHass || Date.now() - this._lastFetchTime > 60000) {
+        this._fetchHistory();
+      } else {
+        this._updateStats();
+      }
+    } catch (err) {
+      console.error("TendrilGrowTrendsCard: Error in set hass:", err);
     }
   }
 
@@ -2254,341 +2269,346 @@ class TendrilGrowTrendsCard extends HTMLElement {
     if (entityIds.length === 0) return;
 
     try {
-      const path = `history/period/${encodeURIComponent(startTime)}?filter_entity_id=${encodeURIComponent(
-        entityIds.join(",")
-      )}&minimal_response&significant_changes_only=1`;
-      const data = await this._hass.callApi("GET", path);
-      if (Array.isArray(data)) {
-        data.forEach((entityList) => {
-          if (Array.isArray(entityList) && entityList.length > 0) {
-            const entityId = entityList[0].entity_id;
-            const points = entityList
-              .map((item) => {
-                const val = parseFloat(item.state);
-                const time = new Date(item.last_changed || item.last_updated).getTime();
-                return isNaN(val) ? null : { val, time };
-              })
-              .filter(Boolean);
-            this._historyData[entityId] = points;
-          }
-        });
-        this._renderCharts();
+      if (typeof this._hass.callApi === "function") {
+        const path = `history/period/${encodeURIComponent(startTime)}?filter_entity_id=${encodeURIComponent(
+          entityIds.join(",")
+        )}&minimal_response&significant_changes_only=1`;
+        const data = await this._hass.callApi("GET", path);
+        if (Array.isArray(data)) {
+          data.forEach((entityList) => {
+            if (Array.isArray(entityList) && entityList.length > 0) {
+              const entityId = entityList[0].entity_id;
+              const points = entityList
+                .map((item) => {
+                  const val = parseFloat(item.state);
+                  const time = new Date(item.last_changed || item.last_updated).getTime();
+                  return isNaN(val) ? null : { val, time };
+                })
+                .filter(Boolean);
+              this._historyData[entityId] = points;
+            }
+          });
+        }
       }
     } catch (err) {
       console.debug("TendrilGrow: Could not fetch history period:", err);
-      this._renderCharts();
     }
+    this._renderCharts();
   }
 
   _render() {
-    if (!this.shadowRoot) return;
+    try {
+      if (!this.shadowRoot) return;
 
-    this.shadowRoot.innerHTML = `
-      <style>
-        :host {
-          display: block;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          color: #e6edf3;
-          --tg-bg: #0b0f17;
-          --tg-card-bg: rgba(18, 24, 38, 0.9);
-          --tg-border: rgba(255, 255, 255, 0.08);
-          --tg-green: #10b981;
-          --tg-cyan: #06b6d4;
-          --tg-blue: #38bdf8;
-          --tg-violet: #8b5cf6;
-          --tg-amber: #f59e0b;
-        }
+      this.shadowRoot.innerHTML = `
+        <style>
+          :host {
+            display: block;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #e6edf3;
+            --tg-bg: #0b0f17;
+            --tg-card-bg: rgba(18, 24, 38, 0.9);
+            --tg-border: rgba(255, 255, 255, 0.08);
+            --tg-green: #10b981;
+            --tg-cyan: #06b6d4;
+            --tg-blue: #38bdf8;
+            --tg-violet: #8b5cf6;
+            --tg-amber: #f59e0b;
+          }
 
-        * {
-          box-sizing: border-box;
-          margin: 0;
-          padding: 0;
-        }
+          * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+          }
 
-        .container {
-          background: var(--tg-bg);
-          border-radius: 18px;
-          border: 1px solid var(--tg-border);
-          padding: 18px;
-          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
-        }
+          .container {
+            background: var(--tg-bg);
+            border-radius: 18px;
+            border: 1px solid var(--tg-border);
+            padding: 18px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+          }
 
-        /* HEADER */
-        .header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 18px;
-          padding-bottom: 14px;
-          border-bottom: 1px solid var(--tg-border);
-          flex-wrap: wrap;
-          gap: 12px;
-        }
+          /* HEADER */
+          .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--tg-border);
+            flex-wrap: wrap;
+            gap: 12px;
+          }
 
-        .header-title-box {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
+          .header-title-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
 
-        .brand-badge {
-          width: 34px;
-          height: 34px;
-          border-radius: 10px;
-          background: linear-gradient(135deg, #06b6d4, #0891b2);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 18px;
-          box-shadow: 0 0 16px rgba(6, 182, 212, 0.35);
-        }
+          .brand-badge {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 0 16px rgba(6, 182, 212, 0.35);
+          }
 
-        .header h2 {
-          font-size: 19px;
-          font-weight: 700;
-          letter-spacing: -0.3px;
-          color: #f0f6fc;
-        }
+          .header h2 {
+            font-size: 19px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            color: #f0f6fc;
+          }
 
-        .header-subtitle {
-          font-size: 12px;
-          color: #8b949e;
-          font-weight: 500;
-        }
+          .header-subtitle {
+            font-size: 12px;
+            color: #8b949e;
+            font-weight: 500;
+          }
 
-        /* CONTROLS (TABS & TIME WINDOW) */
-        .header-controls {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
+          /* CONTROLS (TABS & TIME WINDOW) */
+          .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+          }
 
-        .tabs-pill-box {
-          background: rgba(13, 17, 23, 0.85);
-          border: 1px solid var(--tg-border);
-          border-radius: 10px;
-          padding: 3px;
-          display: flex;
-          gap: 4px;
-        }
+          .tabs-pill-box {
+            background: rgba(13, 17, 23, 0.85);
+            border: 1px solid var(--tg-border);
+            border-radius: 10px;
+            padding: 3px;
+            display: flex;
+            gap: 4px;
+          }
 
-        .tab-btn {
-          background: transparent;
-          border: none;
-          color: #8b949e;
-          font-size: 12px;
-          font-weight: 600;
-          padding: 5px 12px;
-          border-radius: 8px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
+          .tab-btn {
+            background: transparent;
+            border: none;
+            color: #8b949e;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 5px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+          }
 
-        .tab-btn:hover {
-          color: #fff;
-        }
+          .tab-btn:hover {
+            color: #fff;
+          }
 
-        .tab-btn.active {
-          background: rgba(16, 185, 129, 0.18);
-          color: #34d399;
-          font-weight: 700;
-          box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
-        }
+          .tab-btn.active {
+            background: rgba(16, 185, 129, 0.18);
+            color: #34d399;
+            font-weight: 700;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+          }
 
-        .tab-btn.active.hydro {
-          background: rgba(6, 182, 212, 0.18);
-          color: #38bdf8;
-          box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
-        }
+          .tab-btn.active.hydro {
+            background: rgba(6, 182, 212, 0.18);
+            color: #38bdf8;
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+          }
 
-        .time-box {
-          background: rgba(13, 17, 23, 0.85);
-          border: 1px solid var(--tg-border);
-          border-radius: 10px;
-          padding: 3px;
-          display: flex;
-          gap: 2px;
-        }
+          .time-box {
+            background: rgba(13, 17, 23, 0.85);
+            border: 1px solid var(--tg-border);
+            border-radius: 10px;
+            padding: 3px;
+            display: flex;
+            gap: 2px;
+          }
 
-        .time-btn {
-          background: transparent;
-          border: none;
-          color: #8b949e;
-          font-size: 11px;
-          font-weight: 600;
-          padding: 5px 8px;
-          border-radius: 6px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
+          .time-btn {
+            background: transparent;
+            border: none;
+            color: #8b949e;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 5px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+          }
 
-        .time-btn:hover {
-          color: #fff;
-        }
+          .time-btn:hover {
+            color: #fff;
+          }
 
-        .time-btn.active {
-          background: rgba(255, 255, 255, 0.1);
-          color: #fff;
-          font-weight: 700;
-        }
+          .time-btn.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-weight: 700;
+          }
 
-        /* SPACES PANELS */
-        .trends-grid {
-          display: grid;
-          grid-template-columns: 1fr;
-          gap: 16px;
-        }
+          /* SPACES PANELS */
+          .trends-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+          }
 
-        .trend-space-panel {
-          background: var(--tg-card-bg);
-          border: 1px solid var(--tg-border);
-          border-radius: 14px;
-          padding: 16px;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-          transition: border-color 0.25s ease;
-        }
+          .trend-space-panel {
+            background: var(--tg-card-bg);
+            border: 1px solid var(--tg-border);
+            border-radius: 14px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+            transition: border-color 0.25s ease;
+          }
 
-        .trend-space-panel:hover {
-          border-color: rgba(6, 182, 212, 0.4);
-        }
+          .trend-space-panel:hover {
+            border-color: rgba(6, 182, 212, 0.4);
+          }
 
-        .panel-top {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
+          .panel-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+          }
 
-        .space-title-row {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
+          .space-title-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
 
-        .panel-space-name {
-          font-size: 16px;
-          font-weight: 700;
-          color: #fff;
-        }
+          .panel-space-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+          }
 
-        .target-corridor-badge {
-          background: rgba(16, 185, 129, 0.12);
-          border: 1px solid rgba(16, 185, 129, 0.3);
-          color: #34d399;
-          font-size: 11px;
-          font-weight: 600;
-          padding: 2px 8px;
-          border-radius: 10px;
-        }
+          .target-corridor-badge {
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #34d399;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+          }
 
-        /* STATS PILLS */
-        .stats-pills-row {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
+          /* STATS PILLS */
+          .stats-pills-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+          }
 
-        .stat-pill {
-          background: rgba(13, 17, 23, 0.7);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-          border-radius: 8px;
-          padding: 4px 10px;
-          font-size: 11px;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
+          .stat-pill {
+            background: rgba(13, 17, 23, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            padding: 4px 10px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
 
-        .stat-pill-label {
-          color: #8b949e;
-          text-transform: uppercase;
-          font-size: 9px;
-          font-weight: 700;
-        }
+          .stat-pill-label {
+            color: #8b949e;
+            text-transform: uppercase;
+            font-size: 9px;
+            font-weight: 700;
+          }
 
-        .stat-pill-val {
-          color: #fff;
-          font-weight: 700;
-          font-size: 12px;
-        }
+          .stat-pill-val {
+            color: #fff;
+            font-weight: 700;
+            font-size: 12px;
+          }
 
-        .stat-pill-range {
-          color: #6e7681;
-          font-size: 10px;
-        }
+          .stat-pill-range {
+            color: #6e7681;
+            font-size: 10px;
+          }
 
-        /* SVG CHART CONTAINER */
-        .chart-container {
-          position: relative;
-          width: 100%;
-          height: 140px;
-          background: rgba(10, 14, 22, 0.6);
-          border-radius: 10px;
-          border: 1px solid rgba(255, 255, 255, 0.04);
-          overflow: hidden;
-        }
+          /* SVG CHART CONTAINER */
+          .chart-container {
+            position: relative;
+            width: 100%;
+            height: 140px;
+            background: rgba(10, 14, 22, 0.6);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            overflow: hidden;
+          }
 
-        .chart-svg {
-          width: 100%;
-          height: 100%;
-          display: block;
-        }
+          .chart-svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+          }
 
-        /* TOOLTIP */
-        .chart-tooltip {
-          position: absolute;
-          display: none;
-          background: rgba(13, 17, 23, 0.95);
-          backdrop-filter: blur(8px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          color: #fff;
-          padding: 4px 10px;
-          border-radius: 6px;
-          font-size: 11px;
-          pointer-events: none;
-          white-space: nowrap;
-          z-index: 10;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
-        }
-      </style>
+          /* TOOLTIP */
+          .chart-tooltip {
+            position: absolute;
+            display: none;
+            background: rgba(13, 17, 23, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 10;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+          }
+        </style>
 
-      <div class="container">
-        <div class="header">
-          <div class="header-title-box">
-            <div class="brand-badge">📈</div>
-            <div>
-              <h2>${this._config.title}</h2>
-              <div class="header-subtitle">24-Hour Telemetry Intelligence & Environmental Trends</div>
+        <div class="container">
+          <div class="header">
+            <div class="header-title-box">
+              <div class="brand-badge">📈</div>
+              <div>
+                <h2>${this._config.title}</h2>
+                <div class="header-subtitle">24-Hour Telemetry Intelligence & Environmental Trends</div>
+              </div>
+            </div>
+
+            <div class="header-controls">
+              <div class="tabs-pill-box">
+                <button class="tab-btn ${this._mode === "canopy" ? "active" : ""}" data-mode="canopy">🌿 Canopy Climate</button>
+                <button class="tab-btn ${this._mode === "hydro" ? "active hydro" : ""}" data-mode="hydro">💧 Reservoir Chemistry</button>
+              </div>
+              <div class="time-box">
+                <button class="time-btn ${this._hours === 6 ? "active" : ""}" data-hours="6">6h</button>
+                <button class="time-btn ${this._hours === 12 ? "active" : ""}" data-hours="12">12h</button>
+                <button class="time-btn ${this._hours === 24 ? "active" : ""}" data-hours="24">24h</button>
+              </div>
             </div>
           </div>
 
-          <div class="header-controls">
-            <div class="tabs-pill-box">
-              <button class="tab-btn ${this._mode === "canopy" ? "active" : ""}" data-mode="canopy">🌿 Canopy Climate</button>
-              <button class="tab-btn ${this._mode === "hydro" ? "active hydro" : ""}" data-mode="hydro">💧 Reservoir Chemistry</button>
-            </div>
-            <div class="time-box">
-              <button class="time-btn ${this._hours === 6 ? "active" : ""}" data-hours="6">6h</button>
-              <button class="time-btn ${this._hours === 12 ? "active" : ""}" data-hours="12">12h</button>
-              <button class="time-btn ${this._hours === 24 ? "active" : ""}" data-hours="24">24h</button>
-            </div>
+          <div class="trends-grid" id="trends-grid">
+            <!-- Populated dynamically -->
           </div>
         </div>
+      `;
 
-        <div class="trends-grid" id="trends-grid">
-          <!-- Populated dynamically -->
-        </div>
-      </div>
-    `;
-
-    this._bindHeaderEvents();
-    this._renderCharts();
+      this._bindHeaderEvents();
+      this._renderCharts();
+    } catch (err) {
+      console.error("TendrilGrowTrendsCard: Error in _render:", err);
+    }
   }
 
   _bindHeaderEvents() {
@@ -2616,114 +2636,120 @@ class TendrilGrowTrendsCard extends HTMLElement {
   }
 
   _updateStats() {
-    // Light update of live stats without full SVG redraw
     this._renderCharts();
   }
 
   _renderCharts() {
-    if (!this._hass || !this.shadowRoot) return;
-    const grid = this.shadowRoot.getElementById("trends-grid");
-    if (!grid) return;
+    try {
+      if (!this._hass || !this.shadowRoot) return;
+      const grid = this.shadowRoot.getElementById("trends-grid");
+      if (!grid) return;
 
-    const spaces = this._config.spaces || [];
-    const mode = this._mode;
-    const hours = this._hours || 24;
-    const now = Date.now();
-    const windowStart = now - hours * 3600 * 1000;
+      const spaces = this._config.spaces || [];
+      const mode = this._mode;
+      const hours = this._hours || 24;
+      const now = Date.now();
+      const windowStart = now - hours * 3600 * 1000;
 
-    grid.innerHTML = spaces
-      .map((s, sIdx) => {
-        let primaryEntity = null;
-        let secondaryEntity = null;
-        let primaryLabel = "";
-        let secondaryLabel = "";
-        let primaryUnit = "";
-        let targetLow = null;
-        let targetHigh = null;
-        let strokeColor = "#10b981";
-        let secondaryStroke = "#38bdf8";
+      this._spaceChartData = {};
+      grid.innerHTML = spaces
+        .map((s, sIdx) => {
+          let primaryEntity = null;
+          let secondaryEntity = null;
+          let primaryLabel = "";
+          let secondaryLabel = "";
+          let primaryUnit = "";
+          let targetLow = null;
+          let targetHigh = null;
+          let strokeColor = "#10b981";
+          let secondaryStroke = "#38bdf8";
 
-        if (mode === "canopy") {
-          primaryEntity = s.leaf_vpd || s.vpd;
-          secondaryEntity = s.temperature;
-          primaryLabel = "Leaf VPD";
-          secondaryLabel = "Temp";
-          primaryUnit = "kPa";
-          targetLow = 0.9;
-          targetHigh = 1.3;
-          strokeColor = "#10b981";
-          secondaryStroke = "#38bdf8";
-        } else {
-          primaryEntity = s.ph;
-          secondaryEntity = s.water_temperature;
-          primaryLabel = "Hydro pH";
-          secondaryLabel = "Water Temp";
-          primaryUnit = "";
-          targetLow = 5.7;
-          targetHigh = 6.2;
-          strokeColor = "#06b6d4";
-          secondaryStroke = "#2dd4bf";
-        }
-
-        // Live values
-        const primaryCurrent = getStateNum(this._hass, primaryEntity, null);
-        const secondaryCurrent = getStateNum(this._hass, secondaryEntity, null);
-        const humidityCurrent = getStateNum(this._hass, s.humidity, null);
-        const ecCurrent = getStateNum(this._hass, s.ec, null);
-
-        // History points for primary entity
-        const rawPoints = (this._historyData[primaryEntity] || []).filter((p) => p.time >= windowStart);
-        let minVal = targetLow ? targetLow * 0.9 : 0;
-        let maxVal = targetHigh ? targetHigh * 1.1 : 100;
-        let avgVal = primaryCurrent;
-
-        if (rawPoints.length > 0) {
-          const vals = rawPoints.map((p) => p.val);
-          minVal = Math.min(...vals);
-          maxVal = Math.max(...vals);
-          avgVal = vals.reduce((a, b) => a + b, 0) / vals.length;
-        }
-
-        // Ensure reasonable spread for SVG plotting
-        if (maxVal === minVal) {
-          minVal -= 0.5;
-          maxVal += 0.5;
-        }
-        const valSpan = maxVal - minVal || 1;
-        const padMin = minVal - valSpan * 0.1;
-        const padMax = maxVal + valSpan * 0.1;
-        const totalSpan = padMax - padMin;
-
-        // SVG Layout constants
-        const svgW = 600;
-        const svgH = 130;
-        const padLeft = 40;
-        const padRight = 15;
-        const padTop = 15;
-        const padBottom = 25;
-        const plotW = svgW - padLeft - padRight;
-        const plotH = svgH - padTop - padBottom;
-
-        // Points mapping
-        let plottedPoints = [];
-        if (rawPoints.length >= 2) {
-          plottedPoints = rawPoints.map((p) => {
-            const x = padLeft + ((p.time - windowStart) / (now - windowStart)) * plotW;
-            const y = padTop + plotH - ((p.val - padMin) / totalSpan) * plotH;
-            return { x, y, val: p.val, time: p.time };
-          });
-        } else {
-          // Fallback smooth sparkline curve if history is pending
-          const base = primaryCurrent !== null ? primaryCurrent : (targetLow + targetHigh) / 2;
-          for (let step = 0; step <= 10; step++) {
-            const ratio = step / 10;
-            const x = padLeft + ratio * plotW;
-            const wave = Math.sin(ratio * Math.PI * 2) * (valSpan * 0.15);
-            const val = base + wave;
-            const y = padTop + plotH - ((val - padMin) / totalSpan) * plotH;
-            plottedPoints.push({ x, y, val, time: windowStart + ratio * (now - windowStart) });
+          if (mode === "canopy") {
+            primaryEntity = s.leaf_vpd || s.vpd;
+            secondaryEntity = s.temperature;
+            primaryLabel = "Leaf VPD";
+            secondaryLabel = "Temp";
+            primaryUnit = "kPa";
+            targetLow = 0.9;
+            targetHigh = 1.3;
+            strokeColor = "#10b981";
+            secondaryStroke = "#38bdf8";
+          } else {
+            primaryEntity = s.ph;
+            secondaryEntity = s.water_temperature;
+            primaryLabel = "Hydro pH";
+            secondaryLabel = "Water Temp";
+            primaryUnit = "";
+            targetLow = 5.7;
+            targetHigh = 6.2;
+            strokeColor = "#06b6d4";
+            secondaryStroke = "#2dd4bf";
           }
-        }
+
+          // Live values
+          const primaryCurrent = getStateNum(this._hass, primaryEntity, null);
+          const secondaryCurrent = getStateNum(this._hass, secondaryEntity, null);
+          const humidityCurrent = getStateNum(this._hass, s.humidity, null);
+          const ecCurrent = getStateNum(this._hass, s.ec, null);
+
+          // History points for primary entity
+          const rawPoints = (this._historyData[primaryEntity] || []).filter((p) => p.time >= windowStart);
+          let minVal = targetLow !== null ? targetLow * 0.9 : 0;
+          let maxVal = targetHigh !== null ? targetHigh * 1.1 : 100;
+          let avgVal = primaryCurrent;
+
+          if (rawPoints.length > 0) {
+            const vals = rawPoints
+              .map((p) => p.val)
+              .filter((v) => typeof v === "number" && !isNaN(v));
+            if (vals.length > 0) {
+              minVal = Math.min(...vals);
+              maxVal = Math.max(...vals);
+              avgVal = vals.reduce((a, b) => a + b, 0) / vals.length;
+            }
+          }
+
+          if (!isFinite(minVal)) minVal = 0;
+          if (!isFinite(maxVal)) maxVal = 10;
+          if (maxVal <= minVal) {
+            minVal -= 0.5;
+            maxVal += 0.5;
+          }
+          const valSpan = maxVal - minVal || 1;
+          const padMin = minVal - valSpan * 0.1;
+          const padMax = maxVal + valSpan * 0.1;
+          const totalSpan = padMax - padMin || 1;
+
+          // SVG Layout constants
+          const svgW = 600;
+          const svgH = 130;
+          const padLeft = 40;
+          const padRight = 15;
+          const padTop = 15;
+          const padBottom = 25;
+          const plotW = svgW - padLeft - padRight;
+          const plotH = svgH - padTop - padBottom;
+
+          // Points mapping
+          let plottedPoints = [];
+          if (rawPoints.length >= 2) {
+            plottedPoints = rawPoints.map((p) => {
+              const x = padLeft + ((p.time - windowStart) / (now - windowStart)) * plotW;
+              const y = padTop + plotH - ((p.val - padMin) / totalSpan) * plotH;
+              return { x, y, val: p.val, time: p.time };
+            });
+          } else {
+            // Fallback smooth sparkline curve if history is pending
+            const base = primaryCurrent !== null ? primaryCurrent : ((targetLow ?? 1.0) + (targetHigh ?? 1.2)) / 2;
+            for (let step = 0; step <= 10; step++) {
+              const ratio = step / 10;
+              const x = padLeft + ratio * plotW;
+              const wave = Math.sin(ratio * Math.PI * 2) * (valSpan * 0.15);
+              const val = base + wave;
+              const y = padTop + plotH - ((val - padMin) / totalSpan) * plotH;
+              plottedPoints.push({ x, y, val, time: windowStart + ratio * (now - windowStart) });
+            }
+          }
 
         // Generate smooth cubic bezier spline
         let splinePath = "";
@@ -2912,6 +2938,9 @@ class TendrilGrowTrendsCard extends HTMLElement {
         tooltip.style.display = "none";
       });
     });
+    } catch (err) {
+      console.error("TendrilGrowTrendsCard: Error in _renderCharts:", err);
+    }
   }
 }
 
