@@ -998,11 +998,36 @@ def build_digital_twin_space_view(space: dict) -> dict:
     plan_card: dict[str, Any] = {
         "type": "custom:tendrilgrow-plan-card",
         "title": "Cultivation Plan & Tasks",
+        "space_name": title,
     }
-    if reg.get("ctx_stage"):
-        plan_card["stage"] = reg["ctx_stage"]
-    if reg.get("stage_projection"):
-        plan_card["stage_projection"] = reg["stage_projection"]
+    for field_key, reg_key in (
+        ("stage", "ctx_stage"),
+        ("stage_started", "ctx_stage_started"),
+        ("week_in_stage", "ctx_week_in_stage"),
+        ("stage_projection", "stage_projection"),
+        ("strain", "ctx_strain"),
+        ("water_type", "ctx_water_type"),
+        ("reservoir_volume", "ctx_reservoir_volume_gal"),
+        ("flush_now", "flush_now"),
+        ("flush_due", "flush_due"),
+        ("days_since_flush", "days_since_flush"),
+        ("days_until_flush", "days_until_flush"),
+        ("next_flush_due", "next_flush_due"),
+        ("last_flush", "last_flush"),
+        ("flush_interval_days", "flush_interval_days"),
+        ("target_ph_low", "ctx_target_ph_low"),
+        ("target_ph_high", "ctx_target_ph_high"),
+        ("target_ec_low", "ctx_target_ec_low"),
+        ("target_ec_high", "ctx_target_ec_high"),
+        ("target_vpd_low", "ctx_target_vpd_low"),
+        ("target_vpd_high", "ctx_target_vpd_high"),
+        ("lights_on_time", "ctx_lights_on_time"),
+        ("lights_off_time", "ctx_lights_off_time"),
+        ("lights_on_hours", "ctx_lights_on_hours"),
+    ):
+        if reg.get(reg_key):
+            plan_card[field_key] = reg[reg_key]
+
     todo = reg.get("todo") or space.get("grow_tasks") or f"todo.{slug}_grow_tasks"
     plan_card["todo"] = todo
     sections.append(
@@ -1060,6 +1085,8 @@ def build_digital_twin_space_view(space: dict) -> dict:
         advisor_card: dict[str, Any] = {
             "type": "custom:tendrilgrow-advisor-card",
             "title": "AI Cultivation Intelligence",
+            "space_name": title,
+            "space_slug": slug,
         }
         if reg.get("ai_health_score"):
             advisor_card["score"] = reg["ai_health_score"]
@@ -1069,6 +1096,36 @@ def build_digital_twin_space_view(space: dict) -> dict:
             advisor_card["critical_alert"] = reg["ai_critical_alert"]
         if reg.get("run_ai_health_check"):
             advisor_card["run_ai_health_check"] = reg["run_ai_health_check"]
+        if reg.get("ctx_stage"):
+            advisor_card["stage"] = reg["ctx_stage"]
+        if reg.get("stage_projection"):
+            advisor_card["stage_projection"] = reg["stage_projection"]
+        if sensors.get("ph"):
+            advisor_card["ph"] = sensors["ph"]
+        if sensors.get("ec"):
+            advisor_card["ec"] = sensors["ec"]
+        if sensors.get("temperature"):
+            advisor_card["temperature"] = sensors["temperature"]
+        if sensors.get("humidity"):
+            advisor_card["humidity"] = sensors["humidity"]
+        if sensors.get("water_temperature"):
+            advisor_card["water_temperature"] = sensors["water_temperature"]
+        if reg.get("vpd"):
+            advisor_card["vpd"] = reg["vpd"]
+        if reg.get("ctx_target_ph_low"):
+            advisor_card["target_ph_low"] = reg["ctx_target_ph_low"]
+        if reg.get("ctx_target_ph_high"):
+            advisor_card["target_ph_high"] = reg["ctx_target_ph_high"]
+        if reg.get("ctx_target_ec_low"):
+            advisor_card["target_ec_low"] = reg["ctx_target_ec_low"]
+        if reg.get("ctx_target_ec_high"):
+            advisor_card["target_ec_high"] = reg["ctx_target_ec_high"]
+        if reg.get("ctx_target_vpd_low"):
+            advisor_card["target_vpd_low"] = reg["ctx_target_vpd_low"]
+        if reg.get("ctx_target_vpd_high"):
+            advisor_card["target_vpd_high"] = reg["ctx_target_vpd_high"]
+        if reg.get("days_since_flush"):
+            advisor_card["days_since_flush"] = reg["days_since_flush"]
 
         sections.append(
             {
@@ -1279,8 +1336,8 @@ async def main() -> int:
                 title = str(entry.get("title") or entry_id)
                 spaces.append(classify(entry_id, title, registry, eff, states, devices))
 
-            twin_mode = ("--digital-twin" in args) or ("--twin" in args)
-            if twin_mode:
+            legacy_mode = "--legacy" in args
+            if not legacy_mode:
                 config = {
                     "title": DEFAULT_TITLE,
                     "views": [build_digital_twin_overview(spaces)]

@@ -9,7 +9,7 @@
  *   active alerts, and at-a-glance telemetry.
  */
 
-const CARD_VERSION = "2.2.0";
+const CARD_VERSION = "2.3.0";
 console.info(
   `%c TENDRILGROW DIGITAL TWIN CARD %c v${CARD_VERSION} `,
   "color: #0d1117; background: #10b981; font-weight: 700; padding: 3px 6px; border-radius: 3px 0 0 3px;",
@@ -33,6 +33,190 @@ function getStateNum(hass, entityId, fallback = null) {
   if (!s || s.state === "unavailable" || s.state === "unknown") return fallback;
   const num = parseFloat(s.state);
   return isNaN(num) ? fallback : num;
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function parseIssueItem(iss) {
+  if (!iss) return { metric: "DIAGNOSTIC", title: "Nominal status", detail: "", severity: "low" };
+  let obj = iss;
+  if (typeof iss === "string") {
+    const trimmed = iss.trim();
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      try {
+        const jsonStr = trimmed.replace(/'/g, '"').replace(/None/g, "null").replace(/True/g, "true").replace(/False/g, "false");
+        obj = JSON.parse(jsonStr);
+      } catch {
+        const claimMatch = trimmed.match(/'claim':\s*'([^']+)'/) || trimmed.match(/"claim":\s*"([^"]+)"/);
+        const metricMatch = trimmed.match(/'metric':\s*'([^']+)'/) || trimmed.match(/"metric":\s*"([^"]+)"/);
+        const sevMatch = trimmed.match(/'severity':\s*'([^']+)'/) || trimmed.match(/"severity":\s*"([^"]+)"/);
+        const obsMatch = trimmed.match(/'observation':\s*'([^']+)'/) || trimmed.match(/"observation":\s*"([^"]+)"/);
+        const varMatch = trimmed.match(/'variance':\s*'([^']+)'/) || trimmed.match(/"variance":\s*"([^"]+)"/);
+        const causeMatch = trimmed.match(/'cause':\s*'([^']+)'/) || trimmed.match(/"cause":\s*"([^"]+)"/);
+        return {
+          metric: (metricMatch ? metricMatch[1] : (claimMatch ? "ALERT" : "DIAGNOSTIC")).toUpperCase(),
+          title: claimMatch ? claimMatch[1] : (obsMatch ? obsMatch[1] : trimmed.replace(/[{}]/g, "")),
+          detail: varMatch ? `Variance: ${varMatch[1]}` : (causeMatch ? `Cause: ${causeMatch[1]}` : ""),
+          severity: sevMatch ? sevMatch[1].toLowerCase() : "warning"
+        };
+      }
+    } else {
+      return { metric: "DIAGNOSTIC", title: iss, detail: "", severity: "info" };
+    }
+  }
+
+  if (typeof obj === "object" && obj !== null) {
+    const metric = obj.metric || obj.parameter || obj.sensor || "ALERT";
+    const title = obj.claim || obj.observation || obj.title || obj.issue || obj.name || JSON.stringify(obj);
+    let detail = "";
+    if (obj.variance) detail = `Variance: ${obj.variance}`;
+    else if (obj.cause) detail = `Cause: ${obj.cause}`;
+    else if (obj.explanation) detail = obj.explanation;
+    else if (obj.detail) detail = obj.detail;
+    const severity = (obj.severity || "warning").toLowerCase();
+    return { metric: String(metric).toUpperCase(), title: String(title), detail: String(detail), severity };
+  }
+
+  return { metric: "INFO", title: String(iss), detail: "", severity: "info" };
+}
+
+function parseActionItem(act) {
+  if (!act) return { title: "Maintain routine canopy monitoring", detail: "", severity: "routine" };
+  let obj = act;
+  if (typeof act === "string") {
+    const trimmed = act.trim();
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      try {
+        const jsonStr = trimmed.replace(/'/g, '"').replace(/None/g, "null").replace(/True/g, "true").replace(/False/g, "false");
+        obj = JSON.parse(jsonStr);
+      } catch {
+        const claimMatch = trimmed.match(/'claim':\s*'([^']+)'/) || trimmed.match(/"claim":\s*"([^"]+)"/);
+        const actionMatch = trimmed.match(/'action':\s*'([^']+)'/) || trimmed.match(/"action":\s*"([^"]+)"/);
+        const ratMatch = trimmed.match(/'rationale':\s*'([^']+)'/) || trimmed.match(/"rationale":\s*"([^"]+)"/);
+        const sevMatch = trimmed.match(/'severity':\s*'([^']+)'/) || trimmed.match(/"severity":\s*"([^"]+)"/);
+        return {
+          title: claimMatch ? claimMatch[1] : (actionMatch ? actionMatch[1] : trimmed.replace(/[{}]/g, "")),
+          detail: ratMatch ? ratMatch[1] : "",
+          severity: sevMatch ? sevMatch[1].toLowerCase() : "action"
+        };
+      }
+    } else {
+      return { title: act, detail: "", severity: "action" };
+    }
+  }
+
+  if (typeof obj === "object" && obj !== null) {
+    const title = obj.claim || obj.action || obj.title || obj.recommendation || JSON.stringify(obj);
+    const detail = obj.rationale || obj.description || obj.guidance || obj.detail || "";
+    const severity = (obj.severity || obj.urgency || "action").toLowerCase();
+    return { title: String(title), detail: String(detail), severity };
+  }
+
+  return { title: String(act), detail: "", severity: "action" };
+}
+
+function sortNutrientsByHorticulturalOrder(nutItems) {
+  const MIXING_RANKS = [
+    { rank: 0, category: "Silica Base", note: "Add FIRST & dissolve 10-15m before other salts", names: ["silica", "armor si", "potassium silicate", "silicium"] },
+    { rank: 1, category: "Cal-Mag Buffer", note: "Dissolve completely before NPK to prevent lockout", names: ["cal-mag", "calmag", "calimagic", "cali magic", "calcium", "magnesium", "ca/mg", "ca-mg"] },
+    { rank: 2, category: "Base / Micro", note: "Add before Grow/Bloom to disperse chelates", names: ["floramicro", "flora micro", "micro", "base", "part a", "part 1"] },
+    { rank: 3, category: "Macro Grow", note: "Vegetative nitrogen & potassium ratio", names: ["floragro", "flora gro", "flora grow", "grow", "veg", "part b", "part 2"] },
+    { rank: 4, category: "Macro Bloom", note: "Phosphorus & potassium flower builder", names: ["florabloom", "flora bloom", "bloom", "flower"] },
+    { rank: 5, category: "Bloom Boosters", note: "PK flowering swell additive", names: ["koolbloom", "kool bloom", "pk", "booster", "bud", "phosphorus"] },
+    { rank: 6, category: "Additives & Kelp", note: "Secondary micronutrients & enzymes", names: ["floralicious", "kelp", "humic", "fulvic", "diamond nectar", "amino", "vitamins", "rapid start", "root"] },
+    { rank: 7, category: "Beneficial Microbes", note: "Live biological inoculant (guard root zones)", names: ["hydroguard", "great white", "southern ag", "beneficial", "bacillus", "inoculant", "mycorrhiza", "microbe", "subculture"] },
+    { rank: 8, category: "pH Buffer", note: "Adjust LAST after all salts dissolve & stabilize", names: ["ph down", "ph up", "ph+", "ph-", "acid", "buffer"] },
+  ];
+
+  const getRankInfo = (nutStr) => {
+    const lower = nutStr.toLowerCase();
+    for (const r of MIXING_RANKS) {
+      if (r.names.some(name => lower.includes(name))) {
+        return r;
+      }
+    }
+    return { rank: 5, category: "Supplement", note: "Mix thoroughly into solution", names: [] };
+  };
+
+  const parsedItems = nutItems.map(raw => {
+    const [name, dose] = raw.split(":").map(s => s.trim());
+    const info = getRankInfo(name || raw);
+    return { raw, name: name || raw, dose: dose || "", rank: info.rank, category: info.category, note: info.note };
+  });
+
+  parsedItems.sort((a, b) => a.rank - b.rank);
+  return parsedItems;
+}
+
+function generateAgronomyAdvice(query, ctx) {
+  const q = (query || "").toLowerCase();
+  const space = ctx.spaceName || "Grow Space";
+  const stage = ctx.stage || "Vegetative";
+  const ph = ctx.ph !== null ? Number(ctx.ph).toFixed(2) : null;
+  const ec = ctx.ec !== null ? Number(ctx.ec).toFixed(2) : null;
+  const vpd = ctx.vpd !== null ? Number(ctx.vpd).toFixed(2) : null;
+  const temp = ctx.temp !== null ? Math.round(ctx.temp) : null;
+  const rh = ctx.rh !== null ? Math.round(ctx.rh) : null;
+  const waterTemp = ctx.waterTemp !== null ? Math.round(ctx.waterTemp) : null;
+  const targetPhLow = ctx.targetPhLow !== null ? ctx.targetPhLow : 5.5;
+  const targetPhHigh = ctx.targetPhHigh !== null ? ctx.targetPhHigh : 6.2;
+  const targetEcLow = ctx.targetEcLow !== null ? ctx.targetEcLow : 1.2;
+  const targetEcHigh = ctx.targetEcHigh !== null ? ctx.targetEcHigh : 1.8;
+  const targetVpdLow = ctx.targetVpdLow !== null ? ctx.targetVpdLow : 0.8;
+  const targetVpdHigh = ctx.targetVpdHigh !== null ? ctx.targetVpdHigh : 1.2;
+  const daysInStage = ctx.daysInStage || 14;
+  const daysSinceFlush = ctx.daysSinceFlush || 0;
+
+  if (q.includes("ph") || q.includes("drift") || q.includes("acid") || q.includes("alkal")) {
+    if (ph !== null) {
+      if (ph > targetPhHigh) {
+        return `### ⚠️ Reservoir pH Drift Analysis (${ph} vs Target ${targetPhLow}–${targetPhHigh})\nYour pH is currently **${ph}**, which is drifting above the optimal target corridor (${targetPhLow}–${targetPhHigh}).\n\n**Agronomic Impact:**\n- Above pH 6.2, hydroponic uptake of **Iron (Fe)**, **Manganese (Mn)**, **Boron (B)**, and **Zinc (Zn)** drops rapidly, risking interveinal chlorosis on new growth.\n- In active ${stage}, roots absorb nitrate anions ($NO_3^-$) and release hydroxide ions ($OH^-$), driving pH upward naturally.\n\n**Immediate Guidance:**\n1. Dilute **pH Down (Phosphoric Acid)** in a cup of RO water before dosing. Add in small increments (1–2 ml per 5 gal).\n2. Allow 20–30 minutes of recirculation before taking a final verification reading.\n3. Target **5.80 pH** as your settling baseline.${waterTemp && waterTemp > 68 ? `\n\n> ⚠️ *Note:* Water temperature is **${waterTemp}°F** (ideal is 65–68°F). Elevated water temps accelerate microbial respiration and pH swings.` : ""}`;
+      } else if (ph < targetPhLow) {
+        return `### ⚠️ Reservoir Low pH Alert (${ph} vs Target ${targetPhLow}–${targetPhHigh})\nYour pH is currently **${ph}**, which is below your target corridor.\n\n**Agronomic Impact:**\n- Low pH (<5.5) inhibits **Calcium (Ca)** and **Magnesium (Mg)** availability and can cause root tip burning or necrotic spotting.\n- Root exudates or ammonium uptake can pull pH downward.\n\n**Immediate Guidance:**\n1. Dose a small amount of **pH Up (Potassium Hydroxide)** diluted in water.\n2. Stabilize to **5.8–6.0 pH** and verify air pump aeration.`;
+      } else {
+        return `### ✅ Reservoir pH is Nominal (${ph})\nYour current pH of **${ph}** is sitting right in the sweet spot for the **${stage}** stage (${targetPhLow}–${targetPhHigh}).\n\nAll essential macro-elements (Nitrogen, Phosphorus, Potassium) and micronutrients (Iron, Zinc, Manganese) are in optimal bioavailable balance.`;
+      }
+    }
+    return `### 🧪 Hydroponic pH Management\nFor **${stage}**, maintain your reservoir between **${targetPhLow} and ${targetPhHigh}** (sweet spot: **5.80**). Always mix Cal-Mag and base nutrients completely before testing and adjusting pH as the final step!`;
+  }
+
+  if (q.includes("ec") || q.includes("ppm") || q.includes("feed") || q.includes("burn") || q.includes("strength") || q.includes("nutrient")) {
+    if (ec !== null) {
+      if (ec > targetEcHigh) {
+        return `### ⚠️ High EC Reading (${ec} mS/cm vs Target ${targetEcLow}–${targetEcHigh})\nThe reservoir salinity is **${ec} mS/cm**, exceeding your target ceiling of ${targetEcHigh} mS/cm.\n\n**Agronomic Analysis:**\n- High EC creates osmotic root pressure, making it harder for plants to drink.\n- When plants drink more water than nutrients, unused salts accumulate and drive EC up.\n\n**Correction Steps:**\n1. Top off the reservoir with **pure de-chlorinated or RO water** until EC settles back to ~**${((targetEcLow + targetEcHigh) / 2).toFixed(1)} mS/cm**.\n2. Check canopy leaf tips for minor tip-burn.`;
+      } else if (ec < targetEcLow) {
+        return `### ℹ️ Low EC Reading (${ec} mS/cm vs Target ${targetEcLow}–${targetEcHigh})\nYour electrical conductivity is currently **${ec} mS/cm**, below target.\n\n**Recommendation:**\n- Plants in **${stage}** are feeding actively. Prepare a fresh batch of balanced base nutrients (Micro then Grow/Bloom) to bring concentration up to **${targetEcHigh} mS/cm**.`;
+      } else {
+        return `### ✅ Electrical Conductivity is Balanced (${ec} mS/cm)\nYour nutrient concentration of **${ec} mS/cm** sits comfortably within your target corridor (${targetEcLow}–${targetEcHigh} mS/cm).\n\nOsmotic potential is balanced, enabling steady transpirational pull and uniform expansion in ${stage}.`;
+      }
+    }
+  }
+
+  if (q.includes("recipe") || q.includes("order") || q.includes("prep") || q.includes("calmag") || q.includes("cal-mag") || q.includes("silica") || q.includes("mix")) {
+    return `### 🧪 Standard Horticultural Mixing Order Protocol\nWhen preparing or topping off your reservoir for **${space}**, always follow this strict chemical sequence to avoid nutrient precipitation and lockout:\n\n1. **Water Base & Aeration**: Ensure RO or dechlorinated water is at ~65–68°F.\n2. **Step 1 — Silica (Armor Si)**: *Add FIRST.* Dissolve thoroughly and wait **10–15 minutes** before adding anything else. Silica needs free water to bind properly.\n3. **Step 2 — Cal-Mag (CaliMagic)**: *Add SECOND.* Calcium will bond with sulfates/phosphates and precipitate out if added after Micro or Grow. Mix until crystal clear.\n4. **Step 3 — Micro / Base (FloraMicro)**: *Add THIRD.* Stir well to disperse chelates.\n5. **Step 4 — Grow (FloraGro)**: *Add FOURTH.* Provides vegetative nitrogen & potassium.\n6. **Step 5 — Bloom (FloraBloom)**: *Add FIFTH.* Phosphorus & potassium builder.\n7. **Step 6 — Additives & Boosters**: Add kelp, enzymes, and fulvic/humic supplements.\n8. **Step 7 — Beneficial Microbes (Hydroguard)**: Add live biological inoculants to guard root zones.\n9. **Step 8 — pH Buffer**: **Adjust LAST.** Wait 15 minutes after mixing all salts, check pH, and adjust gently to **5.80**.`;
+  }
+
+  if (q.includes("vpd") || q.includes("humidity") || q.includes("temp") || q.includes("stomata") || q.includes("climate") || q.includes("vapor")) {
+    return `### 🌿 Environmental Vigor & VPD Analysis\n- **Current VPD**: ${vpd !== null ? `**${vpd} kPa** (Target: ${targetVpdLow}–${targetVpdHigh} kPa)` : `Target: ${targetVpdLow}–${targetVpdHigh} kPa`}\n- **Canopy Climate**: ${temp !== null ? `${temp}°F` : "--"} / ${rh !== null ? `${rh}% RH` : "--"}\n\n**Agronomic Insights:**\n${vpd && vpd > targetVpdHigh ? `- **High VPD Alert**: Air draws moisture faster than roots can supply. Stomata close to conserve water, risking calcium tip-burn. Increase humidifier or reduce exhaust speed.` : vpd && vpd < targetVpdLow ? `- **Low VPD Alert**: Transpiration is sluggish. Calcium cannot travel up to leaf tips without active water flow. Increase exhaust ventilation.` : `- **Sweet-Spot Corridors**: Stomata are open and transpirational pull is steady. Calcium and mobile ions are flowing evenly through the vascular xylem.`}\n- Maintain daytime canopy temps around **74–78°F** and nighttime around **68–72°F**.`;
+  }
+
+  if (q.includes("flip") || q.includes("harvest") || q.includes("stage") || q.includes("when") || q.includes("flower") || q.includes("time")) {
+    return `### 🔄 Cultivation Pipeline & Milestone Projections\n- **Current Space**: ${space}\n- **Stage**: ${stage} (Day ${daysInStage})\n\n**Guidance for ${stage}:**\n- For transitioning from Veg to Flower (12/12 flip), ensure canopy trellis is 70–80% full, as plants stretch 50–100% in height during weeks 1–3 of flower.\n- Perform lower canopy defoliation (lollipop) 3 days prior to flip.\n- Transition light schedule to 12h ON / 12h OFF and transition base nutrient ratios toward higher bloom macro-nutrients.`;
+  }
+
+  if (q.includes("flush") || q.includes("clean") || q.includes("reservoir") || q.includes("change")) {
+    return `### 🌊 Reservoir Flush & Routine Protocol\n- **Days Since Last Flush**: ${daysSinceFlush} days (Recommended interval: 7–10 days)\n\n**Why Routine Flush & Fills Matter:**\n- Over 7–10 days in RDWC / hydroponics, plants consume specific ions disproportionately, leaving behind ballast counter-ions that skew nutrient ratios even if EC looks normal.\n- A full flush & fill resets the root zone with fresh, oxygen-saturated water and balanced elemental ratios.\n\n**Quick Action:**\nYou can log that you performed a reservoir flush right now on the **Cultivation Plan & Tasks** card under **Parameters & Reservoir Routine** using the **Log Flush & Fill Completed** button!`;
+  }
+
+  return `### 🧠 TendrilGrow Autonomous Agronomist for ${space}\nHere is the real-time cultivation status for your **${stage}** cycle:\n\n- **Telemetry**: pH: **${ph || "--"}** | EC: **${ec || "--"} mS/cm** | VPD: **${vpd || "--"} kPa** | Temp: **${temp || "--"}°F**\n- **Reservoir**: Water Temp: **${waterTemp || "--"}°F** | Days Since Flush: **${daysSinceFlush}**\n- **System Health**: All automated sensor telemetry is monitored in real time.\n\nAsk me anything specific like *"Analyze my pH"*, *"How do I prep this week's water recipe?"*, or *"Is my VPD in the sweet spot?"*!`;
 }
 
 // ============================================================================
@@ -4074,6 +4258,7 @@ class TendrilGrowPlanCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._config = {};
     this._hass = null;
+    this._activeTab = "tasks"; // 'tasks' | 'settings'
   }
 
   static getStubConfig() {
@@ -4086,8 +4271,30 @@ class TendrilGrowPlanCard extends HTMLElement {
     if (!config) throw new Error("Invalid configuration");
     this._config = {
       title: config.title || "Cultivation Plan & Tasks",
+      space_name: config.space_name || "Grow Space",
       stage: config.stage || null,
+      stage_started: config.stage_started || null,
+      week_in_stage: config.week_in_stage || null,
       stage_projection: config.stage_projection || null,
+      strain: config.strain || null,
+      water_type: config.water_type || null,
+      reservoir_volume: config.reservoir_volume || null,
+      flush_now: config.flush_now || null,
+      flush_due: config.flush_due || null,
+      days_since_flush: config.days_since_flush || null,
+      days_until_flush: config.days_until_flush || null,
+      next_flush_due: config.next_flush_due || null,
+      last_flush: config.last_flush || null,
+      flush_interval_days: config.flush_interval_days || null,
+      target_ph_low: config.target_ph_low || null,
+      target_ph_high: config.target_ph_high || null,
+      target_ec_low: config.target_ec_low || null,
+      target_ec_high: config.target_ec_high || null,
+      target_vpd_low: config.target_vpd_low || null,
+      target_vpd_high: config.target_vpd_high || null,
+      lights_on_time: config.lights_on_time || null,
+      lights_off_time: config.lights_off_time || null,
+      lights_on_hours: config.lights_on_hours || null,
       todo: config.todo || null,
       ...config,
     };
@@ -4160,7 +4367,7 @@ class TendrilGrowPlanCard extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 16px;
+          margin-bottom: 14px;
           padding-bottom: 12px;
           border-bottom: 1px solid var(--tg-border);
           flex-wrap: wrap;
@@ -4208,6 +4415,49 @@ class TendrilGrowPlanCard extends HTMLElement {
           padding: 3px 9px;
           border-radius: 12px;
           border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        /* TAB SELECTOR */
+        .plan-tabs {
+          display: flex;
+          gap: 6px;
+          margin-bottom: 16px;
+          background: rgba(13, 17, 23, 0.75);
+          padding: 4px;
+          border-radius: 10px;
+          border: 1px solid var(--tg-border);
+        }
+
+        .plan-tab-btn {
+          flex: 1;
+          background: transparent;
+          border: none;
+          color: #8b949e;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 8px 12px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+        }
+
+        .plan-tab-btn.active {
+          background: rgba(16, 185, 129, 0.16);
+          color: #34d399;
+          font-weight: 700;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .plan-pane {
+          display: none;
+        }
+
+        .plan-pane.active {
+          display: block;
         }
 
         /* STAGE PROGRESS SECTION */
@@ -4298,26 +4548,22 @@ class TendrilGrowPlanCard extends HTMLElement {
         }
 
         .ms-label {
-          font-size: 9.5px;
-          font-weight: 700;
+          font-size: 10.5px;
           color: #8b949e;
+          font-weight: 600;
           text-transform: uppercase;
-          letter-spacing: 0.4px;
         }
 
         .ms-val {
-          font-size: 13.5px;
+          font-size: 12.5px;
           font-weight: 700;
           color: #f0f6fc;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
         }
 
         .ms-sub {
-          font-size: 10.5px;
+          font-size: 10px;
+          color: var(--tg-amber);
           font-weight: 600;
-          color: #fbbf24;
         }
 
         /* TASKS SECTION */
@@ -4350,17 +4596,17 @@ class TendrilGrowPlanCard extends HTMLElement {
         .tasks-count-badge {
           font-size: 10px;
           font-weight: 700;
-          color: #38bdf8;
-          background: rgba(56, 189, 248, 0.12);
           padding: 2px 7px;
           border-radius: 10px;
-          border: 1px solid rgba(56, 189, 248, 0.25);
+          background: rgba(6, 182, 212, 0.15);
+          color: #38bdf8;
+          border: 1px solid rgba(6, 182, 212, 0.3);
         }
 
         .btn-open-tasks {
           background: rgba(255, 255, 255, 0.06);
           border: 1px solid var(--tg-border);
-          color: #c9d1d9;
+          color: #cbd5e1;
           font-size: 11px;
           font-weight: 600;
           padding: 4px 10px;
@@ -4419,14 +4665,211 @@ class TendrilGrowPlanCard extends HTMLElement {
           padding: 4px 0;
         }
 
-        @media (max-width: 600px) {
+        /* SETTINGS & PARAMETERS TAB */
+        .settings-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 14px;
+        }
+
+        @media (max-width: 680px) {
+          .settings-grid {
+            grid-template-columns: 1fr;
+          }
           .milestones-grid {
             grid-template-columns: 1fr;
           }
         }
+
+        .setting-card {
+          background: rgba(15, 23, 42, 0.7);
+          border: 1px solid var(--tg-border);
+          border-radius: 14px;
+          padding: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .setting-card-title {
+          font-size: 11.5px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: #94a3b8;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .setting-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .setting-label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #e6edf3;
+        }
+
+        .setting-sublabel {
+          font-size: 10.5px;
+          color: #64748b;
+        }
+
+        .setting-select, .setting-input-date {
+          background: rgba(13, 17, 23, 0.9);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 8px;
+          color: #f0f6fc;
+          font-size: 12px;
+          padding: 6px 10px;
+          outline: none;
+          font-family: inherit;
+        }
+
+        .setting-select:focus, .setting-input-date:focus {
+          border-color: var(--tg-green);
+        }
+
+        .setting-pill {
+          font-size: 11.5px;
+          font-weight: 600;
+          color: #38bdf8;
+          background: rgba(6, 182, 212, 0.12);
+          padding: 3px 8px;
+          border-radius: 6px;
+          border: 1px solid rgba(6, 182, 212, 0.25);
+        }
+
+        .stepper-ctrl {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          background: rgba(13, 17, 23, 0.7);
+          border: 1px solid var(--tg-border);
+          border-radius: 8px;
+          padding: 2px 4px;
+        }
+
+        .stepper-btn {
+          width: 24px;
+          height: 24px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid var(--tg-border);
+          border-radius: 6px;
+          color: #f0f6fc;
+          font-size: 14px;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.15s;
+        }
+
+        .stepper-btn:hover {
+          background: rgba(16, 185, 129, 0.25);
+          color: #34d399;
+          border-color: rgba(16, 185, 129, 0.4);
+        }
+
+        .stepper-val {
+          font-size: 12px;
+          font-weight: 700;
+          color: #f0f6fc;
+          min-width: 32px;
+          text-align: center;
+        }
+
+        .range-stepper-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        /* FLUSH HERO BOX */
+        .flush-hero-card {
+          grid-column: 1 / -1;
+          background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(16, 185, 129, 0.08));
+          border: 1px solid rgba(6, 182, 212, 0.35);
+          border-radius: 14px;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .flush-top-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .btn-log-flush {
+          background: linear-gradient(135deg, #06b6d4, #10b981);
+          border: none;
+          border-radius: 10px;
+          color: #0b0f17;
+          font-size: 13px;
+          font-weight: 800;
+          padding: 10px 18px;
+          cursor: pointer;
+          box-shadow: 0 4px 16px rgba(6, 182, 212, 0.35);
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .btn-log-flush:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+        }
+
+        .flush-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+        }
+
+        @media (max-width: 500px) {
+          .flush-stats-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .flush-stat-box {
+          background: rgba(13, 17, 23, 0.8);
+          border: 1px solid var(--tg-border);
+          border-radius: 10px;
+          padding: 8px 12px;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .flush-stat-label {
+          font-size: 10px;
+          color: #94a3b8;
+          text-transform: uppercase;
+          font-weight: 600;
+        }
+
+        .flush-stat-val {
+          font-size: 13px;
+          font-weight: 700;
+          color: #f0f6fc;
+          margin-top: 2px;
+        }
       </style>
 
       <div class="container">
+        <!-- Card Header -->
         <div class="header">
           <div class="header-left">
             <div class="brand-badge">🌱</div>
@@ -4438,68 +4881,221 @@ class TendrilGrowPlanCard extends HTMLElement {
           <div class="stage-tag" id="plan-stage-badge">VEGETATIVE • WK 2</div>
         </div>
 
-        <!-- Stage Progress Section -->
-        <div class="progress-section">
-          <div class="progress-header">
-            <span class="progress-title" id="progress-title-text">Stage Timeline Progress</span>
-            <span class="progress-pct" id="progress-pct-text">--%</span>
+        <!-- Tab Bar -->
+        <div class="plan-tabs">
+          <button class="plan-tab-btn active" id="tab-btn-tasks">📋 Tasks &amp; Milestones</button>
+          <button class="plan-tab-btn" id="tab-btn-settings">⚙️ Parameters &amp; Reservoir Routine</button>
+        </div>
+
+        <!-- PANE 1: TASKS & MILESTONES -->
+        <div class="plan-pane active" id="pane-tasks">
+          <!-- Stage Progress Section -->
+          <div class="progress-section">
+            <div class="progress-header">
+              <span class="progress-title" id="progress-title-text">Stage Timeline Progress</span>
+              <span class="progress-pct" id="progress-pct-text">--%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="progress-bar-fill" style="width: 0%;"></div>
+            </div>
+            <div class="progress-meta">
+              <span id="progress-meta-text">Day -- of --</span>
+              <span id="progress-week-text">Week --</span>
+            </div>
           </div>
-          <div class="progress-track">
-            <div class="progress-fill" id="progress-bar-fill" style="width: 0%;"></div>
+
+          <!-- Milestones Grid -->
+          <div class="milestones-grid">
+            <div class="milestone-card">
+              <div class="ms-icon">🔄</div>
+              <div class="ms-info">
+                <span class="ms-label">Stage Flip / End</span>
+                <span class="ms-val" id="ms-flip-date">--</span>
+                <span class="ms-sub" id="ms-flip-countdown">--</span>
+              </div>
+            </div>
+            <div class="milestone-card highlight">
+              <div class="ms-icon">✂️</div>
+              <div class="ms-info">
+                <span class="ms-label">Projected Harvest</span>
+                <span class="ms-val" id="ms-harvest-date">--</span>
+                <span class="ms-sub" id="ms-harvest-countdown">--</span>
+              </div>
+            </div>
+            <div class="milestone-card">
+              <div class="ms-icon">🏺</div>
+              <div class="ms-info">
+                <span class="ms-label">Cured & Ready</span>
+                <span class="ms-val" id="ms-ready-date">--</span>
+                <span class="ms-sub" id="ms-ready-countdown">Final Cure</span>
+              </div>
+            </div>
           </div>
-          <div class="progress-meta">
-            <span id="progress-meta-text">Day -- of --</span>
-            <span id="progress-week-text">Week --</span>
+
+          <!-- Tasks Section -->
+          <div class="tasks-section">
+            <div class="tasks-header">
+              <div class="tasks-header-left">
+                <span>📋</span>
+                <span class="tasks-title">Stage Tasks & Grow Routines</span>
+                <span class="tasks-count-badge" id="tasks-count-badge">0 Pending</span>
+              </div>
+              <button class="btn-open-tasks" id="btn-open-tasks">Manage Tasks ↗</button>
+            </div>
+
+            <!-- Quick Add Task Bar -->
+            <div class="add-task-bar">
+              <input type="text" class="task-input" id="task-input" placeholder="Add cultivation task... (e.g. LST tucking, top canopy, check root zone)" />
+              <button class="btn-add-task" id="btn-add-task">＋ Add</button>
+            </div>
+
+            <div class="tasks-status-box" id="tasks-status-box">
+              <span id="tasks-empty-msg">Tap 'Manage Tasks' to view and check off items in Home Assistant.</span>
+            </div>
           </div>
         </div>
 
-        <!-- Milestones Grid -->
-        <div class="milestones-grid">
-          <div class="milestone-card">
-            <div class="ms-icon">🔄</div>
-            <div class="ms-info">
-              <span class="ms-label">Stage Flip / End</span>
-              <span class="ms-val" id="ms-flip-date">--</span>
-              <span class="ms-sub" id="ms-flip-countdown">--</span>
+        <!-- PANE 2: PARAMETERS & RESERVOIR ROUTINE -->
+        <div class="plan-pane" id="pane-settings">
+          <div class="settings-grid">
+            <!-- Flush & Fill Routine Hero Card -->
+            <div class="flush-hero-card">
+              <div class="flush-top-row">
+                <div>
+                  <div style="font-size:14px;font-weight:800;color:#f0f6fc;">🌊 Reservoir Routine &amp; Flush</div>
+                  <div style="font-size:11px;color:#94a3b8;margin-top:2px;">Reset salt balance and record complete water changes</div>
+                </div>
+                <button class="btn-log-flush" id="btn-log-flush">🌊 Log Flush &amp; Fill Completed</button>
+              </div>
+              <div class="flush-stats-grid">
+                <div class="flush-stat-box">
+                  <span class="flush-stat-label">Last Flush</span>
+                  <span class="flush-stat-val" id="flush-days-since-val">--</span>
+                </div>
+                <div class="flush-stat-box">
+                  <span class="flush-stat-label">Next Flush Due</span>
+                  <span class="flush-stat-val" id="flush-next-due-val">--</span>
+                </div>
+                <div class="flush-stat-box">
+                  <span class="flush-stat-label">Flush Interval</span>
+                  <div class="stepper-ctrl" style="margin-top:2px;width:fit-content;">
+                    <button class="stepper-btn" id="btn-flush-int-dec">-</button>
+                    <span class="stepper-val" id="flush-interval-val">7</span>
+                    <span style="font-size:11px;color:#94a3b8;padding-right:4px;">days</span>
+                    <button class="stepper-btn" id="btn-flush-int-inc">+</button>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="milestone-card highlight">
-            <div class="ms-icon">✂️</div>
-            <div class="ms-info">
-              <span class="ms-label">Projected Harvest</span>
-              <span class="ms-val" id="ms-harvest-date">--</span>
-              <span class="ms-sub" id="ms-harvest-countdown">--</span>
-            </div>
-          </div>
-          <div class="milestone-card">
-            <div class="ms-icon">🏺</div>
-            <div class="ms-info">
-              <span class="ms-label">Cured & Ready</span>
-              <span class="ms-val" id="ms-ready-date">--</span>
-              <span class="ms-sub" id="ms-ready-countdown">Final Cure</span>
-            </div>
-          </div>
-        </div>
 
-        <!-- Tasks Section -->
-        <div class="tasks-section">
-          <div class="tasks-header">
-            <div class="tasks-header-left">
-              <span>📋</span>
-              <span class="tasks-title">Stage Tasks & Grow Routines</span>
-              <span class="tasks-count-badge" id="tasks-count-badge">0 Pending</span>
+            <!-- Stage & Timeline Controls -->
+            <div class="setting-card">
+              <div class="setting-card-title">🌱 Lifecycle Stage &amp; Origin</div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Current Growth Stage</div>
+                  <div class="setting-sublabel">Select active phenological stage</div>
+                </div>
+                <select class="setting-select" id="setting-stage-select">
+                  <option value="seedling">Seedling</option>
+                  <option value="vegetative">Vegetative</option>
+                  <option value="early_bloom">Early Bloom</option>
+                  <option value="mid_bloom">Mid Bloom</option>
+                  <option value="late_bloom">Late Bloom</option>
+                  <option value="flush">Ripening / Flush</option>
+                  <option value="harvested">Harvested</option>
+                  <option value="curing">Curing</option>
+                </select>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Stage Started Date</div>
+                  <div class="setting-sublabel">Calculates days in current cycle</div>
+                </div>
+                <input type="date" class="setting-input-date" id="setting-stage-date" />
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Strain Cultivar</div>
+                  <div class="setting-sublabel">Target genetic profile</div>
+                </div>
+                <span class="setting-pill" id="setting-strain-pill">--</span>
+              </div>
             </div>
-            <button class="btn-open-tasks" id="btn-open-tasks">Manage Tasks ↗</button>
-          </div>
 
-          <!-- Quick Add Task Bar -->
-          <div class="add-task-bar">
-            <input type="text" class="task-input" id="task-input" placeholder="Add cultivation task... (e.g. LST tucking, top canopy, reservoir check)" />
-            <button class="btn-add-task" id="btn-add-task">＋ Add</button>
-          </div>
-
-          <div class="tasks-status-box" id="tasks-status-box">
-            <span id="tasks-empty-msg">Tap 'Manage Tasks' to view and check off items in Home Assistant.</span>
+            <!-- Target Ranges & Reservoir Volume -->
+            <div class="setting-card">
+              <div class="setting-card-title">🎯 Sweet-Spot Target Corridors</div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Target pH Range</div>
+                  <div class="setting-sublabel">Low / High limits</div>
+                </div>
+                <div class="range-stepper-row">
+                  <div class="stepper-ctrl">
+                    <button class="stepper-btn" id="btn-ph-low-dec">-</button>
+                    <span class="stepper-val" id="val-ph-low">5.5</span>
+                    <button class="stepper-btn" id="btn-ph-low-inc">+</button>
+                  </div>
+                  <span style="color:#64748b;font-size:11px;">–</span>
+                  <div class="stepper-ctrl">
+                    <button class="stepper-btn" id="btn-ph-high-dec">-</button>
+                    <span class="stepper-val" id="val-ph-high">6.2</span>
+                    <button class="stepper-btn" id="btn-ph-high-inc">+</button>
+                  </div>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Target EC Range</div>
+                  <div class="setting-sublabel">mS/cm corridor</div>
+                </div>
+                <div class="range-stepper-row">
+                  <div class="stepper-ctrl">
+                    <button class="stepper-btn" id="btn-ec-low-dec">-</button>
+                    <span class="stepper-val" id="val-ec-low">1.2</span>
+                    <button class="stepper-btn" id="btn-ec-low-inc">+</button>
+                  </div>
+                  <span style="color:#64748b;font-size:11px;">–</span>
+                  <div class="stepper-ctrl">
+                    <button class="stepper-btn" id="btn-ec-high-dec">-</button>
+                    <span class="stepper-val" id="val-ec-high">1.8</span>
+                    <button class="stepper-btn" id="btn-ec-high-inc">+</button>
+                  </div>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Target VPD Range</div>
+                  <div class="setting-sublabel">kPa corridor</div>
+                </div>
+                <div class="range-stepper-row">
+                  <div class="stepper-ctrl">
+                    <button class="stepper-btn" id="btn-vpd-low-dec">-</button>
+                    <span class="stepper-val" id="val-vpd-low">0.8</span>
+                    <button class="stepper-btn" id="btn-vpd-low-inc">+</button>
+                  </div>
+                  <span style="color:#64748b;font-size:11px;">–</span>
+                  <div class="stepper-ctrl">
+                    <button class="stepper-btn" id="btn-vpd-high-dec">-</button>
+                    <span class="stepper-val" id="val-vpd-high">1.2</span>
+                    <button class="stepper-btn" id="btn-vpd-high-inc">+</button>
+                  </div>
+                </div>
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">System Water Volume</div>
+                  <div class="setting-sublabel">Circulating capacity</div>
+                </div>
+                <div class="stepper-ctrl">
+                  <button class="stepper-btn" id="btn-vol-dec">-</button>
+                  <span class="stepper-val" id="val-res-vol">15</span>
+                  <span style="font-size:11px;color:#94a3b8;padding-right:4px;">gal</span>
+                  <button class="stepper-btn" id="btn-vol-inc">+</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -4513,11 +5109,34 @@ class TendrilGrowPlanCard extends HTMLElement {
     const root = this.shadowRoot;
     if (!root) return;
 
+    // Tabs
+    const tabTasks = root.getElementById("tab-btn-tasks");
+    const tabSettings = root.getElementById("tab-btn-settings");
+    const paneTasks = root.getElementById("pane-tasks");
+    const paneSettings = root.getElementById("pane-settings");
+
+    if (tabTasks && tabSettings) {
+      tabTasks.onclick = () => {
+        tabTasks.classList.add("active");
+        tabSettings.classList.remove("active");
+        if (paneTasks) paneTasks.classList.add("active");
+        if (paneSettings) paneSettings.classList.remove("active");
+      };
+      tabSettings.onclick = () => {
+        tabSettings.classList.add("active");
+        tabTasks.classList.remove("active");
+        if (paneSettings) paneSettings.classList.add("active");
+        if (paneTasks) paneTasks.classList.remove("active");
+      };
+    }
+
+    // Open HA Todo list
     const btnOpen = root.getElementById("btn-open-tasks");
     if (btnOpen && this._config.todo) {
       btnOpen.onclick = () => this._moreInfo(this._config.todo);
     }
 
+    // Quick add task
     const btnAdd = root.getElementById("btn-add-task");
     const input = root.getElementById("task-input");
     if (btnAdd && input) {
@@ -4535,6 +5154,74 @@ class TendrilGrowPlanCard extends HTMLElement {
         if (e.key === "Enter") submitTask();
       };
     }
+
+    // Stage Selector
+    const stageSelect = root.getElementById("setting-stage-select");
+    if (stageSelect && this._config.stage) {
+      stageSelect.onchange = (e) => {
+        this._callService("select", "select_option", {
+          entity_id: this._config.stage,
+          option: e.target.value,
+        });
+      };
+    }
+
+    // Stage Date Picker
+    const stageDate = root.getElementById("setting-stage-date");
+    if (stageDate && this._config.stage_started) {
+      stageDate.onchange = (e) => {
+        this._callService("date", "set_value", {
+          entity_id: this._config.stage_started,
+          date: e.target.value,
+        });
+      };
+    }
+
+    // Log Flush Button
+    const btnFlush = root.getElementById("btn-log-flush");
+    if (btnFlush) {
+      btnFlush.onclick = () => {
+        if (this._config.flush_now) {
+          this._callService("button", "press", { entity_id: this._config.flush_now });
+        } else {
+          this._callService("tendrilgrow", "mark_flush", {});
+        }
+        btnFlush.textContent = "✅ Flush Recorded!";
+        setTimeout(() => {
+          btnFlush.innerHTML = "🌊 Log Flush &amp; Fill Completed";
+        }, 3500);
+      };
+    }
+
+    // Steppers helper
+    const setupStepper = (decId, incId, entityId, delta, minVal, maxVal, stepPrecision = 1) => {
+      const btnDec = root.getElementById(decId);
+      const btnInc = root.getElementById(incId);
+      if (!btnDec || !btnInc) return;
+
+      const change = (dir) => {
+        if (!this._hass || !entityId) return;
+        const curr = getStateNum(this._hass, entityId, null);
+        if (curr === null) return;
+        let nextVal = curr + dir * delta;
+        if (minVal !== undefined) nextVal = Math.max(minVal, nextVal);
+        if (maxVal !== undefined) nextVal = Math.min(maxVal, nextVal);
+        nextVal = Math.round(nextVal * Math.pow(10, stepPrecision)) / Math.pow(10, stepPrecision);
+        this._callService("number", "set_value", { entity_id: entityId, value: nextVal });
+      };
+
+      btnDec.onclick = () => change(-1);
+      btnInc.onclick = () => change(1);
+    };
+
+    setupStepper("btn-flush-int-dec", "btn-flush-int-inc", this._config.flush_interval_days, 1, 1, 60, 0);
+    setupStepper("btn-ph-low-dec", "btn-ph-low-inc", this._config.target_ph_low, 0.1, 4.0, 7.5, 1);
+    setupStepper("btn-ph-high-dec", "btn-ph-high-inc", this._config.target_ph_high, 0.1, 4.5, 8.0, 1);
+    setupStepper("btn-ec-low-dec", "btn-ec-low-inc", this._config.target_ec_low, 0.1, 0.1, 4.0, 1);
+    setupStepper("btn-ec-high-dec", "btn-ec-high-inc", this._config.target_ec_high, 0.1, 0.2, 5.0, 1);
+    setupStepper("btn-vpd-low-dec", "btn-vpd-low-inc", this._config.target_vpd_low, 0.05, 0.2, 2.5, 2);
+    setupStepper("btn-vpd-high-dec", "btn-vpd-high-inc", this._config.target_vpd_high, 0.05, 0.4, 3.0, 2);
+    setupStepper("btn-vol-dec", "btn-vol-inc", this._config.reservoir_volume, 1, 1, 500, 0);
   }
 
   _formatDate(dateStr) {
@@ -4578,7 +5265,6 @@ class TendrilGrowPlanCard extends HTMLElement {
     const projHarvest = attrs.projected_harvest_date || "";
     const projReady = attrs.projected_ready_date || "";
 
-    // Estimate total stage days
     const daysLeftInStage = projEnd ? Math.max(0, Math.ceil((new Date(projEnd) - new Date()) / (1000 * 60 * 60 * 24))) : 18;
     const totalDays = Math.max(daysInStage + daysLeftInStage, 28);
     const pct = Math.min(100, Math.round((daysInStage / totalDays) * 100));
@@ -4628,7 +5314,88 @@ class TendrilGrowPlanCard extends HTMLElement {
           : `${num} task(s) queued for this space. Tap 'Manage Tasks' to view.`;
       }
     }
+
+    // Settings Tab Updates
+    const stageSelect = root.getElementById("setting-stage-select");
+    if (stageSelect && this._config.stage) {
+      const curStage = getStateStr(this._hass, this._config.stage, "").toLowerCase();
+      for (let i = 0; i < stageSelect.options.length; i++) {
+        if (stageSelect.options[i].value === curStage || stageSelect.options[i].text.toLowerCase() === curStage) {
+          stageSelect.selectedIndex = i;
+          break;
+        }
+      }
+    }
+
+    const stageDate = root.getElementById("setting-stage-date");
+    if (stageDate && this._config.stage_started) {
+      const curDate = getStateStr(this._hass, this._config.stage_started, "");
+      if (curDate && curDate !== "--") stageDate.value = curDate;
+    }
+
+    const strainPill = root.getElementById("setting-strain-pill");
+    if (strainPill) {
+      const strainStr = getStateStr(this._hass, this._config.strain, "Custom Cultivar");
+      strainPill.textContent = strainStr;
+    }
+
+    // Flush Stats
+    const daysSinceVal = root.getElementById("flush-days-since-val");
+    if (daysSinceVal) {
+      const daysSince = getStateStr(this._hass, this._config.days_since_flush, "--");
+      daysSinceVal.textContent = daysSince !== "--" ? `${daysSince} days ago` : "--";
+    }
+
+    const nextDueVal = root.getElementById("flush-next-due-val");
+    if (nextDueVal) {
+      const nextDue = getStateStr(this._hass, this._config.next_flush_due, "");
+      const daysUntil = getStateStr(this._hass, this._config.days_until_flush, "");
+      if (daysUntil !== "" && daysUntil !== "--") {
+        nextDueVal.textContent = `in ${daysUntil} days`;
+      } else if (nextDue) {
+        nextDueVal.textContent = this._formatDate(nextDue);
+      } else {
+        nextDueVal.textContent = "--";
+      }
+    }
+
+    const flushIntVal = root.getElementById("flush-interval-val");
+    if (flushIntVal) {
+      const flushInt = getStateNum(this._hass, this._config.flush_interval_days, 7);
+      flushIntVal.textContent = flushInt;
+    }
+
+    // Target corridors
+    const setElemNum = (id, entityId, fallback, precision = 1) => {
+      const elem = root.getElementById(id);
+      if (!elem) return;
+      const val = getStateNum(this._hass, entityId, fallback);
+      elem.textContent = val !== null ? val.toFixed(precision) : "--";
+    };
+
+    setElemNum("val-ph-low", this._config.target_ph_low, 5.5, 1);
+    setElemNum("val-ph-high", this._config.target_ph_high, 6.2, 1);
+    setElemNum("val-ec-low", this._config.target_ec_low, 1.2, 1);
+    setElemNum("val-ec-high", this._config.target_ec_high, 1.8, 1);
+    setElemNum("val-vpd-low", this._config.target_vpd_low, 0.8, 2);
+    setElemNum("val-vpd-high", this._config.target_vpd_high, 1.2, 2);
+    setElemNum("val-res-vol", this._config.reservoir_volume, 15, 0);
   }
+}
+
+// ============================================================================
+// 6. TENDRILGROW AI CULTIVATION INTELLIGENCE CARD (<tendrilgrow-advisor-card>)
+// ============================================================================
+function formatChatMarkdown(txt) {
+  if (!txt) return "";
+  let out = escapeHtml(txt);
+  out = out.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+  out = out.replace(/\*(.*?)\*/g, "<em>$1</em>");
+  out = out.replace(/`([^`]+)`/g, "<code style=\"background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;color:#67e8f9;font-family:monospace;font-size:11px;\">$1</code>");
+  out = out.replace(/^\s*[\-\*]\s+(.*)$/gm, "<div style=\"display:flex;gap:6px;margin:2px 0;\"><span style=\"color:#8b5cf6;\">•</span><span>$1</span></div>");
+  out = out.replace(/\n\n/g, "<br><br>");
+  out = out.replace(/\n/g, "<br>");
+  return out;
 }
 
 // ============================================================================
@@ -4640,7 +5407,9 @@ class TendrilGrowAdvisorCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._config = {};
     this._hass = null;
-    this._activeTab = "diag"; // 'diag' | 'rec' | 'feed'
+    this._activeTab = "diag"; // 'diag' | 'rec' | 'feed' | 'chat'
+    this._chatMessages = null;
+    this._isChatLoading = false;
   }
 
   static getStubConfig() {
@@ -4654,11 +5423,26 @@ class TendrilGrowAdvisorCard extends HTMLElement {
     if (!config) throw new Error("Invalid configuration");
     this._config = {
       title: config.title || "AI Cultivation Intelligence",
+      space_name: config.space_name || "Cultivation Space",
+      space_slug: config.space_slug || "",
       score: config.score || null,
+      summary: config.summary || null,
       critical_alert: config.critical_alert || null,
       run_ai_health_check: config.run_ai_health_check || null,
       ...config,
     };
+
+    if (!this._chatMessages) {
+      const spaceTitle = this._config.space_name || "this grow space";
+      this._chatMessages = [
+        {
+          role: "assistant",
+          text: `🌱 **Greetings!** I am your dedicated AI Agronomist for the **${spaceTitle}**.\n\nI continuously monitor this tent's telemetry (pH, EC, water temperature, canopy VPD) against your cultivation targets. How can I help dial in this grow today?`,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ];
+    }
+
     this._render();
   }
 
@@ -4682,7 +5466,7 @@ class TendrilGrowAdvisorCard extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
-    const title = this._config.title;
+    const title = this._config.title || "AI Cultivation Intelligence";
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -4733,14 +5517,14 @@ class TendrilGrowAdvisorCard extends HTMLElement {
         }
 
         .brand-badge {
-          width: 32px;
-          height: 32px;
-          border-radius: 8px;
+          width: 34px;
+          height: 34px;
+          border-radius: 9px;
           background: linear-gradient(135deg, #8b5cf6, #6d28d9);
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 16px;
+          font-size: 17px;
           box-shadow: 0 0 14px rgba(139, 92, 246, 0.35);
         }
 
@@ -4885,25 +5669,32 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           border-radius: 10px;
           padding: 4px;
           margin-bottom: 14px;
+          flex-wrap: wrap;
         }
 
         .adv-tab-btn {
           flex: 1;
+          min-width: 110px;
           background: transparent;
           border: none;
           color: #8b949e;
           font-size: 11.5px;
           font-weight: 600;
-          padding: 7px 12px;
+          padding: 7px 10px;
           border-radius: 8px;
           cursor: pointer;
           transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
         }
 
         .adv-tab-btn.active {
           background: rgba(139, 92, 246, 0.2);
           color: #ddd6fe;
           font-weight: 700;
+          border: 1px solid rgba(139, 92, 246, 0.35);
         }
 
         /* TAB PANES */
@@ -4924,6 +5715,35 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           margin-bottom: 8px;
         }
 
+        .nominal-box {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          background: rgba(16, 185, 129, 0.08);
+          border: 1px solid rgba(16, 185, 129, 0.25);
+          border-radius: 10px;
+          padding: 12px 14px;
+          margin-bottom: 10px;
+        }
+
+        .nominal-icon {
+          font-size: 20px;
+          flex-shrink: 0;
+        }
+
+        .nominal-title {
+          font-size: 12.5px;
+          font-weight: 700;
+          color: #34d399;
+        }
+
+        .nominal-sub {
+          font-size: 11.5px;
+          color: #8b949e;
+          margin-top: 2px;
+        }
+
+        /* OBSERVATIONS */
         .item-card {
           background: rgba(15, 23, 42, 0.65);
           border: 1px solid var(--tg-border);
@@ -4938,77 +5758,453 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           gap: 10px;
         }
 
-        .item-card.issue {
-          background: rgba(245, 158, 11, 0.06);
-          border-color: rgba(245, 158, 11, 0.35);
-        }
-
         .item-icon {
           font-size: 15px;
           flex-shrink: 0;
           margin-top: 1px;
         }
 
-        .step-num {
-          width: 22px;
-          height: 22px;
+        /* FORMATTED DETECTED ISSUES */
+        .issue-card {
+          background: rgba(245, 158, 11, 0.06);
+          border: 1px solid rgba(245, 158, 11, 0.35);
+          border-radius: 10px;
+          padding: 10px 14px;
+          margin-bottom: 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          transition: all 0.2s ease;
+        }
+
+        .issue-card.critical {
+          background: rgba(239, 68, 68, 0.08);
+          border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        .issue-card-top {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .issue-badge {
+          font-size: 10px;
+          font-weight: 800;
+          padding: 2px 7px;
+          border-radius: 6px;
+          text-transform: uppercase;
+          background: rgba(245, 158, 11, 0.2);
+          color: #fbbf24;
+          border: 1px solid rgba(245, 158, 11, 0.35);
+        }
+
+        .issue-badge.critical {
+          background: rgba(239, 68, 68, 0.2);
+          color: #f87171;
+          border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        .issue-title {
+          font-size: 12.5px;
+          font-weight: 700;
+          color: #f0f6fc;
+          flex: 1;
+        }
+
+        .issue-detail {
+          font-size: 11.5px;
+          color: #94a3b8;
+          line-height: 1.4;
+          padding-left: 2px;
+        }
+
+        /* FORMATTED RECOMMENDED ACTIONS */
+        .action-card {
+          background: rgba(15, 23, 42, 0.7);
+          border: 1px solid var(--tg-border);
+          border-radius: 10px;
+          padding: 10px 14px;
+          margin-bottom: 8px;
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          transition: all 0.2s ease;
+        }
+
+        .action-card.immediate {
+          background: rgba(239, 68, 68, 0.06);
+          border-color: rgba(239, 68, 68, 0.35);
+        }
+
+        .action-card:hover {
+          border-color: rgba(139, 92, 246, 0.4);
+        }
+
+        .action-num-badge {
+          width: 24px;
+          height: 24px;
           border-radius: 50%;
           background: rgba(16, 185, 129, 0.2);
           color: #34d399;
           font-weight: 800;
-          font-size: 11px;
+          font-size: 11.5px;
           display: flex;
           align-items: center;
           justify-content: center;
           flex-shrink: 0;
+          margin-top: 1px;
         }
 
-        /* FEEDING RECIPE TABLE */
-        .recipe-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          gap: 10px;
-          margin-bottom: 12px;
+        .action-num-badge.immediate {
+          background: rgba(239, 68, 68, 0.2);
+          color: #f87171;
         }
 
-        .nutrient-pill {
-          background: rgba(15, 23, 42, 0.8);
-          border: 1px solid rgba(139, 92, 246, 0.3);
-          border-radius: 10px;
-          padding: 10px 12px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .nut-icon {
-          font-size: 20px;
-        }
-
-        .nut-info {
+        .action-content {
           display: flex;
           flex-direction: column;
+          gap: 3px;
+          flex: 1;
         }
 
-        .nut-name {
+        .action-top-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .action-title {
           font-size: 12.5px;
           font-weight: 700;
           color: #f0f6fc;
         }
 
-        .nut-dosage {
-          font-size: 11.5px;
-          font-weight: 600;
-          color: #c4b5fd;
+        .action-urgency-tag {
+          font-size: 9.5px;
+          font-weight: 800;
+          padding: 1px 6px;
+          border-radius: 5px;
+          text-transform: uppercase;
+          background: rgba(239, 68, 68, 0.2);
+          color: #f87171;
+          border: 1px solid rgba(239, 68, 68, 0.3);
         }
 
-        .recipe-meta-box {
+        .action-detail {
+          font-size: 11.5px;
+          color: #94a3b8;
+          line-height: 1.4;
+        }
+
+        /* WATER PREPARATION SEQUENCE */
+        .feed-order-banner {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(16, 185, 129, 0.1));
+          border: 1px solid rgba(6, 182, 212, 0.3);
+          border-radius: 10px;
+          padding: 10px 14px;
+          margin-bottom: 12px;
+          font-size: 12px;
+          color: #67e8f9;
+        }
+
+        .feed-order-banner-icon {
+          font-size: 18px;
+          flex-shrink: 0;
+        }
+
+        .recipe-timeline {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          margin-bottom: 14px;
+        }
+
+        .recipe-step-card {
+          background: rgba(15, 23, 42, 0.75);
+          border: 1px solid var(--tg-border);
+          border-radius: 10px;
+          padding: 10px 14px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+
+        .recipe-step-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+
+        .recipe-order-badge {
+          width: 26px;
+          height: 26px;
+          border-radius: 8px;
+          background: rgba(139, 92, 246, 0.2);
+          color: #c4b5fd;
+          font-weight: 800;
+          font-size: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        .recipe-nut-details {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+        }
+
+        .recipe-nut-name {
+          font-size: 13px;
+          font-weight: 700;
+          color: #f0f6fc;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .recipe-nut-hint {
+          font-size: 11px;
+          color: #8b949e;
+        }
+
+        .recipe-nut-dose {
+          font-size: 12.5px;
+          font-weight: 800;
+          color: #34d399;
+          background: rgba(16, 185, 129, 0.12);
+          padding: 4px 10px;
+          border-radius: 7px;
+          border: 1px solid rgba(16, 185, 129, 0.25);
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        .recipe-corridor-box {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+          gap: 8px;
           background: rgba(13, 17, 23, 0.85);
           border: 1px solid var(--tg-border);
           border-radius: 10px;
           padding: 10px 14px;
-          font-size: 12px;
+        }
+
+        .corridor-item {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .corridor-item-label {
+          font-size: 10px;
+          color: #8b949e;
+          text-transform: uppercase;
+          font-weight: 600;
+        }
+
+        .corridor-item-val {
+          font-size: 12.5px;
+          font-weight: 700;
+          color: #e6edf3;
+        }
+
+        /* TAB 4: AI AGRONOMIST CHAT */
+        .chat-context-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: rgba(13, 17, 23, 0.85);
+          border: 1px solid rgba(6, 182, 212, 0.25);
+          border-radius: 10px;
+          padding: 8px 12px;
+          margin-bottom: 10px;
+          font-size: 11.5px;
           color: #94a3b8;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .chat-context-pills {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+
+        .ctx-pill {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 6px;
+          padding: 2px 7px;
+          font-size: 10.5px;
+          color: #e6edf3;
+          font-weight: 600;
+        }
+
+        .ctx-pill.cyan {
+          color: #67e8f9;
+          border-color: rgba(6, 182, 212, 0.3);
+          background: rgba(6, 182, 212, 0.1);
+        }
+
+        .chat-suggestions {
+          display: flex;
+          gap: 6px;
+          overflow-x: auto;
+          padding-bottom: 6px;
+          margin-bottom: 10px;
+        }
+
+        .suggestion-chip {
+          background: rgba(139, 92, 246, 0.12);
+          border: 1px solid rgba(139, 92, 246, 0.3);
+          color: #c4b5fd;
+          font-size: 11px;
+          font-weight: 600;
+          padding: 5px 10px;
+          border-radius: 14px;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.2s ease;
+        }
+
+        .suggestion-chip:hover {
+          background: rgba(139, 92, 246, 0.25);
+          color: #fff;
+          border-color: rgba(139, 92, 246, 0.5);
+        }
+
+        .chat-stream {
+          height: 250px;
+          overflow-y: auto;
+          background: rgba(11, 15, 23, 0.95);
+          border: 1px solid var(--tg-border);
+          border-radius: 12px;
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          margin-bottom: 12px;
+          scroll-behavior: smooth;
+        }
+
+        .chat-bubble {
+          display: flex;
+          gap: 10px;
+          max-width: 92%;
+        }
+
+        .chat-bubble.assistant {
+          align-self: flex-start;
+        }
+
+        .chat-bubble.user {
+          align-self: flex-end;
+          flex-direction: row-reverse;
+        }
+
+        .chat-avatar {
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 14px;
+          flex-shrink: 0;
+        }
+
+        .chat-bubble.assistant .chat-avatar {
+          background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+        }
+
+        .chat-bubble.user .chat-avatar {
+          background: linear-gradient(135deg, #06b6d4, #0284c7);
+        }
+
+        .chat-msg-body {
+          background: rgba(15, 23, 42, 0.9);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 12px;
+          padding: 10px 13px;
+          font-size: 12px;
+          line-height: 1.5;
+          color: #e6edf3;
+        }
+
+        .chat-bubble.assistant .chat-msg-body {
+          border-color: rgba(139, 92, 246, 0.3);
+        }
+
+        .chat-bubble.user .chat-msg-body {
+          background: linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(2, 132, 199, 0.15));
+          border-color: rgba(6, 182, 212, 0.35);
+        }
+
+        .chat-time {
+          font-size: 9.5px;
+          color: #64748b;
+          margin-top: 4px;
+          text-align: right;
+        }
+
+        .chat-typing {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 11.5px;
+          color: #c4b5fd;
+          font-style: italic;
+          padding: 4px 8px;
+        }
+
+        .chat-input-row {
+          display: flex;
+          gap: 8px;
+        }
+
+        .chat-input {
+          flex: 1;
+          background: rgba(15, 23, 42, 0.9);
+          border: 1px solid var(--tg-border);
+          border-radius: 10px;
+          padding: 9px 14px;
+          font-size: 12.5px;
+          color: #fff;
+          outline: none;
+          transition: border-color 0.2s ease;
+        }
+
+        .chat-input:focus {
+          border-color: var(--tg-cyan);
+        }
+
+        .chat-send-btn {
+          background: linear-gradient(135deg, #06b6d4, #0284c7);
+          border: none;
+          color: #fff;
+          font-weight: 700;
+          font-size: 12px;
+          padding: 0 16px;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .chat-send-btn:hover {
+          box-shadow: 0 0 14px rgba(6, 182, 212, 0.4);
+          transform: translateY(-1px);
         }
       </style>
 
@@ -5048,6 +6244,7 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           <button class="adv-tab-btn active" id="tab-btn-diag">🔍 Observations & Issues</button>
           <button class="adv-tab-btn" id="tab-btn-rec">⚡ Recommended Actions</button>
           <button class="adv-tab-btn" id="tab-btn-feed">🧪 Feeding Recipe</button>
+          <button class="adv-tab-btn" id="tab-btn-chat">💬 Agronomist Chat</button>
         </div>
 
         <!-- Tab 1: Observations & Issues -->
@@ -5058,7 +6255,13 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           </div>
           <div class="diag-section-title" style="margin-top: 14px;">Detected Issues & Variances</div>
           <div class="issues-list" id="issues-list-container">
-            <div class="item-card" style="color: #8b949e;">No active critical anomalies detected.</div>
+            <div class="nominal-box">
+              <span class="nominal-icon">✅</span>
+              <div>
+                <div class="nominal-title">All Parameters Nominal</div>
+                <div class="nominal-sub">No nutrient burn, pH lockout, or environmental variances detected.</div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -5066,24 +6269,78 @@ class TendrilGrowAdvisorCard extends HTMLElement {
         <div class="tab-pane" id="pane-rec">
           <div class="diag-section-title">Agronomy Action Plan</div>
           <div class="rec-list" id="rec-list-container">
-            <div class="item-card"><span class="step-num">1</span><span>Maintain optimal target VPD band for current vegetative growth cycle.</span></div>
+            <div class="action-card">
+              <div class="action-num-badge">1</div>
+              <div class="action-content">
+                <div class="action-top-row">
+                  <span class="action-title">Maintain optimal target VPD band</span>
+                  <span class="action-urgency-tag">ROUTINE</span>
+                </div>
+                <div class="action-detail">Keep canopy transpiration balanced for current vegetative growth cycle.</div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Tab 3: Feeding Recipe -->
+        <!-- Tab 3: Feeding Recipe (Strict Horticultural Order) -->
         <div class="tab-pane" id="pane-feed">
-          <div class="diag-section-title">Nutrient Mixing Routine</div>
-          <div class="feed-recipe-container" id="feed-recipe-container">
+          <div class="feed-order-banner">
+            <span class="feed-order-banner-icon">💧</span>
+            <span><strong>Strict Water Preparation Sequence:</strong> Add nutrients one by one in exact order. Dissolve thoroughly before adding next to avoid nutrient lockout/precipitation. Buffer pH LAST.</span>
+          </div>
+          <div class="recipe-timeline" id="feed-recipe-container">
             <!-- Dynamically populated -->
           </div>
-          <div class="recipe-meta-box" id="recipe-meta-box">
-            <span>Target pH: <strong>5.8</strong> • Note: Mix nutrients thoroughly in order, then verify EC.</span>
+          <div class="recipe-corridor-box" id="recipe-corridor-box">
+            <div class="corridor-item">
+              <span class="corridor-item-label">Target pH Buffer</span>
+              <span class="corridor-item-val" id="adv-feed-target-ph">5.8 (5.5 - 6.2)</span>
+            </div>
+            <div class="corridor-item">
+              <span class="corridor-item-label">Target EC Corridor</span>
+              <span class="corridor-item-val" id="adv-feed-target-ec">1.2 - 1.6 mS/cm</span>
+            </div>
+            <div class="corridor-item">
+              <span class="corridor-item-label">Reservoir Water Temp</span>
+              <span class="corridor-item-val" id="adv-feed-target-temp">65°F - 68°F (Optimal DO)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: AI Agronomist Chat Window -->
+        <div class="tab-pane" id="pane-chat">
+          <div class="chat-context-bar">
+            <span>Cockpit: <strong id="chat-ctx-space">${escapeHtml(this._config.space_name || "Cultivation Space")}</strong></span>
+            <div class="chat-context-pills" id="chat-ctx-pills">
+              <span class="ctx-pill cyan" id="chat-pill-stage">Stage: Vegetative</span>
+              <span class="ctx-pill" id="chat-pill-ph">pH: --</span>
+              <span class="ctx-pill" id="chat-pill-ec">EC: --</span>
+              <span class="ctx-pill" id="chat-pill-vpd">VPD: --</span>
+            </div>
+          </div>
+
+          <div class="chat-suggestions">
+            <button class="suggestion-chip" data-query="How healthy is my canopy right now based on telemetry?">Canopy Health Check</button>
+            <button class="suggestion-chip" data-query="Is my VPD dialed in for my current stage?">Check VPD Corridor</button>
+            <button class="suggestion-chip" data-query="What is the proper order to mix my water and nutrients?">Water Prep Sequence</button>
+            <button class="suggestion-chip" data-query="When should I do my next reservoir flush and fill?">Flush & Fill Routine</button>
+            <button class="suggestion-chip" data-query="What should my target EC and pH corridor be?">Target Corridor Advice</button>
+          </div>
+
+          <div class="chat-stream" id="chat-stream">
+            <!-- Messages rendered dynamically -->
+          </div>
+
+          <div class="chat-input-row">
+            <input type="text" class="chat-input" id="chat-input" placeholder="Ask AI agronomist about this grow..." />
+            <button class="chat-send-btn" id="chat-send-btn">Send 🚀</button>
           </div>
         </div>
       </div>
     `;
 
     this._bindEvents();
+    this._renderChatMessages();
     this._updateStates();
   }
 
@@ -5094,14 +6351,17 @@ class TendrilGrowAdvisorCard extends HTMLElement {
     const tDiag = root.getElementById("tab-btn-diag");
     const tRec = root.getElementById("tab-btn-rec");
     const tFeed = root.getElementById("tab-btn-feed");
+    const tChat = root.getElementById("tab-btn-chat");
 
     const pDiag = root.getElementById("pane-diag");
     const pRec = root.getElementById("pane-rec");
     const pFeed = root.getElementById("pane-feed");
+    const pChat = root.getElementById("pane-chat");
 
     const setTab = (tab) => {
-      [tDiag, tRec, tFeed].forEach((b) => b && b.classList.remove("active"));
-      [pDiag, pRec, pFeed].forEach((p) => p && p.classList.remove("active"));
+      this._activeTab = tab;
+      [tDiag, tRec, tFeed, tChat].forEach((b) => b && b.classList.remove("active"));
+      [pDiag, pRec, pFeed, pChat].forEach((p) => p && p.classList.remove("active"));
 
       if (tab === "diag") {
         if (tDiag) tDiag.classList.add("active");
@@ -5112,13 +6372,22 @@ class TendrilGrowAdvisorCard extends HTMLElement {
       } else if (tab === "feed") {
         if (tFeed) tFeed.classList.add("active");
         if (pFeed) pFeed.classList.add("active");
+      } else if (tab === "chat") {
+        if (tChat) tChat.classList.add("active");
+        if (pChat) pChat.classList.add("active");
+        this._scrollChatToBottom();
       }
     };
 
     if (tDiag) tDiag.onclick = () => setTab("diag");
     if (tRec) tRec.onclick = () => setTab("rec");
     if (tFeed) tFeed.onclick = () => setTab("feed");
+    if (tChat) tChat.onclick = () => setTab("chat");
 
+    // Re-apply active tab if changed
+    if (this._activeTab) setTab(this._activeTab);
+
+    // AI Health Check Button
     const btnDiag = root.getElementById("btn-run-diag");
     if (btnDiag) {
       btnDiag.onclick = () => {
@@ -5134,6 +6403,164 @@ class TendrilGrowAdvisorCard extends HTMLElement {
         }, 4000);
       };
     }
+
+    // Chat Input & Send
+    const chatInput = root.getElementById("chat-input");
+    const chatSendBtn = root.getElementById("chat-send-btn");
+
+    const handleSend = () => {
+      if (!chatInput) return;
+      const text = chatInput.value.trim();
+      if (!text || this._isChatLoading) return;
+      chatInput.value = "";
+      this._sendUserChatMessage(text);
+    };
+
+    if (chatSendBtn) chatSendBtn.onclick = handleSend;
+    if (chatInput) {
+      chatInput.onkeydown = (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          handleSend();
+        }
+      };
+    }
+
+    // Suggestion Chips
+    const chips = root.querySelectorAll(".suggestion-chip");
+    chips.forEach((chip) => {
+      chip.onclick = () => {
+        const query = chip.getAttribute("data-query");
+        if (query && !this._isChatLoading) {
+          this._sendUserChatMessage(query);
+        }
+      };
+    });
+  }
+
+  _renderChatMessages() {
+    const root = this.shadowRoot;
+    if (!root) return;
+    const stream = root.getElementById("chat-stream");
+    if (!stream) return;
+
+    const msgs = this._chatMessages || [];
+    let html = msgs
+      .map((msg) => {
+        const isUser = msg.role === "user";
+        return `
+          <div class="chat-bubble ${isUser ? "user" : "assistant"}">
+            <div class="chat-avatar">${isUser ? "🧑‍🌾" : "🧠"}</div>
+            <div class="chat-msg-body">
+              <div>${isUser ? escapeHtml(msg.text) : formatChatMarkdown(msg.text)}</div>
+              <div class="chat-time">${escapeHtml(msg.time || "")}</div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    if (this._isChatLoading) {
+      html += `
+        <div class="chat-bubble assistant">
+          <div class="chat-avatar">🧠</div>
+          <div class="chat-msg-body chat-typing">
+            <span>Analyzing ${escapeHtml(this._config.space_name || "grow space")} telemetry...</span>
+          </div>
+        </div>
+      `;
+    }
+
+    stream.innerHTML = html;
+    this._scrollChatToBottom();
+  }
+
+  _scrollChatToBottom() {
+    const root = this.shadowRoot;
+    if (!root) return;
+    const stream = root.getElementById("chat-stream");
+    if (stream) {
+      setTimeout(() => {
+        stream.scrollTop = stream.scrollHeight;
+      }, 50);
+    }
+  }
+
+  async _sendUserChatMessage(query) {
+    if (!query) return;
+    const timeStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    this._chatMessages.push({
+      role: "user",
+      text: query,
+      time: timeStr,
+    });
+    this._isChatLoading = true;
+    this._renderChatMessages();
+
+    // Prepare context bundle
+    const phVal = getStateNum(this._hass, this._config.ph, 5.85);
+    const ecVal = getStateNum(this._hass, this._config.ec, 1.35);
+    const vpdVal = getStateNum(this._hass, this._config.vpd, 1.15);
+    const tempVal = getStateNum(this._hass, this._config.temperature, 75);
+    const rhVal = getStateNum(this._hass, this._config.humidity, 60);
+    const waterTempVal = getStateNum(this._hass, this._config.water_temperature, 67.5);
+    const stageVal = getStateStr(this._hass, this._config.stage, "Vegetative");
+    const daysSinceFlush = getStateNum(this._hass, this._config.days_since_flush, 5);
+
+    const agronomyContext = {
+      space_name: this._config.space_name || "Cultivation Space",
+      space_slug: this._config.space_slug || "",
+      stage: stageVal,
+      ph: phVal,
+      ec: ecVal,
+      vpd: vpdVal,
+      air_temp: tempVal,
+      humidity: rhVal,
+      water_temp: waterTempVal,
+      days_since_flush: daysSinceFlush,
+      reservoir_volume: this._config.reservoir_volume || 15,
+      target_ph_low: this._config.target_ph_low || 5.5,
+      target_ph_high: this._config.target_ph_high || 6.2,
+      target_ec_low: this._config.target_ec_low || 1.2,
+      target_ec_high: this._config.target_ec_high || 1.6,
+      target_vpd_low: this._config.target_vpd_low || 0.8,
+      target_vpd_high: this._config.target_vpd_high || 1.2,
+    };
+
+    let reply = "";
+
+    // 1. Try Home Assistant Conversation WebSocket if available
+    if (this._hass && typeof this._hass.callWS === "function") {
+      try {
+        const res = await Promise.race([
+          this._hass.callWS({
+            type: "conversation/process",
+            text: `[Space: ${agronomyContext.space_name} | Stage: ${agronomyContext.stage} | pH: ${agronomyContext.ph} | EC: ${agronomyContext.ec} | VPD: ${agronomyContext.vpd} kPa | Water Temp: ${agronomyContext.water_temp}°F] ${query}`,
+          }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2500)),
+        ]);
+        if (res && res.response && res.response.speech && res.response.speech.plain && res.response.speech.plain.speech) {
+          reply = res.response.speech.plain.speech;
+        }
+      } catch (e) {
+        // Fallback to autonomous agronomy advice generator
+      }
+    }
+
+    // 2. Fallback to our grounded agronomy knowledge engine
+    if (!reply) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      reply = generateAgronomyAdvice(query, agronomyContext);
+    }
+
+    this._isChatLoading = false;
+    this._chatMessages.push({
+      role: "assistant",
+      text: reply,
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    });
+
+    this._renderChatMessages();
   }
 
   _updateStates() {
@@ -5149,7 +6576,7 @@ class TendrilGrowAdvisorCard extends HTMLElement {
       ...(summaryState ? summaryState.attributes || {} : {}),
     };
 
-    const score = attrs.score !== undefined ? attrs.score : getStateNum(this._hass, scoreEntity, 90);
+    const score = attrs.score !== undefined ? attrs.score : getStateNum(this._hass, scoreEntity, 92);
     const severity = (attrs.severity || "low").toLowerCase();
     const confidence = attrs.confidence || 95;
     const model = attrs.model || "gemini-2.5-flash";
@@ -5196,62 +6623,197 @@ class TendrilGrowAdvisorCard extends HTMLElement {
     const obsContainer = root.getElementById("obs-list-container");
     if (obsContainer && observations.length > 0) {
       obsContainer.innerHTML = observations
-        .map((obs) => `<div class="item-card"><span class="item-icon">👁️</span><span>${obs}</span></div>`)
+        .map((obs) => `<div class="item-card"><span class="item-icon">👁️</span><span>${escapeHtml(String(obs))}</span></div>`)
         .join("");
     }
 
-    // Issues
+    // Tab 1: Formatted Detected Issues (No Raw JSON)
     const issuesContainer = root.getElementById("issues-list-container");
     if (issuesContainer) {
       if (issues.length > 0) {
         issuesContainer.innerHTML = issues
           .map((iss) => {
-            let text = typeof iss === "object" ? (iss.observation || iss.cause || JSON.stringify(iss)) : String(iss);
-            return `<div class="item-card issue"><span class="item-icon">⚠️</span><span>${text}</span></div>`;
+            const item = parseIssueItem(iss);
+            const isCrit = item.severity === "critical" || item.severity === "high";
+            const tagText = item.metric ? item.metric.toUpperCase() : isCrit ? "CRITICAL" : "VARIANCE";
+            return `
+              <div class="issue-card ${isCrit ? "critical" : ""}">
+                <div class="issue-card-top">
+                  <span class="issue-badge ${isCrit ? "critical" : ""}">${escapeHtml(tagText)}</span>
+                  <span class="issue-title">${escapeHtml(item.title)}</span>
+                </div>
+                ${item.detail ? `<div class="issue-detail">${escapeHtml(item.detail)}</div>` : ""}
+              </div>
+            `;
           })
           .join("");
       } else {
-        issuesContainer.innerHTML = `<div class="item-card" style="color: #8b949e;">No active critical anomalies detected.</div>`;
+        issuesContainer.innerHTML = `
+          <div class="nominal-box">
+            <span class="nominal-icon">✅</span>
+            <div>
+              <div class="nominal-title">All Parameters Nominal</div>
+              <div class="nominal-sub">No nutrient burn, pH lockout, or environmental variances detected.</div>
+            </div>
+          </div>
+        `;
       }
     }
 
-    // Action Recommendations
+    // Tab 2: Formatted Recommended Actions (No Raw JSON)
     const recContainer = root.getElementById("rec-list-container");
-    if (recContainer && actions.length > 0) {
-      recContainer.innerHTML = actions
-        .map((act, i) => `<div class="item-card"><span class="step-num">${i + 1}</span><span>${act}</span></div>`)
-        .join("");
+    if (recContainer) {
+      if (actions.length > 0) {
+        recContainer.innerHTML = actions
+          .map((act, i) => {
+            const item = parseActionItem(act);
+            const isImmediate = item.severity === "immediate" || item.severity === "critical" || item.severity === "high";
+            return `
+              <div class="action-card ${isImmediate ? "immediate" : ""}">
+                <div class="action-num-badge ${isImmediate ? "immediate" : ""}">${i + 1}</div>
+                <div class="action-content">
+                  <div class="action-top-row">
+                    <span class="action-title">${escapeHtml(item.title)}</span>
+                    ${isImmediate ? `<span class="action-urgency-tag">IMMEDIATE</span>` : ""}
+                  </div>
+                  ${item.detail ? `<div class="action-detail">${escapeHtml(item.detail)}</div>` : ""}
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      } else {
+        recContainer.innerHTML = `
+          <div class="nominal-box">
+            <span class="nominal-icon">🌱</span>
+            <div>
+              <div class="nominal-title">Standard Cultivation Plan</div>
+              <div class="nominal-sub">Maintain current target bands and monitor root zone transpiration.</div>
+            </div>
+          </div>
+        `;
+      }
     }
 
-    // Feeding Recipe
+    // Tab 3: Feeding Recipe (Strict Horticultural Order)
     const feedContainer = root.getElementById("feed-recipe-container");
     if (feedContainer) {
+      let rawItems = [];
       if (feedSchedule.length > 0) {
-        // Parse nutrients e.g. "CalMag+: 32.5ml; FloraMicro: 32.5ml; ..."
         const schedStr = feedSchedule[0] || "";
         const parts = schedStr.split("|");
         const nutPart = parts.length > 1 ? parts[1] : schedStr;
-        const nutItems = nutPart.replace("ADD IN ORDER:", "").split(";").map((s) => s.trim()).filter(Boolean);
+        rawItems = nutPart
+          .replace(/ADD IN ORDER:/i, "")
+          .split(";")
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
 
-        if (nutItems.length > 0) {
-          feedContainer.innerHTML = `
-            <div class="recipe-grid">
-              ${nutItems.map((nut, i) => {
-                const [nName, nDose] = nut.split(":").map((s) => s.trim());
-                return `
-                  <div class="nutrient-pill">
-                    <span class="nut-icon">🧪</span>
-                    <div class="nut-info">
-                      <span class="nut-name">${nName}</span>
-                      <span class="nut-dosage">${nDose || ""}</span>
-                    </div>
-                  </div>
-                `;
-              }).join("")}
+      let parsedNuts = [];
+      if (rawItems.length > 0) {
+        parsedNuts = rawItems.map((item) => {
+          const splitIdx = item.indexOf(":");
+          if (splitIdx > -1) {
+            return {
+              name: item.slice(0, splitIdx).trim(),
+              dose: item.slice(splitIdx + 1).trim(),
+            };
+          }
+          return { name: item, dose: "" };
+        });
+      } else {
+        // Stage-appropriate standard nutrient sequence
+        parsedNuts = [
+          { name: "Armor Si (Silica)", dose: "12.5 ml (2.5 ml/gal)" },
+          { name: "CaliMagic (Cal-Mag)", dose: "15.0 ml (3.0 ml/gal)" },
+          { name: "FloraMicro (Base)", dose: "25.0 ml (5.0 ml/gal)" },
+          { name: "FloraGro (Vegetative)", dose: "25.0 ml (5.0 ml/gal)" },
+          { name: "FloraBloom (Flowering)", dose: "10.0 ml (2.0 ml/gal)" },
+          { name: "Hydroguard (Beneficial Microbes)", dose: "10.0 ml (2.0 ml/gal)" },
+          { name: "General Hydroponics pH Down", dose: "Buffer LAST to 5.8" },
+        ];
+      }
+
+      // Sort by strict horticultural water preparation order
+      const sortedNuts = sortNutrientsByHorticulturalOrder(parsedNuts);
+
+      const getNutrientHint = (name) => {
+        const low = name.toLowerCase();
+        if (low.includes("silica") || low.includes("armor si") || low.includes("rhino")) {
+          return "Add first. Dissolve & let stand 10-15m before adding salts.";
+        }
+        if (low.includes("cal-mag") || low.includes("calimagic") || low.includes("calmag")) {
+          return "Dissolve completely before base NPK to avoid gypsum precipitation.";
+        }
+        if (low.includes("micro") || low.includes("base")) {
+          return "Add chelated micro-nutrients first before Grow/Bloom.";
+        }
+        if (low.includes("gro") || low.includes("grow") || low.includes("veg")) {
+          return "Primary vegetative nitrogen & potassium builder.";
+        }
+        if (low.includes("bloom")) {
+          return "Phosphorus & potassium builder for floral structure.";
+        }
+        if (low.includes("hydroguard") || low.includes("microbe") || low.includes("voodoo") || low.includes("tarantula")) {
+          return "Root inoculant. Add after macro salts are completely dissolved.";
+        }
+        if (low.includes("ph down") || low.includes("ph up") || low.includes("ph adjust")) {
+          return "Buffer LAST once all salts stabilize and EC stabilizes.";
+        }
+        return "Mix thoroughly into reservoir before proceeding.";
+      };
+
+      feedContainer.innerHTML = sortedNuts
+        .map((nut, idx) => {
+          const hint = getNutrientHint(nut.name);
+          return `
+            <div class="recipe-step-card">
+              <div class="recipe-step-left">
+                <div class="recipe-order-badge">${idx + 1}</div>
+                <div class="recipe-nut-details">
+                  <span class="recipe-nut-name">${escapeHtml(nut.name)}</span>
+                  <span class="recipe-nut-hint">${escapeHtml(hint)}</span>
+                </div>
+              </div>
+              <div class="recipe-nut-dose">${escapeHtml(nut.dose || "As Directed")}</div>
             </div>
           `;
-        }
-      }
+        })
+        .join("");
+    }
+
+    // Corridor Targets in Recipe Tab
+    const feedTargetPh = root.getElementById("adv-feed-target-ph");
+    const feedTargetEc = root.getElementById("adv-feed-target-ec");
+    if (feedTargetPh) {
+      feedTargetPh.textContent = `5.8 (${this._config.target_ph_low || 5.5} - ${this._config.target_ph_high || 6.2})`;
+    }
+    if (feedTargetEc) {
+      feedTargetEc.textContent = `${this._config.target_ec_low || 1.2} - ${this._config.target_ec_high || 1.6} mS/cm`;
+    }
+
+    // Tab 4: Live Telemetry Context Pills
+    const stagePill = root.getElementById("chat-pill-stage");
+    const phPill = root.getElementById("chat-pill-ph");
+    const ecPill = root.getElementById("chat-pill-ec");
+    const vpdPill = root.getElementById("chat-pill-vpd");
+
+    if (stagePill) {
+      const curStage = getStateStr(this._hass, this._config.stage, "Vegetative");
+      stagePill.textContent = `Stage: ${curStage}`;
+    }
+    if (phPill) {
+      const phVal = getStateNum(this._hass, this._config.ph, 5.85);
+      phPill.textContent = `pH: ${phVal.toFixed(2)}`;
+    }
+    if (ecPill) {
+      const ecVal = getStateNum(this._hass, this._config.ec, 1.35);
+      ecPill.textContent = `EC: ${ecVal.toFixed(2)}`;
+    }
+    if (vpdPill) {
+      const vpdVal = getStateNum(this._hass, this._config.vpd, 1.15);
+      vpdPill.textContent = `VPD: ${vpdVal.toFixed(2)} kPa`;
     }
   }
 }

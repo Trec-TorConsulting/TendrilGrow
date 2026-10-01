@@ -244,8 +244,30 @@ views:
       heading_style: subtitle
     - type: custom:tendrilgrow-plan-card
       title: Cultivation Plan & Tasks
+      space_name: 3x3 Mothers Tent
       stage: select.3x3_mothers_tent_growth_stage
+      stage_started: date.3x3_mothers_tent_stage_started
+      week_in_stage: sensor.3x3_mothers_tent_week_in_stage
       stage_projection: sensor.3x3_mothers_tent_stage_projection
+      strain: text.3x3_mothers_tent_strain_genetics
+      water_type: select.3x3_mothers_tent_water_type
+      reservoir_volume: number.3x3_mothers_tent_reservoir_volume
+      flush_now: button.3x3_mothers_tent_flush_now
+      flush_due: binary_sensor.3x3_mothers_tent_flush_due
+      days_since_flush: sensor.3x3_mothers_tent_days_since_flush
+      days_until_flush: sensor.3x3_mothers_tent_days_until_flush
+      next_flush_due: sensor.3x3_mothers_tent_next_flush_due
+      last_flush: sensor.3x3_mothers_tent_last_flush
+      flush_interval_days: number.3x3_mothers_tent_flush_interval
+      target_ph_low: number.3x3_mothers_tent_target_ph_low
+      target_ph_high: number.3x3_mothers_tent_target_ph_high
+      target_ec_low: number.3x3_mothers_tent_target_ec_low
+      target_ec_high: number.3x3_mothers_tent_target_ec_high
+      target_vpd_low: number.3x3_mothers_tent_target_vpd_low
+      target_vpd_high: number.3x3_mothers_tent_target_vpd_high
+      lights_on_time: time.3x3_mothers_tent_lights_on_time
+      lights_off_time: time.3x3_mothers_tent_lights_off_time
+      lights_on_hours: number.3x3_mothers_tent_lights_on
       todo: todo.3x3_mothers_tent_grow_tasks
   - type: grid
     cards:
@@ -272,9 +294,26 @@ views:
       heading_style: subtitle
     - type: custom:tendrilgrow-advisor-card
       title: AI Cultivation Intelligence
+      space_name: 3x3 Mothers Tent
+      space_slug: 3x3_mothers_tent
       score: sensor.3x3_mothers_tent_ai_health_score
       summary: sensor.3x3_mothers_tent_ai_health_summary
       run_ai_health_check: button.3x3_mothers_tent_run_ai_health_check
+      stage: select.3x3_mothers_tent_growth_stage
+      stage_projection: sensor.3x3_mothers_tent_stage_projection
+      ph: sensor.3x3_water_monitor_ph
+      ec: sensor.3x3_water_monitor_electrical_conductivity
+      temperature: sensor.3x3_controller_inside_temperature
+      humidity: sensor.3x3_controller_inside_humidity
+      water_temperature: sensor.3x3_water_monitor_temperature
+      vpd: sensor.3x3_mothers_tent_vpd
+      target_ph_low: number.3x3_mothers_tent_target_ph_low
+      target_ph_high: number.3x3_mothers_tent_target_ph_high
+      target_ec_low: number.3x3_mothers_tent_target_ec_low
+      target_ec_high: number.3x3_mothers_tent_target_ec_high
+      target_vpd_low: number.3x3_mothers_tent_target_vpd_low
+      target_vpd_high: number.3x3_mothers_tent_target_vpd_high
+      days_since_flush: sensor.3x3_mothers_tent_days_since_flush
   badges:
   - type: entity
     entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
@@ -384,8 +423,30 @@ views:
       heading_style: subtitle
     - type: custom:tendrilgrow-plan-card
       title: Cultivation Plan & Tasks
+      space_name: 4x4 Full Cycle Tent
       stage: select.4x4_full_cycle_tent_growth_stage
+      stage_started: date.4x4_full_cycle_tent_stage_started
+      week_in_stage: sensor.4x4_full_cycle_tent_week_in_stage
       stage_projection: sensor.4x4_full_cycle_tent_stage_projection
+      strain: text.4x4_full_cycle_tent_strain_genetics
+      water_type: select.4x4_full_cycle_tent_water_type
+      reservoir_volume: number.4x4_full_cycle_tent_reservoir_volume
+      flush_now: button.4x4_full_cycle_tent_flush_now
+      flush_due: binary_sensor.4x4_full_cycle_tent_flush_due
+      days_since_flush: sensor.4x4_full_cycle_tent_days_since_flush
+      days_until_flush: sensor.4x4_full_cycle_tent_days_until_flush
+      next_flush_due: sensor.4x4_full_cycle_tent_next_flush_due
+      last_flush: sensor.4x4_full_cycle_tent_last_flush
+      flush_interval_days: number.4x4_full_cycle_tent_flush_interval
+      target_ph_low: number.4x4_full_cycle_tent_target_ph_low
+      target_ph_high: number.4x4_full_cycle_tent_target_ph_high
+      target_ec_low: number.4x4_full_cycle_tent_target_ec_low
+      target_ec_high: number.4x4_full_cycle_tent_target_ec_high
+      target_vpd_low: number.4x4_full_cycle_tent_target_vpd_low
+      target_vpd_high: number.4x4_full_cycle_tent_target_vpd_high
+      lights_on_time: time.4x4_full_cycle_tent_lights_on_time
+      lights_off_time: time.4x4_full_cycle_tent_lights_off_time
+      lights_on_hours: number.4x4_full_cycle_tent_lights_on
       todo: todo.4x4_full_cycle_tent_grow_tasks
   - type: grid
     cards:
@@ -412,9 +473,26 @@ views:
       heading_style: subtitle
     - type: custom:tendrilgrow-advisor-card
       title: AI Cultivation Intelligence
+      space_name: 4x4 Full Cycle Tent
+      space_slug: 4x4_full_cycle_tent
       score: sensor.4x4_full_cycle_tent_ai_health_score
       summary: sensor.4x4_full_cycle_tent_ai_health_summary
       run_ai_health_check: button.4x4_full_cycle_tent_run_ai_health_check
+      stage: select.4x4_full_cycle_tent_growth_stage
+      stage_projection: sensor.4x4_full_cycle_tent_stage_projection
+      ph: sensor.4x4_water_monitor_ph
+      ec: sensor.4x4_water_monitor_electrical_conductivity
+      temperature: sensor.4x4_controller_inside_temperature
+      humidity: sensor.4x4_controller_inside_humidity
+      water_temperature: sensor.4x4_water_monitor_temperature
+      vpd: sensor.4x4_full_cycle_tent_vpd
+      target_ph_low: number.4x4_full_cycle_tent_target_ph_low
+      target_ph_high: number.4x4_full_cycle_tent_target_ph_high
+      target_ec_low: number.4x4_full_cycle_tent_target_ec_low
+      target_ec_high: number.4x4_full_cycle_tent_target_ec_high
+      target_vpd_low: number.4x4_full_cycle_tent_target_vpd_low
+      target_vpd_high: number.4x4_full_cycle_tent_target_vpd_high
+      days_since_flush: sensor.4x4_full_cycle_tent_days_since_flush
   badges:
   - type: entity
     entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
@@ -483,8 +561,30 @@ views:
       heading_style: subtitle
     - type: custom:tendrilgrow-plan-card
       title: Cultivation Plan & Tasks
+      space_name: Clone
       stage: select.clone_growth_stage
+      stage_started: date.clone_stage_started
+      week_in_stage: sensor.clone_week_in_stage
       stage_projection: sensor.clone_stage_projection
+      strain: text.clone_strain_genetics
+      water_type: select.basement_clone_water_type
+      reservoir_volume: number.clone_total_system_volume
+      flush_now: button.clone_flush_now
+      flush_due: binary_sensor.clone_flush_due
+      days_since_flush: sensor.clone_days_since_flush
+      days_until_flush: sensor.clone_days_until_flush
+      next_flush_due: sensor.clone_next_flush_due
+      last_flush: sensor.clone_last_flush
+      flush_interval_days: number.clone_flush_interval
+      target_ph_low: number.basement_clone_target_ph_low
+      target_ph_high: number.basement_clone_target_ph_high
+      target_ec_low: number.basement_clone_target_ec_low
+      target_ec_high: number.basement_clone_target_ec_high
+      target_vpd_low: number.basement_clone_target_vpd_low
+      target_vpd_high: number.basement_clone_target_vpd_high
+      lights_on_time: time.basement_clone_lights_on_time
+      lights_off_time: time.basement_clone_lights_off_time
+      lights_on_hours: number.clone_lights_on
       todo: todo.clone_grow_tasks
   - type: grid
     cards:
@@ -506,9 +606,21 @@ views:
       heading_style: subtitle
     - type: custom:tendrilgrow-advisor-card
       title: AI Cultivation Intelligence
+      space_name: Clone
+      space_slug: clone
       score: sensor.basement_clone_ai_health_score
       summary: sensor.basement_clone_ai_health_summary
       run_ai_health_check: button.clone_run_ai_health_check
+      stage: select.clone_growth_stage
+      stage_projection: sensor.clone_stage_projection
+      vpd: sensor.basement_clone_vpd
+      target_ph_low: number.basement_clone_target_ph_low
+      target_ph_high: number.basement_clone_target_ph_high
+      target_ec_low: number.basement_clone_target_ec_low
+      target_ec_high: number.basement_clone_target_ec_high
+      target_vpd_low: number.basement_clone_target_vpd_low
+      target_vpd_high: number.basement_clone_target_vpd_high
+      days_since_flush: sensor.clone_days_since_flush
   badges:
   - type: entity
     entity: binary_sensor.clone_ai_health_critical_alert
