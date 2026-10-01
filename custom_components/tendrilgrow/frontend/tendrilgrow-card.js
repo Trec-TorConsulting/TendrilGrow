@@ -4807,6 +4807,24 @@ class TendrilGrowPlanCard extends HTMLElement {
           font-variant-numeric: tabular-nums;
         }
 
+        .setting-input-text {
+          background: rgba(15, 23, 42, 0.85);
+          border: 1px solid var(--tg-border);
+          border-radius: 8px;
+          padding: 6px 10px;
+          font-size: 11.5px;
+          color: #f0f6fc;
+          outline: none;
+          width: 210px;
+          max-width: 55%;
+          box-sizing: border-box;
+          transition: border-color 0.2s ease;
+        }
+
+        .setting-input-text:focus {
+          border-color: var(--tg-cyan);
+        }
+
         .range-stepper-row {
           display: flex;
           align-items: center;
@@ -5123,6 +5141,32 @@ class TendrilGrowPlanCard extends HTMLElement {
                 </div>
               </div>
             </div>
+
+            <!-- Defined Nutrients & Additives -->
+            <div class="setting-card">
+              <div class="setting-card-title">🧪 Defined Nutrients &amp; Additives</div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Nutrient Line</div>
+                  <div class="setting-sublabel">Primary mineral salt formulation</div>
+                </div>
+                <input type="text" class="setting-input-text" id="setting-nut-line" placeholder="General Hydroponics Flora" />
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Base Nutrients</div>
+                  <div class="setting-sublabel">Core macro/micro bottles</div>
+                </div>
+                <input type="text" class="setting-input-text" id="setting-base-nuts" placeholder="FloraMicro, FloraGro, FloraBloom" />
+              </div>
+              <div class="setting-row">
+                <div>
+                  <div class="setting-label">Additives &amp; Addons</div>
+                  <div class="setting-sublabel">Silica, Cal-Mag, Boosters, Beneficials</div>
+                </div>
+                <input type="text" class="setting-input-text" id="setting-additives" placeholder="Armor Si, CaliMagic, Hydroguard, Liquid KoolBloom" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -5249,6 +5293,26 @@ class TendrilGrowPlanCard extends HTMLElement {
     setupStepper("btn-vpd-low-dec", "btn-vpd-low-inc", this._config.target_vpd_low, 0.05, 0.2, 2.5, 2);
     setupStepper("btn-vpd-high-dec", "btn-vpd-high-inc", this._config.target_vpd_high, 0.05, 0.4, 3.0, 2);
     setupStepper("btn-vol-dec", "btn-vol-inc", this._config.reservoir_volume, 1, 1, 500, 0);
+
+    // Nutrients & Additives text inputs
+    const nutLineInput = root.getElementById("setting-nut-line");
+    const baseNutsInput = root.getElementById("setting-base-nuts");
+    const additivesInput = root.getElementById("setting-additives");
+
+    const bindTextInput = (inputElem, confKey) => {
+      if (!inputElem) return;
+      inputElem.onchange = () => {
+        const val = inputElem.value.trim();
+        const entityId = this._config[confKey];
+        if (entityId) {
+          this._callService("text", "set_value", { entity_id: entityId, value: val });
+        }
+      };
+    };
+
+    bindTextInput(nutLineInput, "nutrient_line");
+    bindTextInput(baseNutsInput, "base_nutrients");
+    bindTextInput(additivesInput, "additives");
   }
 
   _formatDate(dateStr) {
@@ -5407,6 +5471,25 @@ class TendrilGrowPlanCard extends HTMLElement {
     setElemNum("val-vpd-low", this._config.target_vpd_low, 0.8, 2);
     setElemNum("val-vpd-high", this._config.target_vpd_high, 1.2, 2);
     setElemNum("val-res-vol", this._config.reservoir_volume, 15, 0);
+
+    // Nutrients & Additives text inputs
+    const nutLineInput = root.getElementById("setting-nut-line");
+    if (nutLineInput && document.activeElement !== nutLineInput) {
+      const val = getStateStr(this._hass, this._config.nutrient_line, "General Hydroponics Flora");
+      nutLineInput.value = val;
+    }
+
+    const baseNutsInput = root.getElementById("setting-base-nuts");
+    if (baseNutsInput && document.activeElement !== baseNutsInput) {
+      const val = getStateStr(this._hass, this._config.base_nutrients, "FloraMicro, FloraGro, FloraBloom");
+      baseNutsInput.value = val;
+    }
+
+    const additivesInput = root.getElementById("setting-additives");
+    if (additivesInput && document.activeElement !== additivesInput) {
+      const val = getStateStr(this._hass, this._config.additives, "Armor Si, CaliMagic, Hydroguard, Liquid KoolBloom");
+      additivesInput.value = val;
+    }
   }
 }
 
@@ -5426,6 +5509,134 @@ function formatChatMarkdown(txt) {
 }
 
 // ============================================================================
+// HORTICULTURAL NUTRIENT DOSING ENGINE (CALIBRATED TO TARGET EC & VOLUME)
+// ============================================================================
+function calculateNutrientDosing(stageName, targetEcLow, targetEcHigh, reservoirVol, nutrientLine, baseNutrients, additives) {
+  const vol = Number(reservoirVol) > 0 ? Number(reservoirVol) : 15;
+  const s = (stageName || "").toLowerCase();
+  const nutLine = (nutrientLine || "General Hydroponics Flora").trim();
+  const baseNuts = (baseNutrients || "FloraMicro, FloraGro, FloraBloom").trim();
+  const addons = (additives || "Armor Si, CaliMagic, Hydroguard, Liquid KoolBloom").trim();
+
+  // Target EC midpoint
+  const ecLow = Number(targetEcLow) > 0 ? Number(targetEcLow) : 1.2;
+  const ecHigh = Number(targetEcHigh) > 0 ? Number(targetEcHigh) : 1.6;
+  const targetEcMid = (ecLow + ecHigh) / 2;
+
+  let phaseTitle = "Vegetative Growth (Veg)";
+  let estEc = `${targetEcMid.toFixed(2)} mS/cm`;
+  let targetPh = "5.8 (5.5 – 6.2)";
+  let items = [];
+
+  const addonsLower = addons.toLowerCase();
+  const hasSilica = addonsLower.includes("silica") || addonsLower.includes("armor");
+  const hasCalMag = addonsLower.includes("cal") || addonsLower.includes("mag");
+  const hasHydroguard = addonsLower.includes("hydroguard") || addonsLower.includes("bacillus") || addonsLower.includes("southern");
+  const hasKoolBloom = addonsLower.includes("kool") || addonsLower.includes("bloom");
+  const hasRapidStart = addonsLower.includes("rapid") || addonsLower.includes("root");
+
+  if (s.includes("flush") || s.includes("finish") || s.includes("harvest") || s.includes("cure")) {
+    phaseTitle = "Final Flush & Clearing";
+    estEc = "0.15 mS/cm";
+    targetPh = "5.8 – 6.0";
+    items = [
+      { name: "Pure Filtered / RO Water", cat: "Base Water", rate: null, customText: `${vol} gal (Full Tank)`, hint: "Low EC water (<50 ppm) to purge mineral salts from root zone." },
+      { name: "General Hydroponics pH Down / Up", cat: "pH Buffer", rate: null, customText: "Buffer to 5.8", hint: "Maintain neutral uptake range (5.8 – 6.0) throughout flush." },
+    ];
+  } else if (s.includes("seed") || s.includes("clone") || s.includes("cut")) {
+    phaseTitle = "Seedling & Early Rooting";
+    estEc = `${Math.min(targetEcMid, 0.9).toFixed(2)} mS/cm`;
+    items = [
+      ...(hasSilica ? [{ name: "Armor Si (Silica)", cat: "Silica", rate: 1.0, unit: "ml/gal", hint: "Add 1st! Dissolve 10–15m before adding salts." }] : []),
+      { name: "CaliMagic (Cal-Mag)", cat: "Cal-Mag", rate: 2.0, unit: "ml/gal", hint: "Dissolve before base NPK to prevent gypsum precipitate." },
+      { name: "FloraMicro (Base 5-0-1)", cat: "Base / Micro", rate: 1.25, unit: "ml/gal", hint: "Chelated micro elements. Always add Micro before Gro & Bloom." },
+      { name: "FloraGro (Veg 2-1-6)", cat: "Grow", rate: 1.25, unit: "ml/gal", hint: "Mild vegetative starter nitrogen." },
+      { name: "FloraBloom (Flower 0-5-4)", cat: "Bloom", rate: 1.25, unit: "ml/gal", hint: "Phosphorus for early root branching." },
+      ...(hasRapidStart ? [{ name: "Rapid Start (Root Enhancer)", cat: "Booster", rate: 2.5, unit: "ml/gal", hint: "Explosive root branching and hair development." }] : []),
+      ...(hasHydroguard ? [{ name: "Hydroguard (Bacillus Inoculant)", cat: "Beneficials", rate: 2.0, unit: "ml/gal", hint: "Label rate: 2 ml/gal. Prevents root rot and Pythium damping-off." }] : []),
+      { name: "General Hydroponics pH Down", cat: "pH Buffer", rate: null, customText: "Buffer LAST to 5.8", hint: "Adjust pH LAST after all salts and additives have dissolved." },
+    ];
+  } else if (s.includes("trans") || s.includes("stretch") || s.includes("early_bloom") || s.includes("early flower")) {
+    phaseTitle = "Transition & Early Bloom (Stretch)";
+    estEc = `${Math.max(ecLow, Math.min(ecHigh, 1.65)).toFixed(2)} mS/cm`;
+    items = [
+      { name: "Armor Si (Silica)", cat: "Silica", rate: 2.5, unit: "ml/gal", hint: "Add 1st! Dissolve 10–15m before salts. Builds thick stems for flower weight." },
+      { name: "CaliMagic (Cal-Mag)", cat: "Cal-Mag", rate: 3.0, unit: "ml/gal", hint: "Dissolve before base NPK to avoid nutrient precipitate." },
+      { name: "FloraMicro (Base 5-0-1)", cat: "Base / Micro", rate: 5.5, unit: "ml/gal", hint: "Chelated micro elements. Add before Gro & Bloom." },
+      { name: "FloraGro (Veg 2-1-6)", cat: "Grow", rate: 4.0, unit: "ml/gal", hint: "Sustains remaining vegetative growth stretch." },
+      { name: "FloraBloom (Flower 0-5-4)", cat: "Bloom", rate: 6.0, unit: "ml/gal", hint: "Triggers floral bud site initiation." },
+      ...(hasKoolBloom ? [{ name: "Liquid KoolBloom (0-10-10)", cat: "Booster", rate: 1.5, unit: "ml/gal", hint: "Floral booster for early bloom transition." }] : []),
+      ...(hasHydroguard ? [{ name: "Hydroguard (Bacillus Inoculant)", cat: "Beneficials", rate: 2.0, unit: "ml/gal", hint: "Root inoculant. Add after base salts dissolve." }] : []),
+      { name: "General Hydroponics pH Down", cat: "pH Buffer", rate: null, customText: "Buffer LAST to 5.8", hint: "Adjust pH LAST after salts dissolve." },
+    ];
+  } else if (s.includes("mid_bloom") || s.includes("peak") || s.includes("bloom") || s.includes("flower")) {
+    phaseTitle = "Peak Bloom & Floral Bulking";
+    estEc = `${Math.max(ecLow, Math.min(ecHigh, 1.95)).toFixed(2)} mS/cm`;
+    items = [
+      { name: "Armor Si (Silica)", cat: "Silica", rate: 2.0, unit: "ml/gal", hint: "Add 1st! Strengthens cellular walls to support dense buds." },
+      { name: "CaliMagic (Cal-Mag)", cat: "Cal-Mag", rate: 3.5, unit: "ml/gal", hint: "Essential calcium & magnesium for heavy flowering demand." },
+      { name: "FloraMicro (Base 5-0-1)", cat: "Base / Micro", rate: 6.5, unit: "ml/gal", hint: "Chelated nitrogen & trace metals. Add before Bloom." },
+      { name: "FloraGro (Veg 2-1-6)", cat: "Grow", rate: 2.0, unit: "ml/gal", hint: "Tapered vegetative nitrogen to prevent leaf burn." },
+      { name: "FloraBloom (Flower 0-5-4)", cat: "Bloom", rate: 8.5, unit: "ml/gal", hint: "High phosphorus/potassium for calyx expansion & weight." },
+      ...(hasKoolBloom ? [{ name: "Liquid KoolBloom (0-10-10)", cat: "Booster", rate: 2.5, unit: "ml/gal", hint: "Intensifies terpene & resin production." }] : []),
+      ...(hasHydroguard ? [{ name: "Hydroguard (Bacillus Inoculant)", cat: "Beneficials", rate: 2.0, unit: "ml/gal", hint: "Root inoculant. Protects deep root zone." }] : []),
+      { name: "General Hydroponics pH Down", cat: "pH Buffer", rate: null, customText: "Buffer LAST to 5.8", hint: "Adjust pH LAST after salts dissolve." },
+    ];
+  } else if (s.includes("late_bloom") || s.includes("ripen")) {
+    phaseTitle = "Late Bloom & Ripening";
+    estEc = `${Math.max(ecLow, Math.min(ecHigh, 1.4)).toFixed(2)} mS/cm`;
+    items = [
+      { name: "CaliMagic (Cal-Mag)", cat: "Cal-Mag", rate: 2.0, unit: "ml/gal", hint: "Dissolve before base NPK." },
+      { name: "FloraMicro (Base 5-0-1)", cat: "Base / Micro", rate: 3.5, unit: "ml/gal", hint: "Tapered trace elements. Add before Bloom." },
+      { name: "FloraBloom (Flower 0-5-4)", cat: "Bloom", rate: 7.0, unit: "ml/gal", hint: "Final resin hardening." },
+      ...(hasKoolBloom ? [{ name: "Dry KoolBloom (2-45-28)", cat: "Ripener", rate: 0.8, unit: "g/gal", hint: "Final ripening bloom stressor." }] : []),
+      ...(hasHydroguard ? [{ name: "Hydroguard (Bacillus Inoculant)", cat: "Beneficials", rate: 2.0, unit: "ml/gal", hint: "Maintains sterile root zone." }] : []),
+      { name: "General Hydroponics pH Down", cat: "pH Buffer", rate: null, customText: "Buffer LAST to 5.8", hint: "Adjust pH LAST after salts dissolve." },
+    ];
+  } else {
+    // Default Vegetative / Mother
+    phaseTitle = "Vegetative Growth (Veg)";
+    estEc = `${Math.max(ecLow, Math.min(ecHigh, 1.45)).toFixed(2)} mS/cm`;
+    items = [
+      { name: "Armor Si (Silica)", cat: "Silica", rate: 2.0, unit: "ml/gal", hint: "Add 1st! Dissolve 10–15m before adding salts." },
+      { name: "CaliMagic (Cal-Mag)", cat: "Cal-Mag", rate: 3.0, unit: "ml/gal", hint: "Dissolve before base NPK to avoid gypsum lockout." },
+      { name: "FloraMicro (Base 5-0-1)", cat: "Base / Micro", rate: 5.0, unit: "ml/gal", hint: "Chelated micro elements. Always add Micro before Gro & Bloom." },
+      { name: "FloraGro (Veg 2-1-6)", cat: "Grow", rate: 6.0, unit: "ml/gal", hint: "Primary vegetative nitrogen & potassium builder." },
+      { name: "FloraBloom (Flower 0-5-4)", cat: "Bloom", rate: 2.5, unit: "ml/gal", hint: "Phosphorus & potassium builder for root system." },
+      ...(addonsLower.includes("floralicious") ? [{ name: "Floralicious Plus", cat: "Bio-Additive", rate: 1.0, unit: "ml/gal", hint: "Organic bio-enhancer for vigorous vegetative foliage." }] : []),
+      ...(hasHydroguard ? [{ name: "Hydroguard (Bacillus Inoculant)", cat: "Beneficials", rate: 2.0, unit: "ml/gal", hint: "Root inoculant. Add after macro salts dissolve." }] : []),
+      { name: "General Hydroponics pH Down", cat: "pH Buffer", rate: null, customText: "Buffer LAST to 5.8", hint: "Adjust pH LAST after salts dissolve." },
+    ];
+  }
+
+  const computedItems = items.map((it) => {
+    let batchDose = it.customText || "";
+    let rateDose = it.customText || "";
+    if (it.rate !== null && it.rate !== undefined) {
+      const total = (it.rate * vol).toFixed(1).replace(/\.0$/, "");
+      const unitLabel = it.unit.split("/")[0].trim();
+      batchDose = `${total} ${unitLabel}`;
+      rateDose = `${it.rate} ${it.unit}`;
+    }
+    return {
+      ...it,
+      rateDose,
+      batchDose,
+    };
+  });
+
+  return {
+    phaseTitle,
+    estEc,
+    targetPh,
+    items: computedItems,
+    nutLine,
+    baseNuts,
+    addons,
+  };
+}
+
+// ============================================================================
 // 6. TENDRILGROW AI CULTIVATION INTELLIGENCE CARD (<tendrilgrow-advisor-card>)
 // ============================================================================
 class TendrilGrowAdvisorCard extends HTMLElement {
@@ -5434,9 +5645,8 @@ class TendrilGrowAdvisorCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._config = {};
     this._hass = null;
-    this._activeTab = "diag"; // 'diag' | 'rec' | 'feed' | 'chat'
-    this._chatMessages = null;
-    this._isChatLoading = false;
+    this._activeTab = "diag"; // 'diag' | 'rec' | 'feed'
+    this._batchVol = null;
   }
 
   static getStubConfig() {
@@ -5458,18 +5668,6 @@ class TendrilGrowAdvisorCard extends HTMLElement {
       run_ai_health_check: config.run_ai_health_check || null,
       ...config,
     };
-
-    if (!this._chatMessages) {
-      const spaceTitle = this._config.space_name || "this grow space";
-      this._chatMessages = [
-        {
-          role: "assistant",
-          text: `🌱 **Greetings!** I am your dedicated AI Agronomist for the **${spaceTitle}**.\n\nI continuously monitor this tent's telemetry (pH, EC, water temperature, canopy VPD) against your cultivation targets. How can I help dial in this grow today?`,
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ];
-    }
-
     this._render();
   }
 
@@ -5509,6 +5707,9 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           --tg-amber: #f59e0b;
           --tg-violet: #8b5cf6;
           --tg-red: #ef4444;
+          max-width: 100%;
+          overflow: hidden;
+          box-sizing: border-box;
         }
 
         * {
@@ -5523,6 +5724,9 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           border: 1px solid var(--tg-border);
           padding: 18px;
           box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+          max-width: 100%;
+          overflow: hidden;
+          box-sizing: border-box;
         }
 
         /* HEADER */
@@ -5696,18 +5900,16 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           border-radius: 10px;
           padding: 4px;
           margin-bottom: 14px;
-          flex-wrap: wrap;
         }
 
         .adv-tab-btn {
           flex: 1;
-          min-width: 110px;
           background: transparent;
           border: none;
           color: #8b949e;
-          font-size: 11.5px;
+          font-size: 12px;
           font-weight: 600;
-          padding: 7px 10px;
+          padding: 8px 12px;
           border-radius: 8px;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -5865,10 +6067,6 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           border-color: rgba(239, 68, 68, 0.35);
         }
 
-        .action-card:hover {
-          border-color: rgba(139, 92, 246, 0.4);
-        }
-
         .action-num-badge {
           width: 24px;
           height: 24px;
@@ -5926,30 +6124,126 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           line-height: 1.4;
         }
 
-        /* WATER PREPARATION SEQUENCE */
+        /* TAB 3: FEEDING RECIPE & DOSING */
+        .feed-header-card {
+          background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(139, 92, 246, 0.08));
+          border: 1px solid rgba(6, 182, 212, 0.3);
+          border-radius: 12px;
+          padding: 14px;
+          margin-bottom: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .feed-header-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .feed-header-title {
+          font-size: 13.5px;
+          font-weight: 800;
+          color: #f0f6fc;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .feed-header-subtitle {
+          font-size: 11px;
+          color: #94a3b8;
+          margin-top: 2px;
+        }
+
+        .feed-batch-ctrl {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: rgba(13, 17, 23, 0.85);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          padding: 4px 8px;
+        }
+
+        .feed-batch-label {
+          font-size: 11px;
+          font-weight: 600;
+          color: #94a3b8;
+        }
+
+        .feed-kpi-ribbon {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+          gap: 8px;
+        }
+
+        .feed-kpi-item {
+          background: rgba(13, 17, 23, 0.7);
+          border: 1px solid var(--tg-border);
+          border-radius: 8px;
+          padding: 6px 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .feed-kpi-label {
+          font-size: 9.5px;
+          color: #8b949e;
+          text-transform: uppercase;
+          font-weight: 700;
+        }
+
+        .feed-kpi-val {
+          font-size: 12px;
+          font-weight: 700;
+          color: #f0f6fc;
+        }
+
+        .feed-kpi-val.emerald {
+          color: #34d399;
+        }
+
+        .feed-defined-ribbon {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+
+        .feed-defined-pill {
+          font-size: 10px;
+          font-weight: 600;
+          color: #94a3b8;
+          background: rgba(13, 17, 23, 0.7);
+          border: 1px solid var(--tg-border);
+          border-radius: 6px;
+          padding: 3px 8px;
+        }
+
         .feed-order-banner {
           display: flex;
           align-items: center;
           gap: 10px;
-          background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(16, 185, 129, 0.1));
-          border: 1px solid rgba(6, 182, 212, 0.3);
+          background: rgba(13, 17, 23, 0.85);
+          border: 1px solid rgba(6, 182, 212, 0.25);
           border-radius: 10px;
-          padding: 10px 14px;
+          padding: 9px 12px;
           margin-bottom: 12px;
-          font-size: 12px;
+          font-size: 11px;
           color: #67e8f9;
-        }
-
-        .feed-order-banner-icon {
-          font-size: 18px;
-          flex-shrink: 0;
+          line-height: 1.4;
         }
 
         .recipe-timeline {
           display: flex;
           flex-direction: column;
           gap: 8px;
-          margin-bottom: 14px;
+          margin-bottom: 12px;
         }
 
         .recipe-step-card {
@@ -5961,6 +6255,12 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           align-items: center;
           justify-content: space-between;
           gap: 12px;
+          transition: all 0.15s ease;
+        }
+
+        .recipe-step-card:hover {
+          border-color: rgba(139, 92, 246, 0.4);
+          background: rgba(15, 23, 42, 0.9);
         }
 
         .recipe-step-left {
@@ -5968,16 +6268,17 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           align-items: center;
           gap: 12px;
           min-width: 0;
+          flex: 1;
         }
 
         .recipe-order-badge {
-          width: 26px;
-          height: 26px;
-          border-radius: 8px;
+          width: 24px;
+          height: 24px;
+          border-radius: 7px;
           background: rgba(139, 92, 246, 0.2);
           color: #c4b5fd;
           font-weight: 800;
-          font-size: 12px;
+          font-size: 11.5px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -5989,10 +6290,28 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           display: flex;
           flex-direction: column;
           min-width: 0;
+          gap: 2px;
+        }
+
+        .recipe-nut-top {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
+        }
+
+        .recipe-cat-badge {
+          font-size: 9px;
+          font-weight: 800;
+          padding: 1px 6px;
+          border-radius: 4px;
+          text-transform: uppercase;
+          background: rgba(255, 255, 255, 0.08);
+          color: #94a3b8;
         }
 
         .recipe-nut-name {
-          font-size: 13px;
+          font-size: 12.5px;
           font-weight: 700;
           color: #f0f6fc;
           white-space: nowrap;
@@ -6001,52 +6320,613 @@ class TendrilGrowAdvisorCard extends HTMLElement {
         }
 
         .recipe-nut-hint {
-          font-size: 11px;
+          font-size: 10.5px;
           color: #8b949e;
         }
 
-        .recipe-nut-dose {
-          font-size: 12.5px;
-          font-weight: 800;
-          color: #34d399;
-          background: rgba(16, 185, 129, 0.12);
-          padding: 4px 10px;
-          border-radius: 7px;
-          border: 1px solid rgba(16, 185, 129, 0.25);
-          white-space: nowrap;
+        .recipe-doses-box {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 2px;
           flex-shrink: 0;
         }
 
-        .recipe-corridor-box {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-          gap: 8px;
-          background: rgba(13, 17, 23, 0.85);
-          border: 1px solid var(--tg-border);
-          border-radius: 10px;
-          padding: 10px 14px;
+        .recipe-batch-dose {
+          font-size: 13px;
+          font-weight: 800;
+          color: #34d399;
+          background: rgba(16, 185, 129, 0.12);
+          padding: 3px 8px;
+          border-radius: 6px;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          white-space: nowrap;
         }
 
-        .corridor-item {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-
-        .corridor-item-label {
+        .recipe-rate-dose {
           font-size: 10px;
-          color: #8b949e;
-          text-transform: uppercase;
+          color: #94a3b8;
           font-weight: 600;
         }
 
-        .corridor-item-val {
-          font-size: 12.5px;
-          font-weight: 700;
-          color: #e6edf3;
+        /* Steppers */
+        .stepper-ctrl {
+          display: inline-flex;
+          align-items: center;
+          gap: 2px;
+          background: rgba(13, 17, 23, 0.75);
+          border: 1px solid var(--tg-border);
+          border-radius: 7px;
+          padding: 1px 3px;
+          flex-shrink: 0;
         }
 
-        /* TAB 4: AI AGRONOMIST CHAT */
+        .stepper-btn {
+          width: 20px;
+          height: 20px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid var(--tg-border);
+          border-radius: 4px;
+          color: #f0f6fc;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.15s;
+          padding: 0;
+          user-select: none;
+        }
+
+        .stepper-btn:hover {
+          background: rgba(16, 185, 129, 0.25);
+          color: #34d399;
+        }
+
+        .stepper-val {
+          font-size: 11.5px;
+          font-weight: 700;
+          color: #f0f6fc;
+          min-width: 24px;
+          text-align: center;
+        }
+      </style>
+
+      <div class="container">
+        <!-- Header -->
+        <div class="header">
+          <div class="header-left">
+            <div class="brand-badge">🧠</div>
+            <div>
+              <h2>${title}</h2>
+              <div class="subtitle">Autonomous Agronomy Diagnostics &amp; Nutrient Dosing</div>
+            </div>
+          </div>
+          <button class="btn-run-diag" id="btn-run-diag">⚡ Run AI Check</button>
+        </div>
+
+        <!-- Executive Hero Banner -->
+        <div class="advisor-hero">
+          <div class="score-dial-box">
+            <svg width="56" height="56">
+              <circle class="score-dial-track" cx="28" cy="28" r="22" />
+              <circle class="score-dial-progress" id="adv-dial-bar" cx="28" cy="28" r="22" stroke-dasharray="138.2" stroke-dashoffset="138.2" />
+            </svg>
+            <div class="score-dial-val" id="adv-score-val">--</div>
+          </div>
+          <div class="hero-info">
+            <div class="hero-top-row">
+              <span class="severity-pill" id="adv-sev-pill">Optimal Vigor</span>
+              <span class="model-tag" id="adv-model-tag">Gemini 2.5 Flash • 95% Conf</span>
+            </div>
+            <p class="summary-text" id="adv-summary-text">Analyzing cultivation telemetry and visual canopy vigor...</p>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs (3 Dedicated Agronomy Tabs) -->
+        <div class="advisor-tabs">
+          <button class="adv-tab-btn active" id="tab-btn-diag">🔍 Observations &amp; Issues</button>
+          <button class="adv-tab-btn" id="tab-btn-rec">⚡ Recommended Actions</button>
+          <button class="adv-tab-btn" id="tab-btn-feed">🧪 Feeding Recipe &amp; Dosing</button>
+        </div>
+
+        <!-- Tab 1: Observations & Issues -->
+        <div class="tab-pane active" id="pane-diag">
+          <div class="diag-section-title">Canopy Observations</div>
+          <div class="obs-list" id="obs-list-container">
+            <div class="item-card"><span class="item-icon">👁️</span><span>Healthy green foliage with active transpiration.</span></div>
+          </div>
+          <div class="diag-section-title" style="margin-top: 14px;">Detected Issues &amp; Variances</div>
+          <div class="issues-list" id="issues-list-container">
+            <div class="nominal-box">
+              <span class="nominal-icon">✅</span>
+              <div>
+                <div class="nominal-title">All Parameters Nominal</div>
+                <div class="nominal-sub">No nutrient burn, pH lockout, or environmental variances detected.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Recommended Actions -->
+        <div class="tab-pane" id="pane-rec">
+          <div class="diag-section-title">Agronomy Action Plan</div>
+          <div class="rec-list" id="rec-list-container">
+            <div class="action-card">
+              <div class="action-num-badge">1</div>
+              <div class="action-content">
+                <div class="action-top-row">
+                  <span class="action-title">Maintain optimal target VPD band</span>
+                  <span class="action-urgency-tag">ROUTINE</span>
+                </div>
+                <div class="action-detail">Keep canopy transpiration balanced for current vegetative growth cycle.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Dedicated Feeding Recipe & Dosing -->
+        <div class="tab-pane" id="pane-feed">
+          <div class="feed-header-card">
+            <div class="feed-header-top">
+              <div>
+                <div class="feed-header-title">🧪 Nutrient Feeding Recipe &amp; Dosing</div>
+                <div class="feed-header-subtitle">Dosed for <strong id="feed-phase-label">Vegetative Growth</strong> to hit target EC</div>
+              </div>
+              <div class="feed-batch-ctrl">
+                <span class="feed-batch-label">Batch Volume</span>
+                <div class="stepper-ctrl">
+                  <button class="stepper-btn" id="btn-feed-vol-dec">-</button>
+                  <span class="stepper-val" id="val-feed-vol">15</span>
+                  <span style="font-size:11px;color:#94a3b8;padding-right:2px;">gal</span>
+                  <button class="stepper-btn" id="btn-feed-vol-inc">+</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Defined Nutrients & Additives Pills -->
+            <div class="feed-defined-ribbon">
+              <span class="feed-defined-pill" id="feed-pill-line">Line: GH Flora</span>
+              <span class="feed-defined-pill" id="feed-pill-base">Base: Micro • Gro • Bloom</span>
+              <span class="feed-defined-pill" id="feed-pill-addons">Addons: Armor Si • CaliMagic • Hydroguard</span>
+            </div>
+
+            <div class="feed-kpi-ribbon">
+              <div class="feed-kpi-item">
+                <span class="feed-kpi-label">Target EC Corridor</span>
+                <span class="feed-kpi-val" id="adv-feed-target-ec">1.2 – 1.6 mS/cm</span>
+              </div>
+              <div class="feed-kpi-item">
+                <span class="feed-kpi-label">Estimated Mix EC</span>
+                <span class="feed-kpi-val emerald" id="adv-feed-est-ec">~1.45 mS/cm</span>
+              </div>
+              <div class="feed-kpi-item">
+                <span class="feed-kpi-label">Target pH Buffer</span>
+                <span class="feed-kpi-val" id="adv-feed-target-ph">5.8</span>
+              </div>
+              <div class="feed-kpi-item">
+                <span class="feed-kpi-label">Water Temperature</span>
+                <span class="feed-kpi-val" id="adv-feed-target-temp">65°F – 68°F</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="feed-order-banner">
+            <span>💧 <strong>Strict Water Prep Sequence:</strong> Dissolve nutrients sequentially in exact order. Dissolve each completely before adding next. Buffer pH LAST.</span>
+          </div>
+
+          <div class="recipe-timeline" id="feed-recipe-container">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+    `;
+
+    this._bindEvents();
+    this._updateStates();
+  }
+
+  _bindEvents() {
+    const root = this.shadowRoot;
+    if (!root) return;
+
+    const tDiag = root.getElementById("tab-btn-diag");
+    const tRec = root.getElementById("tab-btn-rec");
+    const tFeed = root.getElementById("tab-btn-feed");
+
+    const pDiag = root.getElementById("pane-diag");
+    const pRec = root.getElementById("pane-rec");
+    const pFeed = root.getElementById("pane-feed");
+
+    const setTab = (tab) => {
+      this._activeTab = tab;
+      [tDiag, tRec, tFeed].forEach((b) => b && b.classList.remove("active"));
+      [pDiag, pRec, pFeed].forEach((p) => p && p.classList.remove("active"));
+
+      if (tab === "diag") {
+        if (tDiag) tDiag.classList.add("active");
+        if (pDiag) pDiag.classList.add("active");
+      } else if (tab === "rec") {
+        if (tRec) tRec.classList.add("active");
+        if (pRec) pRec.classList.add("active");
+      } else if (tab === "feed") {
+        if (tFeed) tFeed.classList.add("active");
+        if (pFeed) pFeed.classList.add("active");
+      }
+    };
+
+    if (tDiag) tDiag.onclick = () => setTab("diag");
+    if (tRec) tRec.onclick = () => setTab("rec");
+    if (tFeed) tFeed.onclick = () => setTab("feed");
+
+    // Re-apply active tab
+    if (this._activeTab) setTab(this._activeTab);
+
+    // AI Health Check Button
+    const btnDiag = root.getElementById("btn-run-diag");
+    if (btnDiag) {
+      btnDiag.onclick = () => {
+        btnDiag.textContent = "⏳ Running Diagnostic...";
+        const runBtn = this._config.run_ai_health_check || this._config.run_button;
+        if (runBtn) {
+          this._callService("button", "press", { entity_id: runBtn });
+        } else {
+          this._callService("tendrilgrow", "run_ai_health_check", {});
+        }
+        setTimeout(() => {
+          btnDiag.textContent = "⚡ Run AI Check";
+        }, 4000);
+      };
+    }
+
+    // Interactive Batch Volume Stepper in Feeding Tab
+    const btnVolDec = root.getElementById("btn-feed-vol-dec");
+    const btnVolInc = root.getElementById("btn-feed-vol-inc");
+    if (btnVolDec && btnVolInc) {
+      btnVolDec.onclick = () => {
+        const cur = this._batchVol !== null ? this._batchVol : 15;
+        this._batchVol = Math.max(1, cur - (cur > 10 ? 5 : 1));
+        this._updateStates();
+      };
+      btnVolInc.onclick = () => {
+        const cur = this._batchVol !== null ? this._batchVol : 15;
+        this._batchVol = Math.min(100, cur + (cur >= 10 ? 5 : 1));
+        this._updateStates();
+      };
+    }
+  }
+
+  _updateStates() {
+    if (!this._hass || !this.shadowRoot) return;
+    const root = this.shadowRoot;
+
+    const summaryEntity = this._config.summary || this._config.ai_health_summary || this._config.score;
+    const summaryState = getState(this._hass, summaryEntity);
+    const scoreEntity = this._config.score || summaryEntity;
+    const scoreState = getState(this._hass, scoreEntity);
+    const attrs = {
+      ...(scoreState ? scoreState.attributes || {} : {}),
+      ...(summaryState ? summaryState.attributes || {} : {}),
+    };
+
+    const score = attrs.score !== undefined ? attrs.score : getStateNum(this._hass, scoreEntity, 92);
+    const severity = (attrs.severity || "low").toLowerCase();
+    const confidence = attrs.confidence || 95;
+    const model = attrs.model || "gemini-2.5-flash";
+    const summary = attrs.summary || summaryState?.state || scoreState?.state || "Vigor nominal across all environmental metrics.";
+    const observations = Array.isArray(attrs.observations) ? attrs.observations : [];
+    const issues = Array.isArray(attrs.issues) ? attrs.issues : [];
+    const actions = Array.isArray(attrs.recommended_actions) ? attrs.recommended_actions : [];
+
+    // Health Score Dial
+    const dialVal = root.getElementById("adv-score-val");
+    const dialBar = root.getElementById("adv-dial-bar");
+    if (dialVal && dialBar) {
+      dialVal.textContent = score !== null ? Math.round(score) : "--";
+      const circ = 2 * Math.PI * 22; // ~138.2
+      const offset = circ - ((score || 0) / 100) * circ;
+      dialBar.style.strokeDashoffset = offset;
+      if (score >= 75) {
+        dialBar.style.stroke = "var(--tg-green)";
+      } else if (score >= 50) {
+        dialBar.style.stroke = "var(--tg-amber)";
+      } else {
+        dialBar.style.stroke = "var(--tg-red)";
+      }
+    }
+
+    // Severity & Model
+    const sevPill = root.getElementById("adv-sev-pill");
+    const modelTag = root.getElementById("adv-model-tag");
+    const sumText = root.getElementById("adv-summary-text");
+
+    if (sevPill) {
+      sevPill.textContent = severity === "low" ? "Nominal Vigor" : severity === "medium" ? "Moderate Variance" : "Attention Required";
+      sevPill.className = `severity-pill ${severity === "low" ? "" : severity === "medium" ? "amber" : "red"}`;
+    }
+    if (modelTag) {
+      modelTag.textContent = `${model} • ${confidence}% Confidence`;
+    }
+    if (sumText) {
+      sumText.textContent = summary;
+    }
+
+    // Tab 1: Observations
+    const obsContainer = root.getElementById("obs-list-container");
+    if (obsContainer && observations.length > 0) {
+      obsContainer.innerHTML = observations
+        .map((obs) => `<div class="item-card"><span class="item-icon">👁️</span><span>${escapeHtml(String(obs))}</span></div>`)
+        .join("");
+    }
+
+    // Tab 1: Detected Issues (Formatted Cards, No Raw JSON)
+    const issuesContainer = root.getElementById("issues-list-container");
+    if (issuesContainer) {
+      if (issues.length > 0) {
+        issuesContainer.innerHTML = issues
+          .map((iss) => {
+            const item = parseIssueItem(iss);
+            const isCrit = item.severity === "critical" || item.severity === "high";
+            const tagText = item.metric ? item.metric.toUpperCase() : isCrit ? "CRITICAL" : "VARIANCE";
+            return `
+              <div class="issue-card ${isCrit ? "critical" : ""}">
+                <div class="issue-card-top">
+                  <span class="issue-badge ${isCrit ? "critical" : ""}">${escapeHtml(tagText)}</span>
+                  <span class="issue-title">${escapeHtml(item.title)}</span>
+                </div>
+                ${item.detail ? `<div class="issue-detail">${escapeHtml(item.detail)}</div>` : ""}
+              </div>
+            `;
+          })
+          .join("");
+      } else {
+        issuesContainer.innerHTML = `
+          <div class="nominal-box">
+            <span class="nominal-icon">✅</span>
+            <div>
+              <div class="nominal-title">All Parameters Nominal</div>
+              <div class="nominal-sub">No nutrient burn, pH lockout, or environmental variances detected.</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // Tab 2: Recommended Actions (Formatted Cards, No Raw JSON)
+    const recContainer = root.getElementById("rec-list-container");
+    if (recContainer) {
+      if (actions.length > 0) {
+        recContainer.innerHTML = actions
+          .map((act, i) => {
+            const item = parseActionItem(act);
+            const isImmediate = item.severity === "immediate" || item.severity === "critical" || item.severity === "high";
+            return `
+              <div class="action-card ${isImmediate ? "immediate" : ""}">
+                <div class="action-num-badge ${isImmediate ? "immediate" : ""}">${i + 1}</div>
+                <div class="action-content">
+                  <div class="action-top-row">
+                    <span class="action-title">${escapeHtml(item.title)}</span>
+                    ${isImmediate ? `<span class="action-urgency-tag">IMMEDIATE</span>` : ""}
+                  </div>
+                  ${item.detail ? `<div class="action-detail">${escapeHtml(item.detail)}</div>` : ""}
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      } else {
+        recContainer.innerHTML = `
+          <div class="nominal-box">
+            <span class="nominal-icon">🌱</span>
+            <div>
+              <div class="nominal-title">Standard Cultivation Plan</div>
+              <div class="nominal-sub">Maintain current target bands and monitor root zone transpiration.</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    // Tab 3: Dedicated Feeding Recipe & Dosing
+    const curStage = getStateStr(this._hass, this._config.stage, "Vegetative");
+    const configuredVol = getStateNum(this._hass, this._config.reservoir_volume, 15);
+    if (this._batchVol === null) {
+      this._batchVol = configuredVol;
+    }
+    const targetEcLow = getStateNum(this._hass, this._config.target_ec_low, 1.2);
+    const targetEcHigh = getStateNum(this._hass, this._config.target_ec_high, 1.6);
+    const targetPhLow = getStateNum(this._hass, this._config.target_ph_low, 5.5);
+    const targetPhHigh = getStateNum(this._hass, this._config.target_ph_high, 6.2);
+    const nutLine = getStateStr(this._hass, this._config.nutrient_line, "General Hydroponics Flora");
+    const baseNuts = getStateStr(this._hass, this._config.base_nutrients, "FloraMicro, FloraGro, FloraBloom");
+    const additives = getStateStr(this._hass, this._config.additives, "Armor Si, CaliMagic, Hydroguard, Liquid KoolBloom");
+    const waterTemp = getStateNum(this._hass, this._config.water_temperature, null);
+
+    const plan = calculateNutrientDosing(curStage, targetEcLow, targetEcHigh, this._batchVol, nutLine, baseNuts, additives);
+
+    const phaseLabel = root.getElementById("feed-phase-label");
+    const valFeedVol = root.getElementById("val-feed-vol");
+    const advTargetEc = root.getElementById("adv-feed-target-ec");
+    const advEstEc = root.getElementById("adv-feed-est-ec");
+    const advTargetPh = root.getElementById("adv-feed-target-ph");
+    const advWaterTemp = root.getElementById("adv-feed-target-temp");
+    const pillLine = root.getElementById("feed-pill-line");
+    const pillBase = root.getElementById("feed-pill-base");
+    const pillAddons = root.getElementById("feed-pill-addons");
+
+    if (phaseLabel) phaseLabel.textContent = plan.phaseTitle;
+    if (valFeedVol) valFeedVol.textContent = this._batchVol;
+    if (advTargetEc) advTargetEc.textContent = `${targetEcLow} – ${targetEcHigh} mS/cm`;
+    if (advEstEc) advEstEc.textContent = `~${plan.estEc} (Target Aligned)`;
+    if (advTargetPh) advTargetPh.textContent = `5.8 (${targetPhLow} – ${targetPhHigh})`;
+    if (advWaterTemp) advWaterTemp.textContent = waterTemp !== null ? `${waterTemp.toFixed(1)}°F (Aim 65–68°)` : "65°F – 68°F";
+    if (pillLine) pillLine.textContent = `Line: ${plan.nutLine}`;
+    if (pillBase) pillBase.textContent = `Base: ${plan.baseNuts}`;
+    if (pillAddons) pillAddons.textContent = `Addons: ${plan.addons}`;
+
+    const feedContainer = root.getElementById("feed-recipe-container");
+    if (feedContainer) {
+      feedContainer.innerHTML = plan.items
+        .map((nut, idx) => `
+          <div class="recipe-step-card">
+            <div class="recipe-step-left">
+              <div class="recipe-order-badge">${idx + 1}</div>
+              <div class="recipe-nut-details">
+                <div class="recipe-nut-top">
+                  <span class="recipe-cat-badge">${escapeHtml(nut.cat)}</span>
+                  <span class="recipe-nut-name">${escapeHtml(nut.name)}</span>
+                </div>
+                <span class="recipe-nut-hint">${escapeHtml(nut.hint)}</span>
+              </div>
+            </div>
+            <div class="recipe-doses-box">
+              <span class="recipe-batch-dose">${escapeHtml(nut.batchDose)}</span>
+              <span class="recipe-rate-dose">${escapeHtml(nut.rateDose)}</span>
+            </div>
+          </div>
+        `)
+        .join("");
+    }
+  }
+}
+
+// ============================================================================
+// 7. TENDRILGROW STANDALONE AI AGRONOMIST CHAT CARD (<tendrilgrow-chat-card>)
+// ============================================================================
+class TendrilGrowChatCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._config = {};
+    this._hass = null;
+    this._chatMessages = null;
+    this._isChatLoading = false;
+  }
+
+  static getStubConfig() {
+    return {
+      title: "AI Agronomist",
+      space_name: "Cultivation Space",
+    };
+  }
+
+  setConfig(config) {
+    if (!config) throw new Error("Invalid configuration");
+    this._config = {
+      title: config.title || "AI Agronomist",
+      space_name: config.space_name || "Cultivation Space",
+      space_slug: config.space_slug || "",
+      ...config,
+    };
+
+    if (!this._chatMessages) {
+      const spaceTitle = this._config.space_name || "this grow space";
+      this._chatMessages = [
+        {
+          role: "assistant",
+          text: `🌱 **Greetings!** I am your dedicated AI Agronomist for the **${spaceTitle}**.\n\nI continuously monitor this tent's telemetry (pH, EC, water temperature, canopy VPD) against your cultivation targets. How can I help dial in this grow today?`,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ];
+    }
+
+    this._render();
+  }
+
+  set hass(hass) {
+    try {
+      this._hass = hass;
+      this._updateContext();
+    } catch (err) {
+      console.error("TendrilGrowChatCard: Error in set hass:", err);
+    }
+  }
+
+  getCardSize() {
+    return 6;
+  }
+
+  _render() {
+    if (!this.shadowRoot) return;
+    const title = this._config.title || "AI Agronomist";
+    const spaceName = this._config.space_name || "Cultivation Space";
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          display: block;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          color: #e6edf3;
+          --tg-bg: #0b0f17;
+          --tg-border: rgba(255, 255, 255, 0.08);
+          --tg-green: #10b981;
+          --tg-cyan: #06b6d4;
+          --tg-violet: #8b5cf6;
+          max-width: 100%;
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+
+        .container {
+          background: var(--tg-bg);
+          border-radius: 18px;
+          border: 1px solid var(--tg-border);
+          padding: 18px;
+          box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+          max-width: 100%;
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+
+        .header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+          padding-bottom: 10px;
+          border-bottom: 1px solid var(--tg-border);
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .brand-badge {
+          width: 34px;
+          height: 34px;
+          border-radius: 9px;
+          background: linear-gradient(135deg, #06b6d4, #0284c7);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 17px;
+          box-shadow: 0 0 14px rgba(6, 182, 212, 0.35);
+        }
+
+        .header h2 {
+          font-size: 16px;
+          font-weight: 700;
+          letter-spacing: -0.3px;
+          color: #f0f6fc;
+        }
+
+        .subtitle {
+          font-size: 11px;
+          color: #8b949e;
+          font-weight: 500;
+        }
+
         .chat-context-bar {
           display: flex;
           align-items: center;
@@ -6113,7 +6993,7 @@ class TendrilGrowAdvisorCard extends HTMLElement {
         }
 
         .chat-stream {
-          height: 250px;
+          height: 270px;
           overflow-y: auto;
           background: rgba(11, 15, 23, 0.95);
           border: 1px solid var(--tg-border);
@@ -6236,202 +7116,54 @@ class TendrilGrowAdvisorCard extends HTMLElement {
       </style>
 
       <div class="container">
-        <!-- Header -->
         <div class="header">
           <div class="header-left">
-            <div class="brand-badge">🧠</div>
+            <div class="brand-badge">💬</div>
             <div>
-              <h2>${title}</h2>
-              <div class="subtitle">Autonomous Agronomy Diagnostics & Guidance</div>
-            </div>
-          </div>
-          <button class="btn-run-diag" id="btn-run-diag">⚡ Run AI Check</button>
-        </div>
-
-        <!-- Executive Hero Banner -->
-        <div class="advisor-hero">
-          <div class="score-dial-box">
-            <svg width="56" height="56">
-              <circle class="score-dial-track" cx="28" cy="28" r="22" />
-              <circle class="score-dial-progress" id="adv-dial-bar" cx="28" cy="28" r="22" stroke-dasharray="138.2" stroke-dashoffset="138.2" />
-            </svg>
-            <div class="score-dial-val" id="adv-score-val">--</div>
-          </div>
-          <div class="hero-info">
-            <div class="hero-top-row">
-              <span class="severity-pill" id="adv-sev-pill">Optimal Vigor</span>
-              <span class="model-tag" id="adv-model-tag">Gemini 2.5 Flash • 95% Conf</span>
-            </div>
-            <p class="summary-text" id="adv-summary-text">Analyzing cultivation telemetry and visual canopy vigor...</p>
-          </div>
-        </div>
-
-        <!-- Navigation Tabs -->
-        <div class="advisor-tabs">
-          <button class="adv-tab-btn active" id="tab-btn-diag">🔍 Observations & Issues</button>
-          <button class="adv-tab-btn" id="tab-btn-rec">⚡ Recommended Actions</button>
-          <button class="adv-tab-btn" id="tab-btn-feed">🧪 Feeding Recipe</button>
-          <button class="adv-tab-btn" id="tab-btn-chat">💬 Agronomist Chat</button>
-        </div>
-
-        <!-- Tab 1: Observations & Issues -->
-        <div class="tab-pane active" id="pane-diag">
-          <div class="diag-section-title">Canopy Observations</div>
-          <div class="obs-list" id="obs-list-container">
-            <div class="item-card"><span class="item-icon">👁️</span><span>Healthy green foliage with active transpiration.</span></div>
-          </div>
-          <div class="diag-section-title" style="margin-top: 14px;">Detected Issues & Variances</div>
-          <div class="issues-list" id="issues-list-container">
-            <div class="nominal-box">
-              <span class="nominal-icon">✅</span>
-              <div>
-                <div class="nominal-title">All Parameters Nominal</div>
-                <div class="nominal-sub">No nutrient burn, pH lockout, or environmental variances detected.</div>
-              </div>
+              <h2>${title} • ${spaceName}</h2>
+              <div class="subtitle">Dedicated 2-way AI agronomist grounded in grow settings &amp; telemetry</div>
             </div>
           </div>
         </div>
 
-        <!-- Tab 2: Recommended Actions -->
-        <div class="tab-pane" id="pane-rec">
-          <div class="diag-section-title">Agronomy Action Plan</div>
-          <div class="rec-list" id="rec-list-container">
-            <div class="action-card">
-              <div class="action-num-badge">1</div>
-              <div class="action-content">
-                <div class="action-top-row">
-                  <span class="action-title">Maintain optimal target VPD band</span>
-                  <span class="action-urgency-tag">ROUTINE</span>
-                </div>
-                <div class="action-detail">Keep canopy transpiration balanced for current vegetative growth cycle.</div>
-              </div>
-            </div>
+        <div class="chat-context-bar">
+          <span>Space: <strong>${escapeHtml(spaceName)}</strong></span>
+          <div class="chat-context-pills" id="chat-ctx-pills">
+            <span class="ctx-pill cyan" id="chat-pill-stage">Stage: Vegetative</span>
+            <span class="ctx-pill" id="chat-pill-ph">pH: --</span>
+            <span class="ctx-pill" id="chat-pill-ec">EC: --</span>
+            <span class="ctx-pill" id="chat-pill-vpd">VPD: --</span>
           </div>
         </div>
 
-        <!-- Tab 3: Feeding Recipe (Strict Horticultural Order) -->
-        <div class="tab-pane" id="pane-feed">
-          <div class="feed-order-banner">
-            <span class="feed-order-banner-icon">💧</span>
-            <span><strong>Strict Water Preparation Sequence:</strong> Add nutrients one by one in exact order. Dissolve thoroughly before adding next to avoid nutrient lockout/precipitation. Buffer pH LAST.</span>
-          </div>
-          <div class="recipe-timeline" id="feed-recipe-container">
-            <!-- Dynamically populated -->
-          </div>
-          <div class="recipe-corridor-box" id="recipe-corridor-box">
-            <div class="corridor-item">
-              <span class="corridor-item-label">Target pH Buffer</span>
-              <span class="corridor-item-val" id="adv-feed-target-ph">5.8 (5.5 - 6.2)</span>
-            </div>
-            <div class="corridor-item">
-              <span class="corridor-item-label">Target EC Corridor</span>
-              <span class="corridor-item-val" id="adv-feed-target-ec">1.2 - 1.6 mS/cm</span>
-            </div>
-            <div class="corridor-item">
-              <span class="corridor-item-label">Reservoir Water Temp</span>
-              <span class="corridor-item-val" id="adv-feed-target-temp">65°F - 68°F (Optimal DO)</span>
-            </div>
-          </div>
+        <div class="chat-suggestions">
+          <button class="suggestion-chip" data-query="How healthy is my canopy right now based on telemetry?">📊 Canopy Health Check</button>
+          <button class="suggestion-chip" data-query="Is my VPD dialed in for my current stage?">🎯 Check VPD Corridor</button>
+          <button class="suggestion-chip" data-query="What is the proper water prep and nutrient mixing order?">💧 Nutrient Mixing Order</button>
+          <button class="suggestion-chip" data-query="When should I do my next reservoir flush and fill?">🌊 Flush &amp; Fill Routine</button>
+          <button class="suggestion-chip" data-query="What should my target EC and pH corridor be?">🧪 Target Corridor Advice</button>
         </div>
 
-        <!-- Tab 4: AI Agronomist Chat Window -->
-        <div class="tab-pane" id="pane-chat">
-          <div class="chat-context-bar">
-            <span>Cockpit: <strong id="chat-ctx-space">${escapeHtml(this._config.space_name || "Cultivation Space")}</strong></span>
-            <div class="chat-context-pills" id="chat-ctx-pills">
-              <span class="ctx-pill cyan" id="chat-pill-stage">Stage: Vegetative</span>
-              <span class="ctx-pill" id="chat-pill-ph">pH: --</span>
-              <span class="ctx-pill" id="chat-pill-ec">EC: --</span>
-              <span class="ctx-pill" id="chat-pill-vpd">VPD: --</span>
-            </div>
-          </div>
+        <div class="chat-stream" id="chat-stream">
+          <!-- Messages rendered dynamically -->
+        </div>
 
-          <div class="chat-suggestions">
-            <button class="suggestion-chip" data-query="How healthy is my canopy right now based on telemetry?">Canopy Health Check</button>
-            <button class="suggestion-chip" data-query="Is my VPD dialed in for my current stage?">Check VPD Corridor</button>
-            <button class="suggestion-chip" data-query="What is the proper order to mix my water and nutrients?">Water Prep Sequence</button>
-            <button class="suggestion-chip" data-query="When should I do my next reservoir flush and fill?">Flush & Fill Routine</button>
-            <button class="suggestion-chip" data-query="What should my target EC and pH corridor be?">Target Corridor Advice</button>
-          </div>
-
-          <div class="chat-stream" id="chat-stream">
-            <!-- Messages rendered dynamically -->
-          </div>
-
-          <div class="chat-input-row">
-            <input type="text" class="chat-input" id="chat-input" placeholder="Ask AI agronomist about this grow..." />
-            <button class="chat-send-btn" id="chat-send-btn">Send 🚀</button>
-          </div>
+        <div class="chat-input-row">
+          <input type="text" class="chat-input" id="chat-input" placeholder="Ask AI agronomist about this grow..." />
+          <button class="chat-send-btn" id="chat-send-btn">Send 🚀</button>
         </div>
       </div>
     `;
 
     this._bindEvents();
     this._renderChatMessages();
-    this._updateStates();
+    this._updateContext();
   }
 
   _bindEvents() {
     const root = this.shadowRoot;
     if (!root) return;
 
-    const tDiag = root.getElementById("tab-btn-diag");
-    const tRec = root.getElementById("tab-btn-rec");
-    const tFeed = root.getElementById("tab-btn-feed");
-    const tChat = root.getElementById("tab-btn-chat");
-
-    const pDiag = root.getElementById("pane-diag");
-    const pRec = root.getElementById("pane-rec");
-    const pFeed = root.getElementById("pane-feed");
-    const pChat = root.getElementById("pane-chat");
-
-    const setTab = (tab) => {
-      this._activeTab = tab;
-      [tDiag, tRec, tFeed, tChat].forEach((b) => b && b.classList.remove("active"));
-      [pDiag, pRec, pFeed, pChat].forEach((p) => p && p.classList.remove("active"));
-
-      if (tab === "diag") {
-        if (tDiag) tDiag.classList.add("active");
-        if (pDiag) pDiag.classList.add("active");
-      } else if (tab === "rec") {
-        if (tRec) tRec.classList.add("active");
-        if (pRec) pRec.classList.add("active");
-      } else if (tab === "feed") {
-        if (tFeed) tFeed.classList.add("active");
-        if (pFeed) pFeed.classList.add("active");
-      } else if (tab === "chat") {
-        if (tChat) tChat.classList.add("active");
-        if (pChat) pChat.classList.add("active");
-        this._scrollChatToBottom();
-      }
-    };
-
-    if (tDiag) tDiag.onclick = () => setTab("diag");
-    if (tRec) tRec.onclick = () => setTab("rec");
-    if (tFeed) tFeed.onclick = () => setTab("feed");
-    if (tChat) tChat.onclick = () => setTab("chat");
-
-    // Re-apply active tab if changed
-    if (this._activeTab) setTab(this._activeTab);
-
-    // AI Health Check Button
-    const btnDiag = root.getElementById("btn-run-diag");
-    if (btnDiag) {
-      btnDiag.onclick = () => {
-        btnDiag.textContent = "⏳ Running Diagnostic...";
-        const runBtn = this._config.run_ai_health_check || this._config.run_button;
-        if (runBtn) {
-          this._callService("button", "press", { entity_id: runBtn });
-        } else {
-          this._callService("tendrilgrow", "run_ai_health_check", {});
-        }
-        setTimeout(() => {
-          btnDiag.textContent = "⚡ Run AI Check";
-        }, 4000);
-      };
-    }
-
-    // Chat Input & Send
     const chatInput = root.getElementById("chat-input");
     const chatSendBtn = root.getElementById("chat-send-btn");
 
@@ -6453,7 +7185,6 @@ class TendrilGrowAdvisorCard extends HTMLElement {
       };
     }
 
-    // Suggestion Chips
     const chips = root.querySelectorAll(".suggestion-chip");
     chips.forEach((chip) => {
       chip.onclick = () => {
@@ -6499,18 +7230,9 @@ class TendrilGrowAdvisorCard extends HTMLElement {
     }
 
     stream.innerHTML = html;
-    this._scrollChatToBottom();
-  }
-
-  _scrollChatToBottom() {
-    const root = this.shadowRoot;
-    if (!root) return;
-    const stream = root.getElementById("chat-stream");
-    if (stream) {
-      setTimeout(() => {
-        stream.scrollTop = stream.scrollHeight;
-      }, 50);
-    }
+    setTimeout(() => {
+      stream.scrollTop = stream.scrollHeight;
+    }, 50);
   }
 
   async _sendUserChatMessage(query) {
@@ -6524,7 +7246,6 @@ class TendrilGrowAdvisorCard extends HTMLElement {
     this._isChatLoading = true;
     this._renderChatMessages();
 
-    // Prepare context bundle
     const phVal = getStateNum(this._hass, this._config.ph, 5.85);
     const ecVal = getStateNum(this._hass, this._config.ec, 1.35);
     const vpdVal = getStateNum(this._hass, this._config.vpd, 1.15);
@@ -6556,7 +7277,6 @@ class TendrilGrowAdvisorCard extends HTMLElement {
 
     let reply = "";
 
-    // 1. Try Home Assistant Conversation WebSocket if available
     if (this._hass && typeof this._hass.callWS === "function") {
       try {
         const res = await Promise.race([
@@ -6570,11 +7290,10 @@ class TendrilGrowAdvisorCard extends HTMLElement {
           reply = res.response.speech.plain.speech;
         }
       } catch (e) {
-        // Fallback to autonomous agronomy advice generator
+        // Fallback
       }
     }
 
-    // 2. Fallback to our grounded agronomy knowledge engine
     if (!reply) {
       await new Promise((resolve) => setTimeout(resolve, 400));
       reply = generateAgronomyAdvice(query, agronomyContext);
@@ -6590,237 +7309,10 @@ class TendrilGrowAdvisorCard extends HTMLElement {
     this._renderChatMessages();
   }
 
-  _updateStates() {
+  _updateContext() {
     if (!this._hass || !this.shadowRoot) return;
     const root = this.shadowRoot;
 
-    const summaryEntity = this._config.summary || this._config.ai_health_summary || this._config.score;
-    const summaryState = getState(this._hass, summaryEntity);
-    const scoreEntity = this._config.score || summaryEntity;
-    const scoreState = getState(this._hass, scoreEntity);
-    const attrs = {
-      ...(scoreState ? scoreState.attributes || {} : {}),
-      ...(summaryState ? summaryState.attributes || {} : {}),
-    };
-
-    const score = attrs.score !== undefined ? attrs.score : getStateNum(this._hass, scoreEntity, 92);
-    const severity = (attrs.severity || "low").toLowerCase();
-    const confidence = attrs.confidence || 95;
-    const model = attrs.model || "gemini-2.5-flash";
-    const summary = attrs.summary || summaryState?.state || scoreState?.state || "Vigor nominal across all environmental metrics.";
-    const observations = Array.isArray(attrs.observations) ? attrs.observations : [];
-    const issues = Array.isArray(attrs.issues) ? attrs.issues : [];
-    const actions = Array.isArray(attrs.recommended_actions) ? attrs.recommended_actions : [];
-    const feedSchedule = Array.isArray(attrs.feeding_schedule) ? attrs.feeding_schedule : [];
-
-    // Health Score Dial
-    const dialVal = root.getElementById("adv-score-val");
-    const dialBar = root.getElementById("adv-dial-bar");
-    if (dialVal && dialBar) {
-      dialVal.textContent = score !== null ? Math.round(score) : "--";
-      const circ = 2 * Math.PI * 22; // ~138.2
-      const offset = circ - ((score || 0) / 100) * circ;
-      dialBar.style.strokeDashoffset = offset;
-      if (score >= 75) {
-        dialBar.style.stroke = "var(--tg-green)";
-      } else if (score >= 50) {
-        dialBar.style.stroke = "var(--tg-amber)";
-      } else {
-        dialBar.style.stroke = "var(--tg-red)";
-      }
-    }
-
-    // Severity & Model
-    const sevPill = root.getElementById("adv-sev-pill");
-    const modelTag = root.getElementById("adv-model-tag");
-    const sumText = root.getElementById("adv-summary-text");
-
-    if (sevPill) {
-      sevPill.textContent = severity === "low" ? "Nominal Vigor" : severity === "medium" ? "Moderate Variance" : "Attention Required";
-      sevPill.className = `severity-pill ${severity === "low" ? "" : severity === "medium" ? "amber" : "red"}`;
-    }
-    if (modelTag) {
-      modelTag.textContent = `${model} • ${confidence}% Confidence`;
-    }
-    if (sumText) {
-      sumText.textContent = summary;
-    }
-
-    // Observations
-    const obsContainer = root.getElementById("obs-list-container");
-    if (obsContainer && observations.length > 0) {
-      obsContainer.innerHTML = observations
-        .map((obs) => `<div class="item-card"><span class="item-icon">👁️</span><span>${escapeHtml(String(obs))}</span></div>`)
-        .join("");
-    }
-
-    // Tab 1: Formatted Detected Issues (No Raw JSON)
-    const issuesContainer = root.getElementById("issues-list-container");
-    if (issuesContainer) {
-      if (issues.length > 0) {
-        issuesContainer.innerHTML = issues
-          .map((iss) => {
-            const item = parseIssueItem(iss);
-            const isCrit = item.severity === "critical" || item.severity === "high";
-            const tagText = item.metric ? item.metric.toUpperCase() : isCrit ? "CRITICAL" : "VARIANCE";
-            return `
-              <div class="issue-card ${isCrit ? "critical" : ""}">
-                <div class="issue-card-top">
-                  <span class="issue-badge ${isCrit ? "critical" : ""}">${escapeHtml(tagText)}</span>
-                  <span class="issue-title">${escapeHtml(item.title)}</span>
-                </div>
-                ${item.detail ? `<div class="issue-detail">${escapeHtml(item.detail)}</div>` : ""}
-              </div>
-            `;
-          })
-          .join("");
-      } else {
-        issuesContainer.innerHTML = `
-          <div class="nominal-box">
-            <span class="nominal-icon">✅</span>
-            <div>
-              <div class="nominal-title">All Parameters Nominal</div>
-              <div class="nominal-sub">No nutrient burn, pH lockout, or environmental variances detected.</div>
-            </div>
-          </div>
-        `;
-      }
-    }
-
-    // Tab 2: Formatted Recommended Actions (No Raw JSON)
-    const recContainer = root.getElementById("rec-list-container");
-    if (recContainer) {
-      if (actions.length > 0) {
-        recContainer.innerHTML = actions
-          .map((act, i) => {
-            const item = parseActionItem(act);
-            const isImmediate = item.severity === "immediate" || item.severity === "critical" || item.severity === "high";
-            return `
-              <div class="action-card ${isImmediate ? "immediate" : ""}">
-                <div class="action-num-badge ${isImmediate ? "immediate" : ""}">${i + 1}</div>
-                <div class="action-content">
-                  <div class="action-top-row">
-                    <span class="action-title">${escapeHtml(item.title)}</span>
-                    ${isImmediate ? `<span class="action-urgency-tag">IMMEDIATE</span>` : ""}
-                  </div>
-                  ${item.detail ? `<div class="action-detail">${escapeHtml(item.detail)}</div>` : ""}
-                </div>
-              </div>
-            `;
-          })
-          .join("");
-      } else {
-        recContainer.innerHTML = `
-          <div class="nominal-box">
-            <span class="nominal-icon">🌱</span>
-            <div>
-              <div class="nominal-title">Standard Cultivation Plan</div>
-              <div class="nominal-sub">Maintain current target bands and monitor root zone transpiration.</div>
-            </div>
-          </div>
-        `;
-      }
-    }
-
-    // Tab 3: Feeding Recipe (Strict Horticultural Order)
-    const feedContainer = root.getElementById("feed-recipe-container");
-    if (feedContainer) {
-      let rawItems = [];
-      if (feedSchedule.length > 0) {
-        const schedStr = feedSchedule[0] || "";
-        const parts = schedStr.split("|");
-        const nutPart = parts.length > 1 ? parts[1] : schedStr;
-        rawItems = nutPart
-          .replace(/ADD IN ORDER:/i, "")
-          .split(";")
-          .map((s) => s.trim())
-          .filter(Boolean);
-      }
-
-      let parsedNuts = [];
-      if (rawItems.length > 0) {
-        parsedNuts = rawItems.map((item) => {
-          const splitIdx = item.indexOf(":");
-          if (splitIdx > -1) {
-            return {
-              name: item.slice(0, splitIdx).trim(),
-              dose: item.slice(splitIdx + 1).trim(),
-            };
-          }
-          return { name: item, dose: "" };
-        });
-      } else {
-        // Stage-appropriate standard nutrient sequence
-        parsedNuts = [
-          { name: "Armor Si (Silica)", dose: "12.5 ml (2.5 ml/gal)" },
-          { name: "CaliMagic (Cal-Mag)", dose: "15.0 ml (3.0 ml/gal)" },
-          { name: "FloraMicro (Base)", dose: "25.0 ml (5.0 ml/gal)" },
-          { name: "FloraGro (Vegetative)", dose: "25.0 ml (5.0 ml/gal)" },
-          { name: "FloraBloom (Flowering)", dose: "10.0 ml (2.0 ml/gal)" },
-          { name: "Hydroguard (Beneficial Microbes)", dose: "10.0 ml (2.0 ml/gal)" },
-          { name: "General Hydroponics pH Down", dose: "Buffer LAST to 5.8" },
-        ];
-      }
-
-      // Sort by strict horticultural water preparation order
-      const sortedNuts = sortNutrientsByHorticulturalOrder(parsedNuts);
-
-      const getNutrientHint = (name) => {
-        const low = name.toLowerCase();
-        if (low.includes("silica") || low.includes("armor si") || low.includes("rhino")) {
-          return "Add first. Dissolve & let stand 10-15m before adding salts.";
-        }
-        if (low.includes("cal-mag") || low.includes("calimagic") || low.includes("calmag")) {
-          return "Dissolve completely before base NPK to avoid gypsum precipitation.";
-        }
-        if (low.includes("micro") || low.includes("base")) {
-          return "Add chelated micro-nutrients first before Grow/Bloom.";
-        }
-        if (low.includes("gro") || low.includes("grow") || low.includes("veg")) {
-          return "Primary vegetative nitrogen & potassium builder.";
-        }
-        if (low.includes("bloom")) {
-          return "Phosphorus & potassium builder for floral structure.";
-        }
-        if (low.includes("hydroguard") || low.includes("microbe") || low.includes("voodoo") || low.includes("tarantula")) {
-          return "Root inoculant. Add after macro salts are completely dissolved.";
-        }
-        if (low.includes("ph down") || low.includes("ph up") || low.includes("ph adjust")) {
-          return "Buffer LAST once all salts stabilize and EC stabilizes.";
-        }
-        return "Mix thoroughly into reservoir before proceeding.";
-      };
-
-      feedContainer.innerHTML = sortedNuts
-        .map((nut, idx) => {
-          const hint = getNutrientHint(nut.name);
-          return `
-            <div class="recipe-step-card">
-              <div class="recipe-step-left">
-                <div class="recipe-order-badge">${idx + 1}</div>
-                <div class="recipe-nut-details">
-                  <span class="recipe-nut-name">${escapeHtml(nut.name)}</span>
-                  <span class="recipe-nut-hint">${escapeHtml(hint)}</span>
-                </div>
-              </div>
-              <div class="recipe-nut-dose">${escapeHtml(nut.dose || "As Directed")}</div>
-            </div>
-          `;
-        })
-        .join("");
-    }
-
-    // Corridor Targets in Recipe Tab
-    const feedTargetPh = root.getElementById("adv-feed-target-ph");
-    const feedTargetEc = root.getElementById("adv-feed-target-ec");
-    if (feedTargetPh) {
-      feedTargetPh.textContent = `5.8 (${this._config.target_ph_low || 5.5} - ${this._config.target_ph_high || 6.2})`;
-    }
-    if (feedTargetEc) {
-      feedTargetEc.textContent = `${this._config.target_ec_low || 1.2} - ${this._config.target_ec_high || 1.6} mS/cm`;
-    }
-
-    // Tab 4: Live Telemetry Context Pills
     const stagePill = root.getElementById("chat-pill-stage");
     const phPill = root.getElementById("chat-pill-ph");
     const ecPill = root.getElementById("chat-pill-ec");
@@ -6852,6 +7344,7 @@ customElements.define("tendrilgrow-trends-card", TendrilGrowTrendsCard);
 customElements.define("tendrilgrow-schedules-card", TendrilGrowSchedulesCard);
 customElements.define("tendrilgrow-plan-card", TendrilGrowPlanCard);
 customElements.define("tendrilgrow-advisor-card", TendrilGrowAdvisorCard);
+customElements.define("tendrilgrow-chat-card", TendrilGrowChatCard);
 
 // Register in Home Assistant Lovelace Card Picker
 window.customCards = window.customCards || [];
@@ -6894,6 +7387,13 @@ window.customCards.push({
   type: "tendrilgrow-advisor-card",
   name: "TendrilGrow AI Cultivation Intelligence Card",
   description: "AI agronomy diagnostics, visual observations, anomaly analysis, and nutrient mixing recipes.",
+  preview: true,
+  documentationURL: "https://github.com/Trec-TorConsulting/TendrilGrow",
+});
+window.customCards.push({
+  type: "tendrilgrow-chat-card",
+  name: "TendrilGrow AI Agronomist Chat Card",
+  description: "Dedicated 2-way conversational AI agronomist grounded in real-time grow space telemetry and settings.",
   preview: true,
   documentationURL: "https://github.com/Trec-TorConsulting/TendrilGrow",
 });

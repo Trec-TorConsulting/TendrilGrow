@@ -1007,6 +1007,9 @@ def build_digital_twin_space_view(space: dict) -> dict:
         ("stage_projection", "stage_projection"),
         ("strain", "ctx_strain"),
         ("water_type", "ctx_water_type"),
+        ("nutrient_line", "ctx_nutrient_line"),
+        ("base_nutrients", "ctx_base_nutrients"),
+        ("additives", "ctx_additives"),
         ("reservoir_volume", "ctx_reservoir_volume_gal"),
         ("flush_now", "flush_now"),
         ("flush_due", "flush_due"),
@@ -1126,6 +1129,14 @@ def build_digital_twin_space_view(space: dict) -> dict:
             advisor_card["target_vpd_high"] = reg["ctx_target_vpd_high"]
         if reg.get("days_since_flush"):
             advisor_card["days_since_flush"] = reg["days_since_flush"]
+        if reg.get("ctx_reservoir_volume_gal"):
+            advisor_card["reservoir_volume"] = reg["ctx_reservoir_volume_gal"]
+        if reg.get("ctx_nutrient_line"):
+            advisor_card["nutrient_line"] = reg["ctx_nutrient_line"]
+        if reg.get("ctx_base_nutrients"):
+            advisor_card["base_nutrients"] = reg["ctx_base_nutrients"]
+        if reg.get("ctx_additives"):
+            advisor_card["additives"] = reg["ctx_additives"]
 
         sections.append(
             {
@@ -1136,6 +1147,60 @@ def build_digital_twin_space_view(space: dict) -> dict:
                 ],
             }
         )
+
+    # Dedicated Standalone AI Agronomist Chat Card
+    chat_card: dict[str, Any] = {
+        "type": "custom:tendrilgrow-chat-card",
+        "title": "AI Agronomist Chat",
+        "space_name": title,
+        "space_slug": slug,
+    }
+    if reg.get("ctx_stage"):
+        chat_card["stage"] = reg["ctx_stage"]
+    if sensors.get("ph"):
+        chat_card["ph"] = sensors["ph"]
+    if sensors.get("ec"):
+        chat_card["ec"] = sensors["ec"]
+    if sensors.get("temperature"):
+        chat_card["temperature"] = sensors["temperature"]
+    if sensors.get("humidity"):
+        chat_card["humidity"] = sensors["humidity"]
+    if sensors.get("water_temperature"):
+        chat_card["water_temperature"] = sensors["water_temperature"]
+    if reg.get("vpd"):
+        chat_card["vpd"] = reg["vpd"]
+    if reg.get("ctx_target_ph_low"):
+        chat_card["target_ph_low"] = reg["ctx_target_ph_low"]
+    if reg.get("ctx_target_ph_high"):
+        chat_card["target_ph_high"] = reg["ctx_target_ph_high"]
+    if reg.get("ctx_target_ec_low"):
+        chat_card["target_ec_low"] = reg["ctx_target_ec_low"]
+    if reg.get("ctx_target_ec_high"):
+        chat_card["target_ec_high"] = reg["ctx_target_ec_high"]
+    if reg.get("ctx_target_vpd_low"):
+        chat_card["target_vpd_low"] = reg["ctx_target_vpd_low"]
+    if reg.get("ctx_target_vpd_high"):
+        chat_card["target_vpd_high"] = reg["ctx_target_vpd_high"]
+    if reg.get("days_since_flush"):
+        chat_card["days_since_flush"] = reg["days_since_flush"]
+    if reg.get("ctx_reservoir_volume_gal"):
+        chat_card["reservoir_volume"] = reg["ctx_reservoir_volume_gal"]
+    if reg.get("ctx_nutrient_line"):
+        chat_card["nutrient_line"] = reg["ctx_nutrient_line"]
+    if reg.get("ctx_base_nutrients"):
+        chat_card["base_nutrients"] = reg["ctx_base_nutrients"]
+    if reg.get("ctx_additives"):
+        chat_card["additives"] = reg["ctx_additives"]
+
+    sections.append(
+        {
+            "type": "grid",
+            "cards": [
+                _heading("AI Agronomist Chat", style="subtitle"),
+                chat_card,
+            ],
+        }
+    )
 
     return {
         "path": f"zone-{slug}",
