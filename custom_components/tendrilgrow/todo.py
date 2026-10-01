@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from homeassistant.components.todo import TodoItem, TodoItemStatus, TodoListEntity
+from homeassistant.components.todo import TodoItem, TodoItemStatus, TodoListEntity, TodoListEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -32,13 +32,15 @@ class TendrilGrowTodoList(TodoListEntity):
     _attr_name = "Grow Tasks"
     _attr_icon = "mdi:clipboard-list-outline"
     _attr_should_poll = False
-
+    _attr_supported_features = TodoListEntityFeature.CREATE_TODO_ITEM | TodoListEntityFeature.UPDATE_TODO_ITEM | TodoListEntityFeature.DELETE_TODO_ITEM
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_tasks"
         self._attr_device_info = grow_device_info(entry)
-
+        # Initialize storage for user‑created tasks
+        custom_key = f"{entry.entry_id}_custom_tasks"
+        self.hass.data.setdefault(DOMAIN, {}).setdefault(custom_key, [])
     @property
     def available(self) -> bool:
         return self._entry.entry_id in self.hass.data.get(DOMAIN, {})
@@ -57,8 +59,34 @@ class TendrilGrowTodoList(TodoListEntity):
         )
         alert_state = self.hass.states.get(alert_id) if alert_id else None
         ai_critical = bool(alert_state and alert_state.state == "on")
-        return build_grow_tasks(flush_st, projection, ai_critical, now)
+        tasks = build_grow_tasks(flush_st, projection, ai_critical, now)
+        # Append any user‑created custom tasks
+        custom_key = f"{self._entry.entry_id}_custom_tasks"
+        custom_tasks = self.hass.data.get(DOMAIN, {}).get(custom_key, [])
+        tasks.extend(custom_tasks)
+        return tasks
+    async def async_create_todo_item(self, item: TodoItem) -> None:
+        """Create a new user‑defined todo item."""
+        custom_key = f"{self._entry.entry_id}_custom_tasks"
+        custom_tasks = self.hass.data.setdefault(DOMAIN, {}).setdefault(custom_key, [])
+        uid = f"custom_{len(custom_tasks)}_{int(dt_util.utcnow().timestamp())}"
+        custom_tasks.append({"uid": uid, "summary": item.summary, "due": item.due})
 
+    async def async_update_todo_item(self, item: TodoItem) -> None:
+        """Update an existing user‑defined todo item."""
+        custom_key = f"{self._entry.entry_id}_custom_tasks"
+        custom_tasks = self.hass.data.get(DOMAIN, {}).get(custom_key, [])
+        for task in custom_tasks:
+            if task["uid"] == item.uid:
+                task["summary"] = item.summary
+                task["due"] = item.due
+                break
+
+    async def async_delete_todo_items(self, uids: list[str]) -> None:
+        """Delete user‑defined todo items."""
+        custom_key = f"{self._entry.entry_id}_custom_tasks"
+        custom_tasks = self.hass.data.get(DOMAIN, {}).get(custom_key, [])
+        self.hass.data[DOMAIN][custom_key] = [t for t in custom_tasks if t["uid"] not in uids]
     @property
     def todo_items(self) -> list[TodoItem]:
         return [
