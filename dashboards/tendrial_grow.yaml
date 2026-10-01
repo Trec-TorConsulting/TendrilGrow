@@ -215,35 +215,38 @@ views:
     - type: heading
       heading: Controller Schedules & Ambient
       heading_style: subtitle
-    - type: entities
-      title: Lung Room (Ambient)
-      entities:
-      - entity: sensor.3x3_controller_outside_temperature
-        name: Outside Temperature
-      - entity: sensor.3x3_controller_outside_humidity
-        name: Outside Humidity
-      - entity: sensor.3x3_controller_outside_vpd
-        name: Outside VPD
+    - type: custom:tendrilgrow-schedules-card
+      title: Controller Schedules & Ambient
+      ambient:
+        temperature: sensor.3x3_controller_outside_temperature
+        humidity: sensor.3x3_controller_outside_humidity
+        vpd: sensor.3x3_controller_outside_vpd
+      tent:
+        temperature: sensor.3x3_controller_inside_temperature
+        humidity: sensor.3x3_controller_inside_humidity
+      schedules:
+      - entity: sensor.3x3_controller_plan_light_schedule
+        name: Light Schedule
+        icon: mdi:weather-sunset
+        role: plan_light_schedule
+      - entity: sensor.3x3_controller_plan_circulator_fan_schedule
+        name: Circulation Fan Schedule
+        icon: mdi:fan-clock
+        role: plan_circulator_fan_schedule
+      - entity: sensor.3x3_controller_plan_duct_fan_schedule
+        name: Duct Fan Schedule
+        icon: mdi:fan-auto
+        role: plan_duct_fan_schedule
   - type: grid
     cards:
     - type: heading
       heading: Cultivation Plan & Tasks
       heading_style: subtitle
-    - type: markdown
-      title: Projections
-      content: '**Projected stage end:** {{ state_attr(''sensor.3x3_mothers_tent_stage_projection'',''projected_stage_end'')
-        }}
-
-
-        **Projected harvest:** {{ state_attr(''sensor.3x3_mothers_tent_stage_projection'',''projected_harvest_date'')
-        }}
-
-
-        **Projected ready:** {{ state_attr(''sensor.3x3_mothers_tent_stage_projection'',''projected_ready_date'')
-        }}'
-    - type: todo-list
-      entity: todo.3x3_mothers_tent_grow_tasks
-      title: Grow Tasks
+    - type: custom:tendrilgrow-plan-card
+      title: Cultivation Plan & Tasks
+      stage: select.3x3_mothers_tent_growth_stage
+      stage_projection: sensor.3x3_mothers_tent_stage_projection
+      todo: todo.3x3_mothers_tent_grow_tasks
   - type: grid
     cards:
     - type: heading
@@ -267,14 +270,11 @@ views:
     - type: heading
       heading: AI Cultivation Intelligence
       heading_style: subtitle
-    - type: markdown
-      title: AI Health Report
-      content: '{{ state_attr(''sensor.3x3_mothers_tent_ai_health_score'',''report'')
-        }}'
-    - type: markdown
-      title: AI Feeding Schedule
-      content: '{{ state_attr(''sensor.3x3_mothers_tent_ai_health_score'',''feeding_schedule_md'')
-        }}'
+    - type: custom:tendrilgrow-advisor-card
+      title: AI Cultivation Intelligence
+      score: sensor.3x3_mothers_tent_ai_health_score
+      summary: sensor.3x3_mothers_tent_ai_health_summary
+      run_ai_health_check: button.3x3_mothers_tent_run_ai_health_check
   badges:
   - type: entity
     entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
@@ -355,35 +355,38 @@ views:
     - type: heading
       heading: Controller Schedules & Ambient
       heading_style: subtitle
-    - type: entities
-      title: Lung Room (Ambient)
-      entities:
-      - entity: sensor.4x4_controller_outside_temperature
-        name: Outside Temperature
-      - entity: sensor.4x4_controller_outside_humidity
-        name: Outside Humidity
-      - entity: sensor.4x4_controller_outside_vpd
-        name: Outside VPD
+    - type: custom:tendrilgrow-schedules-card
+      title: Controller Schedules & Ambient
+      ambient:
+        temperature: sensor.4x4_controller_outside_temperature
+        humidity: sensor.4x4_controller_outside_humidity
+        vpd: sensor.4x4_controller_outside_vpd
+      tent:
+        temperature: sensor.4x4_controller_inside_temperature
+        humidity: sensor.4x4_controller_inside_humidity
+      schedules:
+      - entity: sensor.4x4_controller_plan_light_schedule
+        name: Light Schedule
+        icon: mdi:weather-sunset
+        role: plan_light_schedule
+      - entity: sensor.4x4_controller_plan_circulator_fan_schedule
+        name: Circulation Fan Schedule
+        icon: mdi:fan-clock
+        role: plan_circulator_fan_schedule
+      - entity: sensor.4x4_controller_plan_duct_fan_schedule
+        name: Duct Fan Schedule
+        icon: mdi:fan-auto
+        role: plan_duct_fan_schedule
   - type: grid
     cards:
     - type: heading
       heading: Cultivation Plan & Tasks
       heading_style: subtitle
-    - type: markdown
-      title: Projections
-      content: '**Projected stage end:** {{ state_attr(''sensor.4x4_full_cycle_tent_stage_projection'',''projected_stage_end'')
-        }}
-
-
-        **Projected harvest:** {{ state_attr(''sensor.4x4_full_cycle_tent_stage_projection'',''projected_harvest_date'')
-        }}
-
-
-        **Projected ready:** {{ state_attr(''sensor.4x4_full_cycle_tent_stage_projection'',''projected_ready_date'')
-        }}'
-    - type: todo-list
-      entity: todo.4x4_full_cycle_tent_grow_tasks
-      title: Grow Tasks
+    - type: custom:tendrilgrow-plan-card
+      title: Cultivation Plan & Tasks
+      stage: select.4x4_full_cycle_tent_growth_stage
+      stage_projection: sensor.4x4_full_cycle_tent_stage_projection
+      todo: todo.4x4_full_cycle_tent_grow_tasks
   - type: grid
     cards:
     - type: heading
@@ -407,14 +410,11 @@ views:
     - type: heading
       heading: AI Cultivation Intelligence
       heading_style: subtitle
-    - type: markdown
-      title: AI Health Report
-      content: '{{ state_attr(''sensor.4x4_full_cycle_tent_ai_health_score'',''report'')
-        }}'
-    - type: markdown
-      title: AI Feeding Schedule
-      content: '{{ state_attr(''sensor.4x4_full_cycle_tent_ai_health_score'',''feeding_schedule_md'')
-        }}'
+    - type: custom:tendrilgrow-advisor-card
+      title: AI Cultivation Intelligence
+      score: sensor.4x4_full_cycle_tent_ai_health_score
+      summary: sensor.4x4_full_cycle_tent_ai_health_summary
+      run_ai_health_check: button.4x4_full_cycle_tent_run_ai_health_check
   badges:
   - type: entity
     entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
@@ -481,21 +481,11 @@ views:
     - type: heading
       heading: Cultivation Plan & Tasks
       heading_style: subtitle
-    - type: markdown
-      title: Projections
-      content: '**Projected stage end:** {{ state_attr(''sensor.clone_stage_projection'',''projected_stage_end'')
-        }}
-
-
-        **Projected harvest:** {{ state_attr(''sensor.clone_stage_projection'',''projected_harvest_date'')
-        }}
-
-
-        **Projected ready:** {{ state_attr(''sensor.clone_stage_projection'',''projected_ready_date'')
-        }}'
-    - type: todo-list
-      entity: todo.clone_grow_tasks
-      title: Grow Tasks
+    - type: custom:tendrilgrow-plan-card
+      title: Cultivation Plan & Tasks
+      stage: select.clone_growth_stage
+      stage_projection: sensor.clone_stage_projection
+      todo: todo.clone_grow_tasks
   - type: grid
     cards:
     - type: heading
@@ -514,14 +504,11 @@ views:
     - type: heading
       heading: AI Cultivation Intelligence
       heading_style: subtitle
-    - type: markdown
-      title: AI Health Report
-      content: '{{ state_attr(''sensor.basement_clone_ai_health_score'',''report'')
-        }}'
-    - type: markdown
-      title: AI Feeding Schedule
-      content: '{{ state_attr(''sensor.basement_clone_ai_health_score'',''feeding_schedule_md'')
-        }}'
+    - type: custom:tendrilgrow-advisor-card
+      title: AI Cultivation Intelligence
+      score: sensor.basement_clone_ai_health_score
+      summary: sensor.basement_clone_ai_health_summary
+      run_ai_health_check: button.clone_run_ai_health_check
   badges:
   - type: entity
     entity: binary_sensor.clone_ai_health_critical_alert

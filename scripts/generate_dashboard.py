@@ -956,46 +956,61 @@ def build_digital_twin_space_view(space: dict) -> dict:
         }
     ]
 
-    controls_cards: list[dict[str, Any]] = []
-    scheds = space.get("controller_schedules") or {}
+    extras = space.get("controller_extras") or {}
+    scheds = space.get("controller_schedules") or extras
     schedule_rows = [
-        {"entity": scheds[role], "name": label, "icon": icon}
+        {"entity": scheds[role], "name": label, "icon": icon, "role": role}
         for role, label, icon in CONTROLLER_SCHEDULE_ROLES
         if scheds.get(role)
     ]
-    if schedule_rows:
-        controls_cards.append(
-            {
-                "type": "entities",
-                "title": "Controller Schedule Status",
-                "entities": schedule_rows,
-            }
-        )
-    lung = _lung_room_card(space)
-    if lung:
-        controls_cards.append(lung)
-    if controls_cards:
+    ambient_dict: dict[str, str] = {}
+    for role, key in (
+        ("outside_temperature", "temperature"),
+        ("outside_humidity", "humidity"),
+        ("outside_vpd", "vpd"),
+    ):
+        if extras.get(role):
+            ambient_dict[key] = extras[role]
+
+    tent_dict: dict[str, str] = {}
+    if sensors.get("temperature"):
+        tent_dict["temperature"] = sensors["temperature"]
+    if sensors.get("humidity"):
+        tent_dict["humidity"] = sensors["humidity"]
+
+    if schedule_rows or ambient_dict:
         sections.append(
             {
                 "type": "grid",
                 "cards": [
                     _heading("Controller Schedules & Ambient", style="subtitle"),
-                    *controls_cards,
+                    {
+                        "type": "custom:tendrilgrow-schedules-card",
+                        "title": "Controller Schedules & Ambient",
+                        "ambient": ambient_dict,
+                        "tent": tent_dict,
+                        "schedules": schedule_rows,
+                    },
                 ],
             }
         )
 
-    plan_cards: list[dict[str, Any]] = []
+    plan_card: dict[str, Any] = {
+        "type": "custom:tendrilgrow-plan-card",
+        "title": "Cultivation Plan & Tasks",
+    }
+    if reg.get("ctx_stage"):
+        plan_card["stage"] = reg["ctx_stage"]
     if reg.get("stage_projection"):
-        plan_cards.append(_projection_markdown(reg["stage_projection"]))
+        plan_card["stage_projection"] = reg["stage_projection"]
     todo = reg.get("todo") or space.get("grow_tasks") or f"todo.{slug}_grow_tasks"
-    plan_cards.append({"type": "todo-list", "entity": todo, "title": "Grow Tasks"})
+    plan_card["todo"] = todo
     sections.append(
         {
             "type": "grid",
             "cards": [
                 _heading("Cultivation Plan & Tasks", style="subtitle"),
-                *plan_cards,
+                plan_card,
             ],
         }
     )
@@ -1041,14 +1056,26 @@ def build_digital_twin_space_view(space: dict) -> dict:
             }
         )
 
-    if reg.get("ai_health_score"):
-        advisor = _advisor_cards(reg["ai_health_score"])
+    if reg.get("ai_health_score") or reg.get("ai_health_summary"):
+        advisor_card: dict[str, Any] = {
+            "type": "custom:tendrilgrow-advisor-card",
+            "title": "AI Cultivation Intelligence",
+        }
+        if reg.get("ai_health_score"):
+            advisor_card["score"] = reg["ai_health_score"]
+        if reg.get("ai_health_summary"):
+            advisor_card["summary"] = reg["ai_health_summary"]
+        if reg.get("ai_critical_alert"):
+            advisor_card["critical_alert"] = reg["ai_critical_alert"]
+        if reg.get("run_ai_health_check"):
+            advisor_card["run_ai_health_check"] = reg["run_ai_health_check"]
+
         sections.append(
             {
                 "type": "grid",
                 "cards": [
                     _heading("AI Cultivation Intelligence", style="subtitle"),
-                    *advisor,
+                    advisor_card,
                 ],
             }
         )

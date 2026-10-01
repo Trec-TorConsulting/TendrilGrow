@@ -403,6 +403,9 @@ def test_digital_twin_space_view_generation():
         "fans": "fan.tent_fan",
         "inline_fans": "fan.tent_duct",
     }
+    space["controller_schedules"] = {
+        "plan_light_schedule": "sensor.tent_light_sched",
+    }
     view = GEN.build_digital_twin_space_view(space)
 
     assert view["type"] == "sections"
@@ -437,6 +440,24 @@ def test_digital_twin_space_view_generation():
     assert trends_card["hours_to_show"] == 24
     assert len(trends_card["spaces"]) == 1
     assert trends_card["spaces"][0]["name"] == "3x3 Mothers Tent"
+
+    all_cards = [c for s in view["sections"] for c in s.get("cards", [])]
+    schedules_card = next(
+        c for c in all_cards if c.get("type") == "custom:tendrilgrow-schedules-card"
+    )
+    assert schedules_card["title"] == "Controller Schedules & Ambient"
+    assert len(schedules_card["schedules"]) == 1
+
+    plan_card = next(
+        c for c in all_cards if c.get("type") == "custom:tendrilgrow-plan-card"
+    )
+    assert plan_card["stage_projection"] == "sensor.tent_projection"
+
+    advisor_card = next(
+        c for c in all_cards if c.get("type") == "custom:tendrilgrow-advisor-card"
+    )
+    assert advisor_card["summary"] == "sensor.tent_summary"
+    assert advisor_card["run_ai_health_check"] == "button.tent_run"
 
 
 def test_digital_twin_overview_generation():

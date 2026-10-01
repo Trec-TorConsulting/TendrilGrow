@@ -9,7 +9,7 @@
  *   active alerts, and at-a-glance telemetry.
  */
 
-const CARD_VERSION = "2.1.0";
+const CARD_VERSION = "2.2.0";
 console.info(
   `%c TENDRILGROW DIGITAL TWIN CARD %c v${CARD_VERSION} `,
   "color: #0d1117; background: #10b981; font-weight: 700; padding: 3px 6px; border-radius: 3px 0 0 3px;",
@@ -3573,10 +3573,1696 @@ class TendrilGrowTrendsCard extends HTMLElement {
   }
 }
 
+
+// ============================================================================
+// 4. TENDRILGROW CONTROLLER SCHEDULES & AMBIENT CARD (<tendrilgrow-schedules-card>)
+// ============================================================================
+class TendrilGrowSchedulesCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._config = {};
+    this._hass = null;
+  }
+
+  static getStubConfig() {
+    return {
+      title: "Controller Schedules & Ambient",
+      ambient: {},
+      tent: {},
+      schedules: [],
+    };
+  }
+
+  setConfig(config) {
+    if (!config) throw new Error("Invalid configuration");
+    this._config = {
+      title: config.title || "Controller Schedules & Ambient",
+      ambient: config.ambient || {},
+      tent: config.tent || {},
+      schedules: Array.isArray(config.schedules) ? config.schedules : [],
+      ...config,
+    };
+    this._render();
+  }
+
+  set hass(hass) {
+    try {
+      this._hass = hass;
+      this._updateStates();
+    } catch (err) {
+      console.error("TendrilGrowSchedulesCard: Error in set hass:", err);
+    }
+  }
+
+  getCardSize() {
+    return 4;
+  }
+
+  _moreInfo(entityId) {
+    if (!entityId) return;
+    const event = new CustomEvent("hass-more-info", {
+      bubbles: true,
+      composed: true,
+      detail: { entityId },
+    });
+    this.dispatchEvent(event);
+  }
+
+  _render() {
+    if (!this.shadowRoot) return;
+    const title = this._config.title;
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          display: block;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          color: #e6edf3;
+          --tg-bg: #0b0f17;
+          --tg-card-bg: rgba(15, 23, 42, 0.88);
+          --tg-border: rgba(255, 255, 255, 0.08);
+          --tg-green: #10b981;
+          --tg-cyan: #06b6d4;
+          --tg-amber: #f59e0b;
+          --tg-violet: #8b5cf6;
+        }
+
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+
+        .container {
+          background: var(--tg-bg);
+          border-radius: 18px;
+          border: 1px solid var(--tg-border);
+          padding: 18px;
+          box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        /* HEADER */
+        .header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 16px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid var(--tg-border);
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .brand-badge {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          background: linear-gradient(135deg, #06b6d4, #0891b2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          box-shadow: 0 0 14px rgba(6, 182, 212, 0.35);
+        }
+
+        .header h2 {
+          font-size: 16.5px;
+          font-weight: 700;
+          letter-spacing: -0.3px;
+          color: #f0f6fc;
+        }
+
+        .subtitle {
+          font-size: 11.5px;
+          color: #8b949e;
+          font-weight: 500;
+        }
+
+        .header-status-badge {
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: #38bdf8;
+          background: rgba(56, 189, 248, 0.12);
+          padding: 3px 9px;
+          border-radius: 12px;
+          border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+
+        /* AMBIENT LUNG ROOM BUFFER BAR */
+        .ambient-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: rgba(13, 17, 23, 0.9);
+          border: 1px solid rgba(6, 182, 212, 0.25);
+          border-radius: 12px;
+          padding: 10px 16px;
+          margin-bottom: 16px;
+          flex-wrap: wrap;
+          gap: 14px;
+        }
+
+        .ambient-title-box {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .ambient-icon {
+          font-size: 20px;
+        }
+
+        .ambient-title-text {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .ambient-label {
+          font-size: 11.5px;
+          font-weight: 700;
+          color: #f0f6fc;
+        }
+
+        .ambient-status {
+          font-size: 9.5px;
+          font-weight: 600;
+          color: var(--tg-cyan);
+          text-transform: uppercase;
+        }
+
+        .ambient-kpis {
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          flex-wrap: wrap;
+        }
+
+        .kpi-item {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .kpi-label {
+          font-size: 9.5px;
+          color: #8b949e;
+          text-transform: uppercase;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+        }
+
+        .kpi-val {
+          font-size: 14px;
+          font-weight: 700;
+          color: #f0f6fc;
+          display: flex;
+          align-items: baseline;
+          gap: 5px;
+        }
+
+        .kpi-delta {
+          font-size: 10.5px;
+          font-weight: 600;
+          padding: 1px 5px;
+          border-radius: 5px;
+        }
+
+        .kpi-delta.pos { color: #f87171; background: rgba(239, 68, 68, 0.15); }
+        .kpi-delta.neg { color: #38bdf8; background: rgba(56, 189, 248, 0.15); }
+        .kpi-delta.zero { color: #34d399; background: rgba(16, 185, 129, 0.15); }
+
+        /* SCHEDULES GRID */
+        .schedules-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+          gap: 12px;
+        }
+
+        .schedule-card {
+          background: rgba(15, 23, 42, 0.7);
+          border: 1px solid var(--tg-border);
+          border-radius: 12px;
+          padding: 12px 14px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          cursor: pointer;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .schedule-card:hover {
+          background: rgba(30, 41, 59, 0.85);
+          border-color: rgba(6, 182, 212, 0.4);
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .sched-icon-box {
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--tg-border);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          flex-shrink: 0;
+        }
+
+        .sched-details {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+          flex: 1;
+        }
+
+        .sched-title-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 6px;
+          margin-bottom: 2px;
+        }
+
+        .sched-name {
+          font-size: 13px;
+          font-weight: 700;
+          color: #f0f6fc;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .sched-pill {
+          font-size: 9px;
+          font-weight: 700;
+          text-transform: uppercase;
+          padding: 2px 6px;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.08);
+          color: #8b949e;
+        }
+
+        .sched-pill.active {
+          background: rgba(16, 185, 129, 0.18);
+          color: #34d399;
+          border: 1px solid rgba(16, 185, 129, 0.35);
+        }
+
+        .sched-pill.auto {
+          background: rgba(6, 182, 212, 0.18);
+          color: #22d3ee;
+          border: 1px solid rgba(6, 182, 212, 0.35);
+        }
+
+        .sched-pill.cycle {
+          background: rgba(139, 92, 246, 0.18);
+          color: #c084fc;
+          border: 1px solid rgba(139, 92, 246, 0.35);
+        }
+
+        .sched-state-text {
+          font-size: 11.5px;
+          color: #94a3b8;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      </style>
+
+      <div class="container">
+        <div class="header">
+          <div class="header-left">
+            <div class="brand-badge">⏱️</div>
+            <div>
+              <h2>${title}</h2>
+              <div class="subtitle">Smart Controller Cycles & Environmental Buffers</div>
+            </div>
+          </div>
+          <div class="header-status-badge">Auto Synchronized</div>
+        </div>
+
+        <!-- Ambient Lung Room Bar -->
+        <div class="ambient-bar" id="ambient-box" style="display: none;">
+          <div class="ambient-title-box">
+            <span class="ambient-icon">🌬️</span>
+            <div class="ambient-title-text">
+              <span class="ambient-label">Lung Room (Ambient)</span>
+              <span class="ambient-status" id="ambient-status-text">Buffer Stable</span>
+            </div>
+          </div>
+          <div class="ambient-kpis">
+            <div class="kpi-item" id="kpi-temp-box">
+              <span class="kpi-label">Ambient Temp</span>
+              <div class="kpi-val"><span id="amb-temp">--</span>°F <span class="kpi-delta" id="delta-temp">--</span></div>
+            </div>
+            <div class="kpi-item" id="kpi-rh-box">
+              <span class="kpi-label">Ambient Humidity</span>
+              <div class="kpi-val"><span id="amb-rh">--</span>% <span class="kpi-delta" id="delta-rh">--</span></div>
+            </div>
+            <div class="kpi-item" id="kpi-vpd-box">
+              <span class="kpi-label">Ambient VPD</span>
+              <div class="kpi-val"><span id="amb-vpd">--</span> kPa</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Schedules Grid -->
+        <div class="schedules-grid" id="schedules-grid">
+          <!-- dynamically populated -->
+        </div>
+      </div>
+    `;
+
+    this._updateStates();
+  }
+
+  _updateStates() {
+    if (!this._hass || !this.shadowRoot) return;
+    const root = this.shadowRoot;
+
+    // Ambient & Lung Room
+    const amb = this._config.ambient || {};
+    const tent = this._config.tent || {};
+    const ambBox = root.getElementById("ambient-box");
+
+    const ambTempNum = getStateNum(this._hass, amb.temperature, null);
+    const ambRhNum = getStateNum(this._hass, amb.humidity, null);
+    const ambVpdNum = getStateNum(this._hass, amb.vpd, null);
+    const tentTempNum = getStateNum(this._hass, tent.temperature, null);
+    const tentRhNum = getStateNum(this._hass, tent.humidity, null);
+
+    if (ambBox && (ambTempNum !== null || ambRhNum !== null || ambVpdNum !== null)) {
+      ambBox.style.display = "flex";
+      const elTemp = root.getElementById("amb-temp");
+      const elRh = root.getElementById("amb-rh");
+      const elVpd = root.getElementById("amb-vpd");
+      const elDTemp = root.getElementById("delta-temp");
+      const elDRh = root.getElementById("delta-rh");
+
+      if (elTemp && ambTempNum !== null) elTemp.textContent = ambTempNum.toFixed(1);
+      if (elRh && ambRhNum !== null) elRh.textContent = Math.round(ambRhNum);
+      if (elVpd && ambVpdNum !== null) elVpd.textContent = ambVpdNum.toFixed(2);
+
+      if (elDTemp && ambTempNum !== null && tentTempNum !== null) {
+        const d = tentTempNum - ambTempNum;
+        elDTemp.textContent = `${d >= 0 ? "+" : ""}${d.toFixed(1)}°F ΔT`;
+        elDTemp.className = `kpi-delta ${Math.abs(d) < 3 ? "zero" : d > 0 ? "pos" : "neg"}`;
+      } else if (elDTemp) {
+        elDTemp.style.display = "none";
+      }
+
+      if (elDRh && ambRhNum !== null && tentRhNum !== null) {
+        const d = Math.round(tentRhNum - ambRhNum);
+        elDRh.textContent = `${d >= 0 ? "+" : ""}${d}% ΔRH`;
+        elDRh.className = `kpi-delta ${Math.abs(d) < 8 ? "zero" : d > 0 ? "pos" : "neg"}`;
+      } else if (elDRh) {
+        elDRh.style.display = "none";
+      }
+    }
+
+    // Schedules Grid
+    const schedGrid = root.getElementById("schedules-grid");
+    if (!schedGrid) return;
+
+    const scheds = this._config.schedules || [];
+    if (scheds.length === 0) {
+      schedGrid.innerHTML = `
+        <div style="grid-column: 1 / -1; padding: 18px; text-align: center; color: #8b949e; font-size: 13px;">
+          No controller schedules mapped for this space.
+        </div>
+      `;
+      return;
+    }
+
+    schedGrid.innerHTML = scheds
+      .map((item, idx) => {
+        const stateObj = getState(this._hass, item.entity);
+        const stateStr = stateObj ? stateObj.state : "Standby";
+
+        let pillClass = "sched-pill";
+        let pillText = "STANDBY";
+        const sLower = stateStr.toLowerCase();
+
+        if (sLower.includes("until off") || sLower.includes("on")) {
+          pillClass = "sched-pill active";
+          pillText = "RUNNING";
+        } else if (sLower.includes("cycle") || sLower.includes("on /")) {
+          pillClass = "sched-pill cycle";
+          pillText = "CYCLE";
+        } else if (sLower.includes("auto")) {
+          pillClass = "sched-pill auto";
+          pillText = "SMART AUTO";
+        } else if (sLower.includes("cooling") || sLower.includes("heating")) {
+          pillClass = "sched-pill active";
+          pillText = stateStr.toUpperCase();
+        }
+
+        // Icon resolution
+        let iconEmoji = "⚙️";
+        const role = (item.role || "").toLowerCase();
+        const name = (item.name || "").toLowerCase();
+        if (role.includes("light") || name.includes("light")) iconEmoji = "💡";
+        else if (role.includes("duct") || name.includes("duct") || name.includes("exhaust")) iconEmoji = "🌀";
+        else if (role.includes("fan") || name.includes("fan") || name.includes("circulat")) iconEmoji = "💨";
+        else if (role.includes("humid") || name.includes("humid")) iconEmoji = "💧";
+        else if (role.includes("dehumid") || name.includes("dehumid")) iconEmoji = "🏜️";
+        else if (role.includes("air_cond") || name.includes("ac") || name.includes("cool")) iconEmoji = "❄️";
+        else if (role.includes("heat") || name.includes("heat")) iconEmoji = "🔥";
+        else if (role.includes("irrigat") || name.includes("drip") || name.includes("water")) iconEmoji = "🧪";
+
+        return `
+          <div class="schedule-card" data-idx="${idx}">
+            <div class="sched-icon-box">${iconEmoji}</div>
+            <div class="sched-details">
+              <div class="sched-title-row">
+                <span class="sched-name" title="${item.name}">${item.name}</span>
+                <span class="${pillClass}">${pillText}</span>
+              </div>
+              <span class="sched-state-text" title="${stateStr}">${stateStr}</span>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    schedGrid.querySelectorAll(".schedule-card").forEach((el) => {
+      const idx = parseInt(el.getAttribute("data-idx"), 10);
+      const item = scheds[idx];
+      if (item && item.entity) {
+        el.onclick = () => this._moreInfo(item.entity);
+      }
+    });
+  }
+}
+
+// ============================================================================
+// 5. TENDRILGROW CULTIVATION PLAN & TASKS CARD (<tendrilgrow-plan-card>)
+// ============================================================================
+class TendrilGrowPlanCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._config = {};
+    this._hass = null;
+  }
+
+  static getStubConfig() {
+    return {
+      title: "Cultivation Plan & Tasks",
+    };
+  }
+
+  setConfig(config) {
+    if (!config) throw new Error("Invalid configuration");
+    this._config = {
+      title: config.title || "Cultivation Plan & Tasks",
+      stage: config.stage || null,
+      stage_projection: config.stage_projection || null,
+      todo: config.todo || null,
+      ...config,
+    };
+    this._render();
+  }
+
+  set hass(hass) {
+    try {
+      this._hass = hass;
+      this._updateStates();
+    } catch (err) {
+      console.error("TendrilGrowPlanCard: Error in set hass:", err);
+    }
+  }
+
+  getCardSize() {
+    return 5;
+  }
+
+  _callService(domain, service, data = {}) {
+    if (!this._hass) return;
+    this._hass.callService(domain, service, data);
+  }
+
+  _moreInfo(entityId) {
+    if (!entityId) return;
+    const event = new CustomEvent("hass-more-info", {
+      bubbles: true,
+      composed: true,
+      detail: { entityId },
+    });
+    this.dispatchEvent(event);
+  }
+
+  _render() {
+    if (!this.shadowRoot) return;
+    const title = this._config.title;
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          display: block;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          color: #e6edf3;
+          --tg-bg: #0b0f17;
+          --tg-card-bg: rgba(15, 23, 42, 0.88);
+          --tg-border: rgba(255, 255, 255, 0.08);
+          --tg-green: #10b981;
+          --tg-cyan: #06b6d4;
+          --tg-amber: #f59e0b;
+          --tg-violet: #8b5cf6;
+        }
+
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+
+        .container {
+          background: var(--tg-bg);
+          border-radius: 18px;
+          border: 1px solid var(--tg-border);
+          padding: 18px;
+          box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        /* HEADER */
+        .header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 16px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid var(--tg-border);
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .brand-badge {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          background: linear-gradient(135deg, #10b981, #059669);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+        }
+
+        .header h2 {
+          font-size: 16.5px;
+          font-weight: 700;
+          letter-spacing: -0.3px;
+          color: #f0f6fc;
+        }
+
+        .subtitle {
+          font-size: 11.5px;
+          color: #8b949e;
+          font-weight: 500;
+        }
+
+        .stage-tag {
+          font-size: 10.5px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: #34d399;
+          background: rgba(16, 185, 129, 0.12);
+          padding: 3px 9px;
+          border-radius: 12px;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        /* STAGE PROGRESS SECTION */
+        .progress-section {
+          background: rgba(13, 17, 23, 0.85);
+          border: 1px solid var(--tg-border);
+          border-radius: 14px;
+          padding: 14px 16px;
+          margin-bottom: 16px;
+        }
+
+        .progress-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 8px;
+        }
+
+        .progress-title {
+          font-size: 12px;
+          font-weight: 700;
+          color: #e6edf3;
+        }
+
+        .progress-pct {
+          font-size: 13px;
+          font-weight: 800;
+          color: var(--tg-green);
+        }
+
+        .progress-track {
+          height: 8px;
+          background: #21262d;
+          border-radius: 4px;
+          overflow: hidden;
+          position: relative;
+        }
+
+        .progress-fill {
+          height: 100%;
+          background: linear-gradient(90deg, #10b981, #34d399);
+          border-radius: 4px;
+          transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+        }
+
+        .progress-meta {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 6px;
+          font-size: 10.5px;
+          color: #8b949e;
+          font-weight: 500;
+        }
+
+        /* MILESTONES GRID */
+        .milestones-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+          margin-bottom: 18px;
+        }
+
+        .milestone-card {
+          background: rgba(15, 23, 42, 0.7);
+          border: 1px solid var(--tg-border);
+          border-radius: 12px;
+          padding: 12px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .milestone-card.highlight {
+          border-color: rgba(245, 158, 11, 0.4);
+          background: rgba(245, 158, 11, 0.05);
+        }
+
+        .ms-icon {
+          font-size: 22px;
+          flex-shrink: 0;
+        }
+
+        .ms-info {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+        }
+
+        .ms-label {
+          font-size: 9.5px;
+          font-weight: 700;
+          color: #8b949e;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+        }
+
+        .ms-val {
+          font-size: 13.5px;
+          font-weight: 700;
+          color: #f0f6fc;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .ms-sub {
+          font-size: 10.5px;
+          font-weight: 600;
+          color: #fbbf24;
+        }
+
+        /* TASKS SECTION */
+        .tasks-section {
+          background: rgba(13, 17, 23, 0.85);
+          border: 1px solid var(--tg-border);
+          border-radius: 14px;
+          padding: 14px 16px;
+        }
+
+        .tasks-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 12px;
+        }
+
+        .tasks-header-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .tasks-title {
+          font-size: 13px;
+          font-weight: 700;
+          color: #f0f6fc;
+        }
+
+        .tasks-count-badge {
+          font-size: 10px;
+          font-weight: 700;
+          color: #38bdf8;
+          background: rgba(56, 189, 248, 0.12);
+          padding: 2px 7px;
+          border-radius: 10px;
+          border: 1px solid rgba(56, 189, 248, 0.25);
+        }
+
+        .btn-open-tasks {
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid var(--tg-border);
+          color: #c9d1d9;
+          font-size: 11px;
+          font-weight: 600;
+          padding: 4px 10px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn-open-tasks:hover {
+          background: rgba(255, 255, 255, 0.12);
+          color: #fff;
+        }
+
+        .add-task-bar {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+
+        .task-input {
+          flex: 1;
+          background: rgba(15, 23, 42, 0.9);
+          border: 1px solid var(--tg-border);
+          border-radius: 8px;
+          padding: 8px 12px;
+          color: #f0f6fc;
+          font-size: 12px;
+          outline: none;
+          transition: border-color 0.2s ease;
+        }
+
+        .task-input:focus {
+          border-color: var(--tg-green);
+        }
+
+        .btn-add-task {
+          background: rgba(16, 185, 129, 0.2);
+          border: 1px solid rgba(16, 185, 129, 0.4);
+          color: #34d399;
+          font-weight: 700;
+          font-size: 12px;
+          padding: 8px 14px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .btn-add-task:hover {
+          background: rgba(16, 185, 129, 0.3);
+          color: #fff;
+        }
+
+        .tasks-status-box {
+          font-size: 12px;
+          color: #8b949e;
+          padding: 4px 0;
+        }
+
+        @media (max-width: 600px) {
+          .milestones-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      </style>
+
+      <div class="container">
+        <div class="header">
+          <div class="header-left">
+            <div class="brand-badge">🌱</div>
+            <div>
+              <h2>${title}</h2>
+              <div class="subtitle" id="plan-stage-text">Cultivation Pipeline & Stage Milestones</div>
+            </div>
+          </div>
+          <div class="stage-tag" id="plan-stage-badge">VEGETATIVE • WK 2</div>
+        </div>
+
+        <!-- Stage Progress Section -->
+        <div class="progress-section">
+          <div class="progress-header">
+            <span class="progress-title" id="progress-title-text">Stage Timeline Progress</span>
+            <span class="progress-pct" id="progress-pct-text">--%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-bar-fill" style="width: 0%;"></div>
+          </div>
+          <div class="progress-meta">
+            <span id="progress-meta-text">Day -- of --</span>
+            <span id="progress-week-text">Week --</span>
+          </div>
+        </div>
+
+        <!-- Milestones Grid -->
+        <div class="milestones-grid">
+          <div class="milestone-card">
+            <div class="ms-icon">🔄</div>
+            <div class="ms-info">
+              <span class="ms-label">Stage Flip / End</span>
+              <span class="ms-val" id="ms-flip-date">--</span>
+              <span class="ms-sub" id="ms-flip-countdown">--</span>
+            </div>
+          </div>
+          <div class="milestone-card highlight">
+            <div class="ms-icon">✂️</div>
+            <div class="ms-info">
+              <span class="ms-label">Projected Harvest</span>
+              <span class="ms-val" id="ms-harvest-date">--</span>
+              <span class="ms-sub" id="ms-harvest-countdown">--</span>
+            </div>
+          </div>
+          <div class="milestone-card">
+            <div class="ms-icon">🏺</div>
+            <div class="ms-info">
+              <span class="ms-label">Cured & Ready</span>
+              <span class="ms-val" id="ms-ready-date">--</span>
+              <span class="ms-sub" id="ms-ready-countdown">Final Cure</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tasks Section -->
+        <div class="tasks-section">
+          <div class="tasks-header">
+            <div class="tasks-header-left">
+              <span>📋</span>
+              <span class="tasks-title">Stage Tasks & Grow Routines</span>
+              <span class="tasks-count-badge" id="tasks-count-badge">0 Pending</span>
+            </div>
+            <button class="btn-open-tasks" id="btn-open-tasks">Manage Tasks ↗</button>
+          </div>
+
+          <!-- Quick Add Task Bar -->
+          <div class="add-task-bar">
+            <input type="text" class="task-input" id="task-input" placeholder="Add cultivation task... (e.g. LST tucking, top canopy, reservoir check)" />
+            <button class="btn-add-task" id="btn-add-task">＋ Add</button>
+          </div>
+
+          <div class="tasks-status-box" id="tasks-status-box">
+            <span id="tasks-empty-msg">Tap 'Manage Tasks' to view and check off items in Home Assistant.</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this._bindEvents();
+    this._updateStates();
+  }
+
+  _bindEvents() {
+    const root = this.shadowRoot;
+    if (!root) return;
+
+    const btnOpen = root.getElementById("btn-open-tasks");
+    if (btnOpen && this._config.todo) {
+      btnOpen.onclick = () => this._moreInfo(this._config.todo);
+    }
+
+    const btnAdd = root.getElementById("btn-add-task");
+    const input = root.getElementById("task-input");
+    if (btnAdd && input) {
+      const submitTask = () => {
+        const val = input.value.trim();
+        if (!val || !this._config.todo) return;
+        this._callService("todo", "add_item", {
+          entity_id: this._config.todo,
+          item: val,
+        });
+        input.value = "";
+      };
+      btnAdd.onclick = submitTask;
+      input.onkeydown = (e) => {
+        if (e.key === "Enter") submitTask();
+      };
+    }
+  }
+
+  _formatDate(dateStr) {
+    if (!dateStr) return "--";
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    } catch {
+      return dateStr;
+    }
+  }
+
+  _getDaysRemaining(dateStr) {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return "";
+      const now = new Date();
+      const diff = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff < 0) return "Passed";
+      if (diff === 0) return "Today";
+      return `in ${diff} days`;
+    } catch {
+      return "";
+    }
+  }
+
+  _updateStates() {
+    if (!this._hass || !this.shadowRoot) return;
+    const root = this.shadowRoot;
+
+    // Stage Projection
+    const projState = getState(this._hass, this._config.stage_projection);
+    const stageStr = getStateStr(this._hass, this._config.stage, "Vegetative");
+    const attrs = projState ? projState.attributes || {} : {};
+
+    const daysInStage = attrs.days_in_stage || 10;
+    const weeksInStage = attrs.weeks_in_stage || 1.4;
+    const projEnd = attrs.projected_stage_end || "";
+    const projHarvest = attrs.projected_harvest_date || "";
+    const projReady = attrs.projected_ready_date || "";
+
+    // Estimate total stage days
+    const daysLeftInStage = projEnd ? Math.max(0, Math.ceil((new Date(projEnd) - new Date()) / (1000 * 60 * 60 * 24))) : 18;
+    const totalDays = Math.max(daysInStage + daysLeftInStage, 28);
+    const pct = Math.min(100, Math.round((daysInStage / totalDays) * 100));
+
+    // Update Header
+    const stageBadge = root.getElementById("plan-stage-badge");
+    if (stageBadge) {
+      stageBadge.textContent = `${stageStr.toUpperCase()} • WK ${Math.round(weeksInStage * 10) / 10}`;
+    }
+
+    // Update Progress
+    const barFill = root.getElementById("progress-bar-fill");
+    const pctText = root.getElementById("progress-pct-text");
+    const metaText = root.getElementById("progress-meta-text");
+    const weekText = root.getElementById("progress-week-text");
+
+    if (barFill) barFill.style.width = `${pct}%`;
+    if (pctText) pctText.textContent = `${pct}%`;
+    if (metaText) metaText.textContent = `Day ${daysInStage} of ~${totalDays}`;
+    if (weekText) weekText.textContent = `Week ${weeksInStage}`;
+
+    // Milestones
+    const flipDate = root.getElementById("ms-flip-date");
+    const flipSub = root.getElementById("ms-flip-countdown");
+    const harvDate = root.getElementById("ms-harvest-date");
+    const harvSub = root.getElementById("ms-harvest-countdown");
+    const readyDate = root.getElementById("ms-ready-date");
+
+    if (flipDate) flipDate.textContent = this._formatDate(projEnd);
+    if (flipSub) flipSub.textContent = this._getDaysRemaining(projEnd);
+    if (harvDate) harvDate.textContent = this._formatDate(projHarvest);
+    if (harvSub) harvSub.textContent = this._getDaysRemaining(projHarvest);
+    if (readyDate) readyDate.textContent = this._formatDate(projReady);
+
+    // Todo task count
+    const todoState = getState(this._hass, this._config.todo);
+    const countBadge = root.getElementById("tasks-count-badge");
+    const emptyMsg = root.getElementById("tasks-empty-msg");
+
+    if (todoState) {
+      const count = parseInt(todoState.state, 10);
+      const num = isNaN(count) ? 0 : count;
+      if (countBadge) countBadge.textContent = `${num} Pending`;
+      if (emptyMsg) {
+        emptyMsg.textContent = num === 0
+          ? "All scheduled cultivation tasks completed for current stage ✨"
+          : `${num} task(s) queued for this space. Tap 'Manage Tasks' to view.`;
+      }
+    }
+  }
+}
+
+// ============================================================================
+// 6. TENDRILGROW AI CULTIVATION INTELLIGENCE CARD (<tendrilgrow-advisor-card>)
+// ============================================================================
+class TendrilGrowAdvisorCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._config = {};
+    this._hass = null;
+    this._activeTab = "diag"; // 'diag' | 'rec' | 'feed'
+  }
+
+  static getStubConfig() {
+    return {
+      title: "AI Cultivation Intelligence",
+      score: "sensor.ai_health_summary",
+    };
+  }
+
+  setConfig(config) {
+    if (!config) throw new Error("Invalid configuration");
+    this._config = {
+      title: config.title || "AI Cultivation Intelligence",
+      score: config.score || null,
+      critical_alert: config.critical_alert || null,
+      run_ai_health_check: config.run_ai_health_check || null,
+      ...config,
+    };
+    this._render();
+  }
+
+  set hass(hass) {
+    try {
+      this._hass = hass;
+      this._updateStates();
+    } catch (err) {
+      console.error("TendrilGrowAdvisorCard: Error in set hass:", err);
+    }
+  }
+
+  getCardSize() {
+    return 6;
+  }
+
+  _callService(domain, service, data = {}) {
+    if (!this._hass) return;
+    this._hass.callService(domain, service, data);
+  }
+
+  _render() {
+    if (!this.shadowRoot) return;
+    const title = this._config.title;
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          display: block;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          color: #e6edf3;
+          --tg-bg: #0b0f17;
+          --tg-card-bg: rgba(15, 23, 42, 0.88);
+          --tg-border: rgba(255, 255, 255, 0.08);
+          --tg-green: #10b981;
+          --tg-cyan: #06b6d4;
+          --tg-amber: #f59e0b;
+          --tg-violet: #8b5cf6;
+          --tg-red: #ef4444;
+        }
+
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+
+        .container {
+          background: var(--tg-bg);
+          border-radius: 18px;
+          border: 1px solid var(--tg-border);
+          padding: 18px;
+          box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        /* HEADER */
+        .header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 16px;
+          padding-bottom: 12px;
+          border-bottom: 1px solid var(--tg-border);
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .brand-badge {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          box-shadow: 0 0 14px rgba(139, 92, 246, 0.35);
+        }
+
+        .header h2 {
+          font-size: 16.5px;
+          font-weight: 700;
+          letter-spacing: -0.3px;
+          color: #f0f6fc;
+        }
+
+        .subtitle {
+          font-size: 11.5px;
+          color: #8b949e;
+          font-weight: 500;
+        }
+
+        .btn-run-diag {
+          background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(109, 40, 217, 0.25));
+          border: 1px solid rgba(139, 92, 246, 0.4);
+          color: #c4b5fd;
+          font-size: 11.5px;
+          font-weight: 700;
+          padding: 6px 14px;
+          border-radius: 9px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          transition: all 0.2s ease;
+        }
+
+        .btn-run-diag:hover {
+          background: linear-gradient(135deg, rgba(139, 92, 246, 0.4), rgba(109, 40, 217, 0.4));
+          color: #fff;
+          box-shadow: 0 0 14px rgba(139, 92, 246, 0.4);
+        }
+
+        /* ADVISOR HERO BANNER */
+        .advisor-hero {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          background: rgba(13, 17, 23, 0.85);
+          border: 1px solid rgba(139, 92, 246, 0.3);
+          border-radius: 14px;
+          padding: 14px 16px;
+          margin-bottom: 16px;
+        }
+
+        .score-dial-box {
+          position: relative;
+          width: 56px;
+          height: 56px;
+          flex-shrink: 0;
+        }
+
+        .score-dial-box svg {
+          transform: rotate(-90deg);
+        }
+
+        .score-dial-track {
+          fill: none;
+          stroke: rgba(255, 255, 255, 0.08);
+          stroke-width: 4.5;
+        }
+
+        .score-dial-progress {
+          fill: none;
+          stroke: var(--tg-green);
+          stroke-width: 4.5;
+          stroke-linecap: round;
+          transition: stroke-dashoffset 0.8s ease, stroke 0.3s ease;
+        }
+
+        .score-dial-val {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 16px;
+          font-weight: 800;
+          color: #fff;
+        }
+
+        .hero-info {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          min-width: 0;
+          flex: 1;
+        }
+
+        .hero-top-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .severity-pill {
+          font-size: 10.5px;
+          font-weight: 700;
+          text-transform: uppercase;
+          padding: 2px 8px;
+          border-radius: 10px;
+          background: rgba(16, 185, 129, 0.15);
+          color: #34d399;
+          border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .severity-pill.amber {
+          background: rgba(245, 158, 11, 0.15);
+          color: #fbbf24;
+          border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .severity-pill.red {
+          background: rgba(239, 68, 68, 0.15);
+          color: #f87171;
+          border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .model-tag {
+          font-size: 11px;
+          color: #94a3b8;
+          font-weight: 500;
+        }
+
+        .summary-text {
+          font-size: 12.5px;
+          line-height: 1.5;
+          color: #c9d1d9;
+        }
+
+        /* NAVIGATION TABS */
+        .advisor-tabs {
+          display: flex;
+          gap: 6px;
+          background: rgba(13, 17, 23, 0.9);
+          border: 1px solid var(--tg-border);
+          border-radius: 10px;
+          padding: 4px;
+          margin-bottom: 14px;
+        }
+
+        .adv-tab-btn {
+          flex: 1;
+          background: transparent;
+          border: none;
+          color: #8b949e;
+          font-size: 11.5px;
+          font-weight: 600;
+          padding: 7px 12px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .adv-tab-btn.active {
+          background: rgba(139, 92, 246, 0.2);
+          color: #ddd6fe;
+          font-weight: 700;
+        }
+
+        /* TAB PANES */
+        .tab-pane {
+          display: none;
+        }
+
+        .tab-pane.active {
+          display: block;
+        }
+
+        .diag-section-title {
+          font-size: 11.5px;
+          font-weight: 700;
+          color: #8b949e;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 8px;
+        }
+
+        .item-card {
+          background: rgba(15, 23, 42, 0.65);
+          border: 1px solid var(--tg-border);
+          border-radius: 10px;
+          padding: 10px 14px;
+          margin-bottom: 8px;
+          font-size: 12.5px;
+          line-height: 1.45;
+          color: #e6edf3;
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+        }
+
+        .item-card.issue {
+          background: rgba(245, 158, 11, 0.06);
+          border-color: rgba(245, 158, 11, 0.35);
+        }
+
+        .item-icon {
+          font-size: 15px;
+          flex-shrink: 0;
+          margin-top: 1px;
+        }
+
+        .step-num {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          background: rgba(16, 185, 129, 0.2);
+          color: #34d399;
+          font-weight: 800;
+          font-size: 11px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        /* FEEDING RECIPE TABLE */
+        .recipe-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+
+        .nutrient-pill {
+          background: rgba(15, 23, 42, 0.8);
+          border: 1px solid rgba(139, 92, 246, 0.3);
+          border-radius: 10px;
+          padding: 10px 12px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .nut-icon {
+          font-size: 20px;
+        }
+
+        .nut-info {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .nut-name {
+          font-size: 12.5px;
+          font-weight: 700;
+          color: #f0f6fc;
+        }
+
+        .nut-dosage {
+          font-size: 11.5px;
+          font-weight: 600;
+          color: #c4b5fd;
+        }
+
+        .recipe-meta-box {
+          background: rgba(13, 17, 23, 0.85);
+          border: 1px solid var(--tg-border);
+          border-radius: 10px;
+          padding: 10px 14px;
+          font-size: 12px;
+          color: #94a3b8;
+        }
+      </style>
+
+      <div class="container">
+        <!-- Header -->
+        <div class="header">
+          <div class="header-left">
+            <div class="brand-badge">🧠</div>
+            <div>
+              <h2>${title}</h2>
+              <div class="subtitle">Autonomous Agronomy Diagnostics & Guidance</div>
+            </div>
+          </div>
+          <button class="btn-run-diag" id="btn-run-diag">⚡ Run AI Check</button>
+        </div>
+
+        <!-- Executive Hero Banner -->
+        <div class="advisor-hero">
+          <div class="score-dial-box">
+            <svg width="56" height="56">
+              <circle class="score-dial-track" cx="28" cy="28" r="22" />
+              <circle class="score-dial-progress" id="adv-dial-bar" cx="28" cy="28" r="22" stroke-dasharray="138.2" stroke-dashoffset="138.2" />
+            </svg>
+            <div class="score-dial-val" id="adv-score-val">--</div>
+          </div>
+          <div class="hero-info">
+            <div class="hero-top-row">
+              <span class="severity-pill" id="adv-sev-pill">Optimal Vigor</span>
+              <span class="model-tag" id="adv-model-tag">Gemini 2.5 Flash • 95% Conf</span>
+            </div>
+            <p class="summary-text" id="adv-summary-text">Analyzing cultivation telemetry and visual canopy vigor...</p>
+          </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="advisor-tabs">
+          <button class="adv-tab-btn active" id="tab-btn-diag">🔍 Observations & Issues</button>
+          <button class="adv-tab-btn" id="tab-btn-rec">⚡ Recommended Actions</button>
+          <button class="adv-tab-btn" id="tab-btn-feed">🧪 Feeding Recipe</button>
+        </div>
+
+        <!-- Tab 1: Observations & Issues -->
+        <div class="tab-pane active" id="pane-diag">
+          <div class="diag-section-title">Canopy Observations</div>
+          <div class="obs-list" id="obs-list-container">
+            <div class="item-card"><span class="item-icon">👁️</span><span>Healthy green foliage with active transpiration.</span></div>
+          </div>
+          <div class="diag-section-title" style="margin-top: 14px;">Detected Issues & Variances</div>
+          <div class="issues-list" id="issues-list-container">
+            <div class="item-card" style="color: #8b949e;">No active critical anomalies detected.</div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Recommended Actions -->
+        <div class="tab-pane" id="pane-rec">
+          <div class="diag-section-title">Agronomy Action Plan</div>
+          <div class="rec-list" id="rec-list-container">
+            <div class="item-card"><span class="step-num">1</span><span>Maintain optimal target VPD band for current vegetative growth cycle.</span></div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Feeding Recipe -->
+        <div class="tab-pane" id="pane-feed">
+          <div class="diag-section-title">Nutrient Mixing Routine</div>
+          <div class="feed-recipe-container" id="feed-recipe-container">
+            <!-- Dynamically populated -->
+          </div>
+          <div class="recipe-meta-box" id="recipe-meta-box">
+            <span>Target pH: <strong>5.8</strong> • Note: Mix nutrients thoroughly in order, then verify EC.</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this._bindEvents();
+    this._updateStates();
+  }
+
+  _bindEvents() {
+    const root = this.shadowRoot;
+    if (!root) return;
+
+    const tDiag = root.getElementById("tab-btn-diag");
+    const tRec = root.getElementById("tab-btn-rec");
+    const tFeed = root.getElementById("tab-btn-feed");
+
+    const pDiag = root.getElementById("pane-diag");
+    const pRec = root.getElementById("pane-rec");
+    const pFeed = root.getElementById("pane-feed");
+
+    const setTab = (tab) => {
+      [tDiag, tRec, tFeed].forEach((b) => b && b.classList.remove("active"));
+      [pDiag, pRec, pFeed].forEach((p) => p && p.classList.remove("active"));
+
+      if (tab === "diag") {
+        if (tDiag) tDiag.classList.add("active");
+        if (pDiag) pDiag.classList.add("active");
+      } else if (tab === "rec") {
+        if (tRec) tRec.classList.add("active");
+        if (pRec) pRec.classList.add("active");
+      } else if (tab === "feed") {
+        if (tFeed) tFeed.classList.add("active");
+        if (pFeed) pFeed.classList.add("active");
+      }
+    };
+
+    if (tDiag) tDiag.onclick = () => setTab("diag");
+    if (tRec) tRec.onclick = () => setTab("rec");
+    if (tFeed) tFeed.onclick = () => setTab("feed");
+
+    const btnDiag = root.getElementById("btn-run-diag");
+    if (btnDiag) {
+      btnDiag.onclick = () => {
+        btnDiag.textContent = "⏳ Running Diagnostic...";
+        const runBtn = this._config.run_ai_health_check || this._config.run_button;
+        if (runBtn) {
+          this._callService("button", "press", { entity_id: runBtn });
+        } else {
+          this._callService("tendrilgrow", "run_ai_health_check", {});
+        }
+        setTimeout(() => {
+          btnDiag.textContent = "⚡ Run AI Check";
+        }, 4000);
+      };
+    }
+  }
+
+  _updateStates() {
+    if (!this._hass || !this.shadowRoot) return;
+    const root = this.shadowRoot;
+
+    const summaryEntity = this._config.summary || this._config.ai_health_summary || this._config.score;
+    const summaryState = getState(this._hass, summaryEntity);
+    const scoreEntity = this._config.score || summaryEntity;
+    const scoreState = getState(this._hass, scoreEntity);
+    const attrs = {
+      ...(scoreState ? scoreState.attributes || {} : {}),
+      ...(summaryState ? summaryState.attributes || {} : {}),
+    };
+
+    const score = attrs.score !== undefined ? attrs.score : getStateNum(this._hass, scoreEntity, 90);
+    const severity = (attrs.severity || "low").toLowerCase();
+    const confidence = attrs.confidence || 95;
+    const model = attrs.model || "gemini-2.5-flash";
+    const summary = attrs.summary || summaryState?.state || scoreState?.state || "Vigor nominal across all environmental metrics.";
+    const observations = Array.isArray(attrs.observations) ? attrs.observations : [];
+    const issues = Array.isArray(attrs.issues) ? attrs.issues : [];
+    const actions = Array.isArray(attrs.recommended_actions) ? attrs.recommended_actions : [];
+    const feedSchedule = Array.isArray(attrs.feeding_schedule) ? attrs.feeding_schedule : [];
+
+    // Health Score Dial
+    const dialVal = root.getElementById("adv-score-val");
+    const dialBar = root.getElementById("adv-dial-bar");
+    if (dialVal && dialBar) {
+      dialVal.textContent = score !== null ? Math.round(score) : "--";
+      const circ = 2 * Math.PI * 22; // ~138.2
+      const offset = circ - ((score || 0) / 100) * circ;
+      dialBar.style.strokeDashoffset = offset;
+      if (score >= 75) {
+        dialBar.style.stroke = "var(--tg-green)";
+      } else if (score >= 50) {
+        dialBar.style.stroke = "var(--tg-amber)";
+      } else {
+        dialBar.style.stroke = "var(--tg-red)";
+      }
+    }
+
+    // Severity & Model
+    const sevPill = root.getElementById("adv-sev-pill");
+    const modelTag = root.getElementById("adv-model-tag");
+    const sumText = root.getElementById("adv-summary-text");
+
+    if (sevPill) {
+      sevPill.textContent = severity === "low" ? "Nominal Vigor" : severity === "medium" ? "Moderate Variance" : "Attention Required";
+      sevPill.className = `severity-pill ${severity === "low" ? "" : severity === "medium" ? "amber" : "red"}`;
+    }
+    if (modelTag) {
+      modelTag.textContent = `${model} • ${confidence}% Confidence`;
+    }
+    if (sumText) {
+      sumText.textContent = summary;
+    }
+
+    // Observations
+    const obsContainer = root.getElementById("obs-list-container");
+    if (obsContainer && observations.length > 0) {
+      obsContainer.innerHTML = observations
+        .map((obs) => `<div class="item-card"><span class="item-icon">👁️</span><span>${obs}</span></div>`)
+        .join("");
+    }
+
+    // Issues
+    const issuesContainer = root.getElementById("issues-list-container");
+    if (issuesContainer) {
+      if (issues.length > 0) {
+        issuesContainer.innerHTML = issues
+          .map((iss) => {
+            let text = typeof iss === "object" ? (iss.observation || iss.cause || JSON.stringify(iss)) : String(iss);
+            return `<div class="item-card issue"><span class="item-icon">⚠️</span><span>${text}</span></div>`;
+          })
+          .join("");
+      } else {
+        issuesContainer.innerHTML = `<div class="item-card" style="color: #8b949e;">No active critical anomalies detected.</div>`;
+      }
+    }
+
+    // Action Recommendations
+    const recContainer = root.getElementById("rec-list-container");
+    if (recContainer && actions.length > 0) {
+      recContainer.innerHTML = actions
+        .map((act, i) => `<div class="item-card"><span class="step-num">${i + 1}</span><span>${act}</span></div>`)
+        .join("");
+    }
+
+    // Feeding Recipe
+    const feedContainer = root.getElementById("feed-recipe-container");
+    if (feedContainer) {
+      if (feedSchedule.length > 0) {
+        // Parse nutrients e.g. "CalMag+: 32.5ml; FloraMicro: 32.5ml; ..."
+        const schedStr = feedSchedule[0] || "";
+        const parts = schedStr.split("|");
+        const nutPart = parts.length > 1 ? parts[1] : schedStr;
+        const nutItems = nutPart.replace("ADD IN ORDER:", "").split(";").map((s) => s.trim()).filter(Boolean);
+
+        if (nutItems.length > 0) {
+          feedContainer.innerHTML = `
+            <div class="recipe-grid">
+              ${nutItems.map((nut, i) => {
+                const [nName, nDose] = nut.split(":").map((s) => s.trim());
+                return `
+                  <div class="nutrient-pill">
+                    <span class="nut-icon">🧪</span>
+                    <div class="nut-info">
+                      <span class="nut-name">${nName}</span>
+                      <span class="nut-dosage">${nDose || ""}</span>
+                    </div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          `;
+        }
+      }
+    }
+  }
+}
+
 // Register Custom Elements
 customElements.define("tendrilgrow-twin-card", TendrilGrowTwinCard);
 customElements.define("tendrilgrow-overview-card", TendrilGrowOverviewCard);
 customElements.define("tendrilgrow-trends-card", TendrilGrowTrendsCard);
+customElements.define("tendrilgrow-schedules-card", TendrilGrowSchedulesCard);
+customElements.define("tendrilgrow-plan-card", TendrilGrowPlanCard);
+customElements.define("tendrilgrow-advisor-card", TendrilGrowAdvisorCard);
 
 // Register in Home Assistant Lovelace Card Picker
 window.customCards = window.customCards || [];
@@ -3601,4 +5287,26 @@ window.customCards.push({
   preview: true,
   documentationURL: "https://github.com/Trec-TorConsulting/TendrilGrow",
 });
+window.customCards.push({
+  type: "tendrilgrow-schedules-card",
+  name: "TendrilGrow Controller Schedules & Ambient Card",
+  description: "Smart controller schedule cycles, timer countdowns, and lung room ambient buffer telemetry.",
+  preview: true,
+  documentationURL: "https://github.com/Trec-TorConsulting/TendrilGrow",
+});
+window.customCards.push({
+  type: "tendrilgrow-plan-card",
+  name: "TendrilGrow Cultivation Plan & Tasks Card",
+  description: "Stage timeline progress, flip/harvest milestones, and interactive grow tasks checklist.",
+  preview: true,
+  documentationURL: "https://github.com/Trec-TorConsulting/TendrilGrow",
+});
+window.customCards.push({
+  type: "tendrilgrow-advisor-card",
+  name: "TendrilGrow AI Cultivation Intelligence Card",
+  description: "AI agronomy diagnostics, visual observations, anomaly analysis, and nutrient mixing recipes.",
+  preview: true,
+  documentationURL: "https://github.com/Trec-TorConsulting/TendrilGrow",
+});
+
 
