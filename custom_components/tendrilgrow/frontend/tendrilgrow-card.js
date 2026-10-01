@@ -158,23 +158,232 @@ function sortNutrientsByHorticulturalOrder(nutItems) {
 
 function generateAgronomyAdvice(query, ctx) {
   const q = (query || "").toLowerCase();
-  const space = ctx.spaceName || "Grow Space";
+  const space = ctx.space_name || ctx.spaceName || "Grow Space";
   const stage = ctx.stage || "Vegetative";
-  const ph = ctx.ph !== null ? Number(ctx.ph).toFixed(2) : null;
-  const ec = ctx.ec !== null ? Number(ctx.ec).toFixed(2) : null;
-  const vpd = ctx.vpd !== null ? Number(ctx.vpd).toFixed(2) : null;
-  const temp = ctx.temp !== null ? Math.round(ctx.temp) : null;
-  const rh = ctx.rh !== null ? Math.round(ctx.rh) : null;
-  const waterTemp = ctx.waterTemp !== null ? Math.round(ctx.waterTemp) : null;
-  const targetPhLow = ctx.targetPhLow !== null ? ctx.targetPhLow : 5.5;
-  const targetPhHigh = ctx.targetPhHigh !== null ? ctx.targetPhHigh : 6.2;
-  const targetEcLow = ctx.targetEcLow !== null ? ctx.targetEcLow : 1.2;
-  const targetEcHigh = ctx.targetEcHigh !== null ? ctx.targetEcHigh : 1.8;
-  const targetVpdLow = ctx.targetVpdLow !== null ? ctx.targetVpdLow : 0.8;
-  const targetVpdHigh = ctx.targetVpdHigh !== null ? ctx.targetVpdHigh : 1.2;
+  const stageLower = stage.toLowerCase();
+  const ph = ctx.ph !== null && ctx.ph !== undefined ? Number(ctx.ph).toFixed(2) : null;
+  const ec = ctx.ec !== null && ctx.ec !== undefined ? Number(ctx.ec).toFixed(2) : null;
+  const vpd = ctx.vpd !== null && ctx.vpd !== undefined ? Number(ctx.vpd).toFixed(2) : null;
+  const temp = (ctx.temp !== null && ctx.temp !== undefined) ? Math.round(ctx.temp) : (ctx.air_temp !== null && ctx.air_temp !== undefined ? Math.round(ctx.air_temp) : null);
+  const rh = (ctx.rh !== null && ctx.rh !== undefined) ? Math.round(ctx.rh) : (ctx.humidity !== null && ctx.humidity !== undefined ? Math.round(ctx.humidity) : null);
+  const waterTemp = (ctx.waterTemp !== null && ctx.waterTemp !== undefined) ? Math.round(ctx.waterTemp) : (ctx.water_temp !== null && ctx.water_temp !== undefined ? Math.round(ctx.water_temp) : null);
+  const targetPhLow = ctx.target_ph_low || ctx.targetPhLow || 5.5;
+  const targetPhHigh = ctx.target_ph_high || ctx.targetPhHigh || 6.2;
+  const targetEcLow = ctx.target_ec_low || ctx.targetEcLow || 1.2;
+  const targetEcHigh = ctx.target_ec_high || ctx.targetEcHigh || 1.8;
+  const daysSinceFlush = ctx.days_since_flush || ctx.daysSinceFlush || 0;
   const daysInStage = ctx.daysInStage || 14;
-  const daysSinceFlush = ctx.daysSinceFlush || 0;
 
+  // Determine stage-specific VPD and physiological profile
+  let idealVpdLow = 0.8;
+  let idealVpdHigh = 1.2;
+  let stageLabel = "Vegetative Growth";
+  let isBloom = stageLower.includes("flower") || stageLower.includes("bloom");
+  let isFlush = stageLower.includes("flush") || stageLower.includes("finish") || stageLower.includes("harvest");
+
+  if (stageLower.includes("seed") || stageLower.includes("clone")) {
+    idealVpdLow = 0.6;
+    idealVpdHigh = 0.8;
+    stageLabel = "Seedling / Early Rooting";
+  } else if (stageLower.includes("trans") || stageLower.includes("early_flower") || stageLower.includes("stretch")) {
+    idealVpdLow = 1.0;
+    idealVpdHigh = 1.3;
+    stageLabel = "Transition / Early Bloom (Stretch)";
+  } else if (stageLower.includes("mid_flower") || stageLower.includes("peak") || stageLower.includes("bloom")) {
+    idealVpdLow = 1.2;
+    idealVpdHigh = 1.5;
+    stageLabel = "Mid Flower (Floral Bulking)";
+  } else if (stageLower.includes("late_flower") || stageLower.includes("ripen")) {
+    idealVpdLow = 1.3;
+    idealVpdHigh = 1.6;
+    stageLabel = "Late Bloom / Ripening";
+  } else if (isFlush) {
+    idealVpdLow = 1.2;
+    idealVpdHigh = 1.6;
+    stageLabel = "Final Flush";
+  }
+
+  const vpdNum = vpd !== null ? Number(vpd) : null;
+  const phNum = ph !== null ? Number(ph) : null;
+  const ecNum = ec !== null ? Number(ec) : null;
+
+  // 1. WATER PREPARATION & MIXING ORDER PROTOCOL (High priority match)
+  if (q.includes("mixing order") || q.includes("water prep") || q.includes("prep") || q.includes("recipe") || q.includes("cal-mag before") || q.includes("order to prep") || (q.includes("mixing") && q.includes("order"))) {
+    return `### 🧪 Horticultural Water Prep & Nutrient Mixing Order
+**Grow Space:** ${space}  
+**Target EC for ${stageLabel}:** ${targetEcLow.toFixed(2)} – ${targetEcHigh.toFixed(2)} mS/cm
+
+---
+
+#### Strict Chemical Sequence (To Prevent Nutrient Lockout & Salt Precipitation):
+1. **Source Water Baseline**: Fill reservoir with pure RO or dechlorinated water. Aerate with air stones for 15 minutes to stabilize DO (Dissolved Oxygen) and temperature (~65°F–68°F).
+2. **Step 1 — Silica (Armor Si)**: ⚠️ *Add FIRST.* Mix thoroughly and wait **10–15 minutes** before adding any other nutrient. Silica requires high pH free water to bond; adding it after acids will cause white precipitate crystals.
+3. **Step 2 — Cal-Mag (CaliMagic)**: ⚠️ *Add SECOND.* Calcium cations will bond with sulfates/phosphates and fall out of solution if added after base nutrients. Stir until completely dissolved.
+4. **Step 3 — Micro / Chelates (FloraMicro)**: *Add THIRD.* FloraMicro contains chelated iron, nitrogen, and trace minerals. Disperse thoroughly in the solution.
+5. **Step 4 — Grow (FloraGro)**: *Add FOURTH.* Provides vegetative nitrogen and potassium.
+6. **Step 5 — Bloom (FloraBloom)**: *Add FIFTH.* Delivers high phosphorus and potassium for root expansion and floral bulking.
+7. **Step 6 — Specialized Additives**: Add supplements (KoolBloom, Kelp, Humic/Fulvic acids, Enzymes).
+8. **Step 7 — Beneficial Microbes (Hydroguard)**: Add Bacillus amyloliquefaciens to inoculate the root zone against root rot (*Pythium*).
+9. **Step 8 — pH Buffer**: 🎯 **Adjust LAST.** Wait 15 minutes after all salts are dissolved. Measure pH and adjust incrementally using diluted pH Down/Up to target **5.80 pH**.`;
+  }
+
+  // 2. FLUSH & FILL ROUTINE (High priority match)
+  if (q.includes("flush") || q.includes("clean") || (q.includes("when") && (q.includes("reservoir") || q.includes("water change")))) {
+    return `### 🌊 Reservoir Flush & Routine Protocol
+**Grow Space:** ${space}  
+**Days Since Last Flush:** ${daysSinceFlush} days *(Recommended cycle: **7 – 10 days**)*
+
+---
+
+#### Agronomic Rationale:
+- Plants drink water and selective elemental ions at varying rates depending on stage, transpiration, and light intensity.
+- Over 7–10 days in RDWC/hydroponics, unused ballast counter-ions accumulate, causing ionic antagonism (e.g. excess potassium blocking magnesium uptake) even when EC reads in target range!
+- A complete drain, flush, and refill resets root osmotic potential and replenishes dissolved oxygen.
+
+---
+
+#### 📋 Recommended Action:
+- ${daysSinceFlush >= 7 ? `⚠️ **Flush Due**: It has been **${daysSinceFlush} days** since your last reservoir reset. Prepare a fresh batch of balanced nutrients today!` : `✅ **Reservoir Stable**: Only **${daysSinceFlush} days** since last reset. Continue daily top-offs with balanced RO mix.`}
+- **Quick Logging**: You can record your flush on the **Cultivation Plan & Tasks** card under **Parameters & Reservoir Routine** using the **Log Flush & Fill Completed** button!`;
+  }
+
+  // 3. TARGET CORRIDOR & CULTIVATION LIMITS ADVICE
+  if (q.includes("corridor") || q.includes("target ec") || q.includes("target ph") || (q.includes("target") && (q.includes("corridor") || q.includes("ec") || q.includes("ph") || q.includes("vpd") || q.includes("parameter")))) {
+    return `### 🎯 Target Cultivation Corridors for ${space}
+**Lifecycle Stage:** ${stageLabel}
+
+---
+
+#### 1. Live Telemetry vs Stage Corridors
+- **Target pH Corridor:** **${targetPhLow.toFixed(2)} – ${targetPhHigh.toFixed(2)}** *(Current: **${ph || "--"}**)*
+  - Sweet spot baseline: **5.80**. Macro and micro nutrients are bioavailable across this entire corridor.
+- **Target EC Corridor:** **${targetEcLow.toFixed(2)} – ${targetEcHigh.toFixed(2)} mS/cm** *(Current: **${ec || "--"} mS/cm**)*
+  - Calibrated for ${stageLabel}. Maintains steady osmotic intake without tip-burn.
+- **Target Canopy VPD:** **${idealVpdLow.toFixed(2)} – ${idealVpdHigh.toFixed(2)} kPa** *(Current: **${vpd || "--"} kPa**)*
+  - Drives healthy transpirational pull through the vascular xylem.
+
+---
+
+#### 2. Reservoir Standards
+- **Water Temperature:** **65°F – 68°F** *(Current: **${waterTemp ? `${waterTemp}°F` : "--"}**)*
+- **Reset Frequency:** Every 7–10 days *(Days since flush: **${daysSinceFlush}**)*`;
+  }
+
+  // 4. VPD & ENVIRONMENTAL CORRIDOR CHECK
+  if (q.includes("vpd") || q.includes("humidity") || q.includes("vapor") || (q.includes("sweet spot") && !q.includes("ph"))) {
+    let vpdEval = "";
+    if (vpdNum !== null) {
+      if (vpdNum < idealVpdLow) {
+        vpdEval = `⚠️ **CRITICAL VPD SUPPRESSION (${vpdNum} kPa vs Target ${idealVpdLow.toFixed(2)}–${idealVpdHigh.toFixed(2)} kPa)**:
+- At **${vpdNum} kPa**, the ambient air is saturated with water vapor.
+- **Transpiration is severely choked**: The plant cannot lift water or dissolved calcium up to leaf margins and floral calyxes.
+${isBloom ? `- 🚨 **Extreme Mold & Botrytis Risk**: Trapped moisture in dense flower colas creates the ideal micro-climate for *Botrytis cinerea* (bud rot) and powdery mildew.` : `- Stomata remain restricted, risking edema and slowing vegetative growth.`}
+- **Immediate Action**: Increase inline exhaust ventilation and lower dehumidifier setpoint to **45% – 50% RH** to raise VPD into the **${idealVpdLow.toFixed(2)}–${idealVpdHigh.toFixed(2)} kPa** corridor immediately!`;
+      } else if (vpdNum > idealVpdHigh) {
+        vpdEval = `⚠️ **ELEVATED VPD ALERT (${vpdNum} kPa vs Target ${idealVpdLow.toFixed(2)}–${idealVpdHigh.toFixed(2)} kPa)**:
+- Air is drawing moisture faster than root osmosis can supply it.
+- Guard cells close stomata to prevent dehydration, halting photosynthesis and risking calcium tip-burn.
+- **Immediate Action**: Lower exhaust ventilation or increase humidity to restore canopy transpiration below **${idealVpdHigh.toFixed(2)} kPa**.`;
+      } else {
+        vpdEval = `✅ **VPD IS IN THE SWEET SPOT (${vpdNum} kPa)**:
+- Stomatal conductance is open and transpirational lift is actively driving nutrients through the plant.
+- Perfect atmospheric equilibrium for ${stageLabel}.`;
+      }
+    }
+
+    return `### 🌿 Environmental Vigor & VPD Corridor Analysis
+**Grow Space:** ${space}  
+**Lifecycle Stage:** ${stageLabel}
+
+---
+
+#### Telemetry Status:
+- **Canopy VPD:** **${vpd || "--"} kPa** *(Stage target: **${idealVpdLow.toFixed(2)} – ${idealVpdHigh.toFixed(2)} kPa**)*
+- **Canopy Climate:** ${temp ? `${temp}°F` : "--"} / ${rh ? `${rh}% RH` : "--"}
+
+---
+
+#### Agronomic Evaluation:
+${vpdEval || "Maintain atmospheric stability in target corridor."}
+
+- **Climate Targets**: Daytime canopy temp: **74°F–78°F**, Nighttime temp: **68°F–72°F**.`;
+  }
+
+  // 5. CANOPY HEALTH & TELEMETRY VIGOR (Full multi-variable diagnosis)
+  if (q.includes("health") || q.includes("canopy") || q.includes("vigor") || q.includes("telemetry") || q.includes("status") || q.includes("how are my") || q.includes("how healthy") || q.includes("check")) {
+    let vpdAlert = "";
+    if (vpdNum !== null) {
+      if (vpdNum < idealVpdLow) {
+        vpdAlert = `⚠️ **CRITICAL VPD ALERT (${vpdNum} kPa vs Target ${idealVpdLow.toFixed(2)}–${idealVpdHigh.toFixed(2)} kPa)**:
+- At **${vpdNum} kPa**, the ambient air is saturated with moisture.
+- **Transpiration is severely choked**: The plant cannot draw water or dissolved calcium up from the roots to the leaf margins and developing floral calyxes.
+${isBloom ? `- 🚨 **Extreme Mold & Botrytis Risk**: Trapped moisture in dense mid/late-flower colas creates the ideal micro-climate for *Botrytis cinerea* (bud rot) and powdery mildew.` : `- Stomata remain restricted, stalling vegetative node development and risking leaf edema.`}
+- **Immediate Action**: Increase inline exhaust ventilation and drop dehumidifier setpoint to **45% – 50% RH** to raise VPD into the **${idealVpdLow.toFixed(2)}–${idealVpdHigh.toFixed(2)} kPa** corridor immediately!`;
+      } else if (vpdNum > idealVpdHigh) {
+        vpdAlert = `⚠️ **ELEVATED VPD ALERT (${vpdNum} kPa vs Target ${idealVpdLow.toFixed(2)}–${idealVpdHigh.toFixed(2)} kPa)**:
+- Air is drawing moisture faster than root osmosis can supply it.
+- Guard cells will close stomatal pores to conserve hydration, risking calcium tip-burn.
+- **Immediate Action**: Increase humidification or dial down exhaust extraction to restore canopy transpiration below **${idealVpdHigh.toFixed(2)} kPa**.`;
+      } else {
+        vpdAlert = `✅ **VPD is in the Sweet Spot (${vpdNum} kPa)**: Stomatal conductance is open and transpiration is actively driving nutrient uptake throughout the canopy vascular system.`;
+      }
+    }
+
+    let rootStatus = [];
+    if (phNum !== null) {
+      if (phNum < 5.6) {
+        rootStatus.push(`- **Reservoir pH (${phNum})**: Sitting on the low boundary (corridor: ${targetPhLow}–${targetPhHigh}). At 5.50, Phosphorus and Potassium are absorbed readily, but Calcium and Magnesium uptake can become restricted if it drops below 5.50. Allow it to drift naturally toward 5.80 baseline.`);
+      } else if (phNum > 6.1) {
+        rootStatus.push(`- **Reservoir pH (${phNum})**: Drifting high (corridor: ${targetPhLow}–${targetPhHigh}). Above 6.20, Iron (Fe) and micro-nutrient bioavailability drops rapidly. Dose small amount of diluted pH Down.`);
+      } else {
+        rootStatus.push(`- **Reservoir pH (${phNum})**: ✅ Optimal sweet spot (${targetPhLow}–${targetPhHigh}). All macro and micro elements are in prime bioavailable solution.`);
+      }
+    }
+
+    if (ecNum !== null) {
+      if (ecNum < targetEcLow) {
+        rootStatus.push(`- **Reservoir EC (${ecNum} mS/cm)**: Slightly light for ${stageLabel}. Plants are feeding actively; you have room to increase nutrient dosage up to ${targetEcHigh} mS/cm.`);
+      } else if (ecNum > targetEcHigh) {
+        rootStatus.push(`- **Reservoir EC (${ecNum} mS/cm)**: Approaching upper salinity ceiling (${targetEcHigh} mS/cm). Dilute with RO water to avoid osmotic root pressure.`);
+      } else {
+        rootStatus.push(`- **Reservoir EC (${ecNum} mS/cm)**: ✅ Perfectly calibrated for ${stageLabel} (${targetEcLow}–${targetEcHigh} mS/cm corridor).`);
+      }
+    }
+
+    if (waterTemp !== null) {
+      if (waterTemp > 70) {
+        rootStatus.push(`- **Water Temp (${waterTemp}°F)**: ⚠️ Elevated (>70°F). Dissolved oxygen retention drops and Pythium risk rises. Verify chiller cooling.`);
+      } else {
+        rootStatus.push(`- **Water Temp (${waterTemp}°F)**: ✅ Optimal (<70°F). High dissolved oxygen retention protects root health.`);
+      }
+    }
+
+    return `### 🌿 Comprehensive Canopy Health & Telemetry Diagnosis
+**Grow Space:** ${space}  
+**Lifecycle Stage:** ${stageLabel}  
+**Canopy Vigor Status:** ${vpdNum && vpdNum < idealVpdLow ? "⚠️ **VPD Suppression Alert (Transpiration Stalled)**" : "✅ **Vigor Balanced**"}
+
+---
+
+#### 1. Atmospheric & Transpiration Analysis
+- **Canopy VPD:** **${vpd || "--"} kPa** *(Stage target: **${idealVpdLow.toFixed(2)} – ${idealVpdHigh.toFixed(2)} kPa**)*
+- **Canopy Climate:** ${temp ? `${temp}°F` : "--"} / ${rh ? `${rh}% RH` : "--"}
+${vpdAlert}
+
+---
+
+#### 2. Root Zone & Hydroponic Telemetry
+${rootStatus.length > 0 ? rootStatus.join("\n") : "- Telemetry nominal across all parameters."}
+
+---
+
+#### 📋 Priority Action Items for Today:
+1. ${vpdNum && vpdNum < idealVpdLow ? `🎯 **Lower humidity / increase exhaust extraction** to raise VPD from **${vpdNum} kPa** up into the **${idealVpdLow.toFixed(2)}–${idealVpdHigh.toFixed(2)} kPa** band immediately.` : `Maintain atmospheric stability in the **${idealVpdLow.toFixed(2)}–${idealVpdHigh.toFixed(2)} kPa** corridor.`}
+2. 👁️ ${isBloom ? "Inspect inside dense flower colas and lower canopy for stagnant moisture pockets." : "Check vegetative leaf posture, pray angle, and root hair development."}
+3. 💧 ${phNum && phNum < 5.6 ? "Monitor pH: Allow natural upward drift toward 5.80; do not over-adjust." : "Verify reservoir level and top off with balanced RO mix as water is consumed."}`;
+  }
+
+  // 6. PH MANAGEMENT & DRIFT
   if (q.includes("ph") || q.includes("drift") || q.includes("acid") || q.includes("alkal")) {
     if (ph !== null) {
       if (ph > targetPhHigh) {
@@ -188,6 +397,7 @@ function generateAgronomyAdvice(query, ctx) {
     return `### 🧪 Hydroponic pH Management\nFor **${stage}**, maintain your reservoir between **${targetPhLow} and ${targetPhHigh}** (sweet spot: **5.80**). Always mix Cal-Mag and base nutrients completely before testing and adjusting pH as the final step!`;
   }
 
+  // 7. EC / SALINITY & FEEDING STRENGTH
   if (q.includes("ec") || q.includes("ppm") || q.includes("feed") || q.includes("burn") || q.includes("strength") || q.includes("nutrient")) {
     if (ec !== null) {
       if (ec > targetEcHigh) {
@@ -200,20 +410,9 @@ function generateAgronomyAdvice(query, ctx) {
     }
   }
 
-  if (q.includes("recipe") || q.includes("order") || q.includes("prep") || q.includes("calmag") || q.includes("cal-mag") || q.includes("silica") || q.includes("mix")) {
-    return `### 🧪 Standard Horticultural Mixing Order Protocol\nWhen preparing or topping off your reservoir for **${space}**, always follow this strict chemical sequence to avoid nutrient precipitation and lockout:\n\n1. **Water Base & Aeration**: Ensure RO or dechlorinated water is at ~65–68°F.\n2. **Step 1 — Silica (Armor Si)**: *Add FIRST.* Dissolve thoroughly and wait **10–15 minutes** before adding anything else. Silica needs free water to bind properly.\n3. **Step 2 — Cal-Mag (CaliMagic)**: *Add SECOND.* Calcium will bond with sulfates/phosphates and precipitate out if added after Micro or Grow. Mix until crystal clear.\n4. **Step 3 — Micro / Base (FloraMicro)**: *Add THIRD.* Stir well to disperse chelates.\n5. **Step 4 — Grow (FloraGro)**: *Add FOURTH.* Provides vegetative nitrogen & potassium.\n6. **Step 5 — Bloom (FloraBloom)**: *Add FIFTH.* Phosphorus & potassium builder.\n7. **Step 6 — Additives & Boosters**: Add kelp, enzymes, and fulvic/humic supplements.\n8. **Step 7 — Beneficial Microbes (Hydroguard)**: Add live biological inoculants to guard root zones.\n9. **Step 8 — pH Buffer**: **Adjust LAST.** Wait 15 minutes after mixing all salts, check pH, and adjust gently to **5.80**.`;
-  }
-
-  if (q.includes("vpd") || q.includes("humidity") || q.includes("temp") || q.includes("stomata") || q.includes("climate") || q.includes("vapor")) {
-    return `### 🌿 Environmental Vigor & VPD Analysis\n- **Current VPD**: ${vpd !== null ? `**${vpd} kPa** (Target: ${targetVpdLow}–${targetVpdHigh} kPa)` : `Target: ${targetVpdLow}–${targetVpdHigh} kPa`}\n- **Canopy Climate**: ${temp !== null ? `${temp}°F` : "--"} / ${rh !== null ? `${rh}% RH` : "--"}\n\n**Agronomic Insights:**\n${vpd && vpd > targetVpdHigh ? `- **High VPD Alert**: Air draws moisture faster than roots can supply. Stomata close to conserve water, risking calcium tip-burn. Increase humidifier or reduce exhaust speed.` : vpd && vpd < targetVpdLow ? `- **Low VPD Alert**: Transpiration is sluggish. Calcium cannot travel up to leaf tips without active water flow. Increase exhaust ventilation.` : `- **Sweet-Spot Corridors**: Stomata are open and transpirational pull is steady. Calcium and mobile ions are flowing evenly through the vascular xylem.`}\n- Maintain daytime canopy temps around **74–78°F** and nighttime around **68–72°F**.`;
-  }
-
-  if (q.includes("flip") || q.includes("harvest") || q.includes("stage") || q.includes("when") || q.includes("flower") || q.includes("time")) {
+  // 8. STAGE & MILESTONES
+  if (q.includes("flip") || q.includes("harvest") || q.includes("stage") || q.includes("flower") || q.includes("time") || q.includes("when")) {
     return `### 🔄 Cultivation Pipeline & Milestone Projections\n- **Current Space**: ${space}\n- **Stage**: ${stage} (Day ${daysInStage})\n\n**Guidance for ${stage}:**\n- For transitioning from Veg to Flower (12/12 flip), ensure canopy trellis is 70–80% full, as plants stretch 50–100% in height during weeks 1–3 of flower.\n- Perform lower canopy defoliation (lollipop) 3 days prior to flip.\n- Transition light schedule to 12h ON / 12h OFF and transition base nutrient ratios toward higher bloom macro-nutrients.`;
-  }
-
-  if (q.includes("flush") || q.includes("clean") || q.includes("reservoir") || q.includes("change")) {
-    return `### 🌊 Reservoir Flush & Routine Protocol\n- **Days Since Last Flush**: ${daysSinceFlush} days (Recommended interval: 7–10 days)\n\n**Why Routine Flush & Fills Matter:**\n- Over 7–10 days in RDWC / hydroponics, plants consume specific ions disproportionately, leaving behind ballast counter-ions that skew nutrient ratios even if EC looks normal.\n- A full flush & fill resets the root zone with fresh, oxygen-saturated water and balanced elemental ratios.\n\n**Quick Action:**\nYou can log that you performed a reservoir flush right now on the **Cultivation Plan & Tasks** card under **Parameters & Reservoir Routine** using the **Log Flush & Fill Completed** button!`;
   }
 
   return `### 🧠 TendrilGrow Autonomous Agronomist for ${space}\nHere is the real-time cultivation status for your **${stage}** cycle:\n\n- **Telemetry**: pH: **${ph || "--"}** | EC: **${ec || "--"} mS/cm** | VPD: **${vpd || "--"} kPa** | Temp: **${temp || "--"}°F**\n- **Reservoir**: Water Temp: **${waterTemp || "--"}°F** | Days Since Flush: **${daysSinceFlush}**\n- **System Health**: All automated sensor telemetry is monitored in real time.\n\nAsk me anything specific like *"Analyze my pH"*, *"How do I prep this week's water recipe?"*, or *"Is my VPD in the sweet spot?"*!`;
@@ -5499,12 +5698,27 @@ class TendrilGrowPlanCard extends HTMLElement {
 function formatChatMarkdown(txt) {
   if (!txt) return "";
   let out = escapeHtml(txt);
-  out = out.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-  out = out.replace(/\*(.*?)\*/g, "<em>$1</em>");
-  out = out.replace(/`([^`]+)`/g, "<code style=\"background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;color:#67e8f9;font-family:monospace;font-size:11px;\">$1</code>");
-  out = out.replace(/^\s*[\-\*]\s+(.*)$/gm, "<div style=\"display:flex;gap:6px;margin:2px 0;\"><span style=\"color:#8b5cf6;\">•</span><span>$1</span></div>");
-  out = out.replace(/\n\n/g, "<br><br>");
-  out = out.replace(/\n/g, "<br>");
+  // Headings
+  out = out.replace(/^### (.*)$/gm, '<div style="font-weight:700;font-size:13.5px;color:#a78bfa;margin:8px 0 4px 0;letter-spacing:-0.2px;">$1</div>');
+  out = out.replace(/^#### (.*)$/gm, '<div style="font-weight:600;font-size:12px;color:#38bdf8;margin:6px 0 3px 0;">$1</div>');
+  // Horizontal rule
+  out = out.replace(/^---$/gm, '<div style="height:1px;background:rgba(255,255,255,0.08);margin:8px 0;"></div>');
+  // Blockquotes
+  out = out.replace(/^&gt;\s*(.*)$/gm, '<div style="border-left:3px solid #8b5cf6;padding-left:8px;margin:4px 0;color:#94a3b8;font-size:11.5px;">$1</div>');
+  // Bold & Italic
+  out = out.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  // Inline code
+  out = out.replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px;color:#67e8f9;font-family:monospace;font-size:11px;">$1</code>');
+  // Unordered list items
+  out = out.replace(/^\s*[\-\*]\s+(.*)$/gm, '<div style="display:flex;gap:6px;margin:3px 0;align-items:flex-start;"><span style="color:#8b5cf6;line-height:1.4;">•</span><span style="flex:1;">$1</span></div>');
+  // Numbered list items
+  out = out.replace(/^\s*(\d+)\.\s+(.*)$/gm, '<div style="display:flex;gap:6px;margin:3px 0;align-items:flex-start;"><span style="color:#06b6d4;font-weight:600;font-size:11.5px;line-height:1.4;">$1.</span><span style="flex:1;">$2</span></div>');
+  // Newlines
+  out = out.replace(/\n\n/g, '<br><br>');
+  out = out.replace(/\n/g, '<br>');
+  // Clean superfluous breaks directly around div tags
+  out = out.replace(/<\/div><br>/g, '</div>').replace(/<br><div/g, '<div');
   return out;
 }
 
@@ -7257,15 +7471,20 @@ class TendrilGrowChatCard extends HTMLElement {
 
     const agronomyContext = {
       space_name: this._config.space_name || "Cultivation Space",
+      spaceName: this._config.space_name || "Cultivation Space",
       space_slug: this._config.space_slug || "",
       stage: stageVal,
       ph: phVal,
       ec: ecVal,
       vpd: vpdVal,
       air_temp: tempVal,
+      temp: tempVal,
       humidity: rhVal,
+      rh: rhVal,
       water_temp: waterTempVal,
+      waterTemp: waterTempVal,
       days_since_flush: daysSinceFlush,
+      daysSinceFlush: daysSinceFlush,
       reservoir_volume: this._config.reservoir_volume || 15,
       target_ph_low: this._config.target_ph_low || 5.5,
       target_ph_high: this._config.target_ph_high || 6.2,
@@ -7277,25 +7496,59 @@ class TendrilGrowChatCard extends HTMLElement {
 
     let reply = "";
 
-    if (this._hass && typeof this._hass.callWS === "function") {
+    const isAssistDeviceError = (text, resObj) => {
+      if (!text || typeof text !== "string") return true;
+      if (resObj) {
+        if (resObj.response_type === "error") return true;
+        if (resObj.data && (resObj.data.code === "no_intent_match" || resObj.data.code === "unknown_error")) return true;
+      }
+      const t = text.toLowerCase();
+      if (t.includes("referring to") && (t.includes("didn't understand") || t.includes("couldn't understand"))) return true;
+      if (t.includes("didn't understand the whole request") || t.includes("couldn't understand that")) return true;
+      if (t.includes("sorry, i couldn't understand") || t.includes("sorry, i didn't understand")) return true;
+      if (t.includes("not sure which device") || t.includes("no device found")) return true;
+      if (t.startsWith("sorry,") && t.length < 120 && (t.includes("device") || t.includes("light") || t.includes("understand"))) return true;
+      return false;
+    };
+
+    // If an explicit LLM conversation agent is configured (and NOT the built-in Home Assistant voice intent matcher)
+    const configuredAgent = this._config.conversation_agent || this._config.agent_id;
+    if (configuredAgent && configuredAgent !== "conversation.home_assistant" && this._hass && typeof this._hass.callWS === "function") {
       try {
         const res = await Promise.race([
           this._hass.callWS({
             type: "conversation/process",
-            text: `[Space: ${agronomyContext.space_name} | Stage: ${agronomyContext.stage} | pH: ${agronomyContext.ph} | EC: ${agronomyContext.ec} | VPD: ${agronomyContext.vpd} kPa | Water Temp: ${agronomyContext.water_temp}°F] ${query}`,
+            agent_id: configuredAgent,
+            text: `You are an expert AI Master Agronomist for this specific grow space: "${agronomyContext.space_name}".
+Live Telemetry Context:
+- Stage: ${agronomyContext.stage}
+- pH: ${agronomyContext.ph} (Target: ${agronomyContext.target_ph_low}–${agronomyContext.target_ph_high})
+- EC: ${agronomyContext.ec} mS/cm (Target: ${agronomyContext.target_ec_low}–${agronomyContext.target_ec_high})
+- Canopy VPD: ${agronomyContext.vpd} kPa (Target: ${agronomyContext.target_vpd_low}–${agronomyContext.target_vpd_high} kPa)
+- Air: ${agronomyContext.temp}°F, ${agronomyContext.rh}% RH
+- Water Temp: ${agronomyContext.water_temp}°F
+- Days Since Flush: ${agronomyContext.days_since_flush}
+
+Grower Question: ${query}
+
+Provide direct, actionable, professional agronomic advice grounded strictly in this live telemetry.`,
           }),
-          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2500)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3500)),
         ]);
         if (res && res.response && res.response.speech && res.response.speech.plain && res.response.speech.plain.speech) {
-          reply = res.response.speech.plain.speech;
+          const candidate = res.response.speech.plain.speech.trim();
+          if (!isAssistDeviceError(candidate, res.response)) {
+            reply = candidate;
+          }
         }
       } catch (e) {
-        // Fallback
+        // Fall back gracefully to built-in agronomy intelligence engine
       }
     }
 
     if (!reply) {
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      // Simulate real-time agronomic analysis computation
+      await new Promise((resolve) => setTimeout(resolve, 350));
       reply = generateAgronomyAdvice(query, agronomyContext);
     }
 
