@@ -412,19 +412,15 @@ def _section(
     heading: str,
     cards: list[dict],
     *,
-    column_span: int | None = None,
     heading_style: str = "subtitle",
 ) -> dict | None:
     """A grid section. Omitted when it would contain only a heading."""
     if not cards:
         return None
-    section: dict[str, Any] = {
+    return {
         "type": "grid",
         "cards": [_heading(heading, style=heading_style), *cards],
     }
-    if column_span is not None:
-        section["column_span"] = column_span
-    return section
 
 
 def _score_gauge(entity_id: str, name: str) -> dict:
@@ -702,7 +698,7 @@ def build_space_view(space: dict) -> dict:
     sections: list[dict] = []
 
     camera = _camera_card(space)
-    watch = _section("Watch", [camera] if camera else [], column_span=2)
+    watch = _section("Watch", [camera] if camera else [])
     if watch:
         sections.append(watch)
 
@@ -745,14 +741,14 @@ def build_space_view(space: dict) -> dict:
     if operations:
         sections.append(operations)
 
-    trends = _section("Trends", _trends_cards(space), column_span=2)
+    trends = _section("Trends", _trends_cards(space))
     if trends:
         sections.append(trends)
 
     advisor_cards = (
         _advisor_cards(reg["ai_health_score"]) if reg.get("ai_health_score") else []
     )
-    advisor = _section("Advisor", advisor_cards, column_span=2)
+    advisor = _section("Advisor", advisor_cards)
     if advisor:
         sections.append(advisor)
 
@@ -849,7 +845,6 @@ def build_overview(spaces: list[dict]) -> dict:
         sections.append(
             {
                 "type": "grid",
-                "column_span": max(len(spaces), 1),
                 "cards": [
                     _heading("Trend"),
                     {
@@ -958,7 +953,6 @@ def build_digital_twin_space_view(space: dict) -> dict:
         {
             "type": "grid",
             "cards": [twin_card],
-            "column_span": 2,
         }
     ]
 
@@ -1015,7 +1009,6 @@ def build_digital_twin_space_view(space: dict) -> dict:
                     _heading("24h Telemetry Trends", style="subtitle"),
                     *trend_cards,
                 ],
-                "column_span": 2,
             }
         )
 
@@ -1028,7 +1021,6 @@ def build_digital_twin_space_view(space: dict) -> dict:
                     _heading("AI Cultivation Intelligence", style="subtitle"),
                     *advisor,
                 ],
-                "column_span": 2,
             }
         )
 
@@ -1046,6 +1038,9 @@ def build_digital_twin_space_view(space: dict) -> dict:
 def build_digital_twin_overview(spaces: list[dict]) -> dict:
     """Build the modern executive overview card comparing all spaces."""
     overview_spaces = []
+    canopy_trends: list[str] = []
+    hydro_trends: list[str] = []
+
     for s in spaces:
         reg = s.get("reg") or {}
         sensors = s.get("sensors") or {}
@@ -1058,12 +1053,24 @@ def build_digital_twin_overview(spaces: list[dict]) -> dict:
             item["camera"] = s["camera"]
         if sensors.get("temperature"):
             item["temperature"] = sensors["temperature"]
+            canopy_trends.append(sensors["temperature"])
         if sensors.get("humidity"):
             item["humidity"] = sensors["humidity"]
+            canopy_trends.append(sensors["humidity"])
         if reg.get("vpd"):
             item["vpd"] = reg["vpd"]
+            canopy_trends.append(reg["vpd"])
+        if reg.get("leaf_vpd"):
+            item["leaf_vpd"] = reg["leaf_vpd"]
         if sensors.get("ph"):
             item["ph"] = sensors["ph"]
+            hydro_trends.append(sensors["ph"])
+        if sensors.get("ec"):
+            item["ec"] = sensors["ec"]
+            hydro_trends.append(sensors["ec"])
+        if sensors.get("water_temperature"):
+            item["water_temperature"] = sensors["water_temperature"]
+            hydro_trends.append(sensors["water_temperature"])
         if reg.get("ai_health_score"):
             item["ai_health_score"] = reg["ai_health_score"]
         if reg.get("ctx_stage"):
@@ -1072,6 +1079,16 @@ def build_digital_twin_overview(spaces: list[dict]) -> dict:
             item["light"] = controls["lights"]
         if controls.get("fans"):
             item["fan"] = controls["fans"]
+        if controls.get("inline_fans"):
+            item["duct_fan"] = controls["inline_fans"]
+        if reg.get("mold_risk"):
+            item["mold_risk"] = reg["mold_risk"]
+        if reg.get("flush_due"):
+            item["flush_due"] = reg["flush_due"]
+        if reg.get("metric_band_summary"):
+            item["metrics_out_of_range"] = reg["metric_band_summary"]
+        if reg.get("ai_health_critical_alert"):
+            item["ai_critical_alert"] = reg["ai_health_critical_alert"]
         overview_spaces.append(item)
 
     cards = [
@@ -1083,28 +1100,41 @@ def build_digital_twin_overview(spaces: list[dict]) -> dict:
         },
     ]
 
-    trend = _trend_entities(spaces)
     sections: list[dict[str, Any]] = [
         {
             "type": "grid",
             "cards": cards,
-            "column_span": 2,
         }
     ]
-    if trend:
+
+    trend_cards = []
+    if canopy_trends:
+        trend_cards.append(
+            {
+                "type": "history-graph",
+                "title": "Canopy Climate History (24h)",
+                "hours_to_show": 24,
+                "entities": canopy_trends,
+            }
+        )
+    if hydro_trends:
+        trend_cards.append(
+            {
+                "type": "history-graph",
+                "title": "Hydroponic Reservoir History (24h)",
+                "hours_to_show": 24,
+                "entities": hydro_trends,
+            }
+        )
+
+    if trend_cards:
         sections.append(
             {
                 "type": "grid",
                 "cards": [
                     _heading("24-Hour Telemetry Trends", style="subtitle"),
-                    {
-                        "type": "history-graph",
-                        "title": "Water Temperature and pH Trend (24h)",
-                        "hours_to_show": 24,
-                        "entities": trend,
-                    },
+                    *trend_cards,
                 ],
-                "column_span": 2,
             }
         )
 

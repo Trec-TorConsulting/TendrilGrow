@@ -1,585 +1,578 @@
-# TendrilGrow Ultimate Digital Twin & Cockpit Dashboard
-# Tailored for Mobile Phones, Wall-Mounted Tablets, and Desktop Displays
 title: Tendrial Grow
 views:
-  # ==========================================================================
-  # EXECUTIVE OVERVIEW
-  # ==========================================================================
-  - path: overview
-    title: Executive
-    icon: mdi:view-dashboard
-    type: sections
-    max_columns: 2
-    sections:
-      - type: grid
-        cards:
-          - type: heading
-            heading: All Grow Spaces
-            heading_style: title
-          - type: custom:tendrilgrow-overview-card
-            title: Cultivation Network Overview
-            spaces:
-              - name: 3x3 Mothers Tent
-                path: /tendrial-grow/zone-3x3_mothers_tent
-                camera: camera.grow_tent_3x3_fluent
-                temperature: sensor.3x3_controller_inside_temperature
-                humidity: sensor.3x3_controller_inside_humidity
-                vpd: sensor.3x3_mothers_tent_vpd
-                ph: sensor.3x3_water_monitor_ph
-                ai_health_score: sensor.3x3_mothers_tent_ai_health_score
-                stage: select.3x3_mothers_tent_growth_stage
-                light: light.3x3_controller_grow_light
-                fan: fan.3x3_controller_circulation_fan
-              - name: 4x4 Full Cycle Tent
-                path: /tendrial-grow/zone-4x4_full_cycle_tent
-                camera: camera.grow_tent_4k_fluent
-                temperature: sensor.4x4_controller_inside_temperature
-                humidity: sensor.4x4_controller_inside_humidity
-                vpd: sensor.4x4_full_cycle_tent_vpd
-                ph: sensor.4x4_water_monitor_ph
-                ai_health_score: sensor.4x4_full_cycle_tent_ai_health_score
-                stage: select.4x4_full_cycle_tent_growth_stage
-                light: light.4x4_controller_grow_light
-                fan: fan.4x4_controller_circulation_fan
-              - name: Clone
-                path: /tendrial-grow/zone-clone
-                vpd: sensor.basement_clone_vpd
-                ai_health_score: sensor.basement_clone_ai_health_score
-                stage: select.clone_growth_stage
-        column_span: 2
+- path: overview
+  title: Executive
+  icon: mdi:view-dashboard
+  type: sections
+  max_columns: 2
+  sections:
+  - type: grid
+    cards:
+    - type: heading
+      heading: All Grow Spaces
+      heading_style: title
+    - type: custom:tendrilgrow-overview-card
+      title: Cultivation Network Overview
+      spaces:
+      - name: 3x3 Mothers Tent
+        path: /tendrial-grow/zone-3x3_mothers_tent
+        camera: camera.grow_tent_3x3_fluent
+        temperature: sensor.3x3_controller_inside_temperature
+        humidity: sensor.3x3_controller_inside_humidity
+        vpd: sensor.3x3_mothers_tent_vpd
+        leaf_vpd: sensor.3x3_mothers_tent_leaf_vpd
+        ph: sensor.3x3_water_monitor_ph
+        ec: sensor.3x3_water_monitor_electrical_conductivity
+        water_temperature: sensor.3x3_water_monitor_temperature
+        ai_health_score: sensor.3x3_mothers_tent_ai_health_score
+        stage: select.3x3_mothers_tent_growth_stage
+        light: light.3x3_controller_grow_light
+        fan: fan.3x3_controller_circulation_fan
+        duct_fan: fan.3x3_controller_duct_fan
+        mold_risk: binary_sensor.3x3_mothers_tent_mold_risk
+        flush_due: binary_sensor.3x3_mothers_tent_flush_due
+        metrics_out_of_range: binary_sensor.3x3_mothers_tent_metrics_out_of_range
+        ai_critical_alert: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
+      - name: 4x4 Full Cycle Tent
+        path: /tendrial-grow/zone-4x4_full_cycle_tent
+        camera: camera.grow_tent_4k_fluent
+        temperature: sensor.4x4_controller_inside_temperature
+        humidity: sensor.4x4_controller_inside_humidity
+        vpd: sensor.4x4_full_cycle_tent_vpd
+        leaf_vpd: sensor.4x4_full_cycle_tent_leaf_vpd
+        ph: sensor.4x4_water_monitor_ph
+        ec: sensor.4x4_water_monitor_electrical_conductivity
+        water_temperature: sensor.4x4_water_monitor_temperature
+        ai_health_score: sensor.4x4_full_cycle_tent_ai_health_score
+        stage: select.4x4_full_cycle_tent_growth_stage
+        light: light.4x4_controller_grow_light
+        fan: fan.4x4_controller_circulation_fan
+        duct_fan: fan.4x4_controller_duct_fan
+        mold_risk: binary_sensor.4x4_full_cycle_tent_mold_risk
+        flush_due: binary_sensor.4x4_full_cycle_tent_flush_due
+        metrics_out_of_range: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
+        ai_critical_alert: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
+      - name: Clone
+        path: /tendrial-grow/zone-clone
+        vpd: sensor.basement_clone_vpd
+        leaf_vpd: sensor.basement_clone_leaf_vpd
+        ai_health_score: sensor.basement_clone_ai_health_score
+        stage: select.clone_growth_stage
+        mold_risk: binary_sensor.basement_clone_mold_risk
+        flush_due: binary_sensor.clone_flush_due
+        metrics_out_of_range: binary_sensor.basement_clone_metrics_out_of_range
+        ai_critical_alert: binary_sensor.clone_ai_health_critical_alert
+  - type: grid
+    cards:
+    - type: heading
+      heading: 24-Hour Telemetry Trends
+      heading_style: subtitle
+    - type: history-graph
+      title: Canopy Climate History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.3x3_controller_inside_temperature
+      - sensor.3x3_controller_inside_humidity
+      - sensor.3x3_mothers_tent_vpd
+      - sensor.4x4_controller_inside_temperature
+      - sensor.4x4_controller_inside_humidity
+      - sensor.4x4_full_cycle_tent_vpd
+      - sensor.basement_clone_vpd
+    - type: history-graph
+      title: Hydroponic Reservoir History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.3x3_water_monitor_ph
+      - sensor.3x3_water_monitor_electrical_conductivity
+      - sensor.3x3_water_monitor_temperature
+      - sensor.4x4_water_monitor_ph
+      - sensor.4x4_water_monitor_electrical_conductivity
+      - sensor.4x4_water_monitor_temperature
+  badges:
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_leak_detected
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_leak_detected
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_flush_due
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_flush_due
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_metrics_out_of_range
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_metrics_out_of_range
+      state: 'on'
+  - type: entity
+    entity: select.3x3_mothers_tent_growth_stage
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_leak_detected
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_leak_detected
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_flush_due
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_flush_due
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
+      state: 'on'
+  - type: entity
+    entity: select.4x4_full_cycle_tent_growth_stage
+  - type: entity
+    entity: binary_sensor.clone_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.clone_ai_health_critical_alert
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.basement_clone_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.basement_clone_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.basement_clone_leak_detected
+    visibility:
+    - condition: state
+      entity: binary_sensor.basement_clone_leak_detected
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.clone_flush_due
+    visibility:
+    - condition: state
+      entity: binary_sensor.clone_flush_due
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.basement_clone_metrics_out_of_range
+    visibility:
+    - condition: state
+      entity: binary_sensor.basement_clone_metrics_out_of_range
+      state: 'on'
+  - type: entity
+    entity: select.clone_growth_stage
+- path: zone-3x3_mothers_tent
+  title: 3x3 Mothers Tent
+  icon: mdi:sprout
+  type: sections
+  max_columns: 2
+  sections:
+  - type: grid
+    cards:
+    - type: custom:tendrilgrow-twin-card
+      name: 3x3 Mothers Tent
+      camera: camera.grow_tent_3x3_fluent
+      light: light.3x3_controller_grow_light
+      fan: fan.3x3_controller_circulation_fan
+      duct_fan: fan.3x3_controller_duct_fan
+      rdwc_pump: light.power01_light
+      air_pump: light.power01_light_2
+      chiller_pump: light.power01_light_3
+      temperature: sensor.3x3_controller_inside_temperature
+      humidity: sensor.3x3_controller_inside_humidity
+      ph: sensor.3x3_water_monitor_ph
+      ec: sensor.3x3_water_monitor_electrical_conductivity
+      water_temperature: sensor.3x3_water_monitor_temperature
+      tds: sensor.3x3_water_monitor_total_dissolved_solids
+      orp: sensor.3x3_water_monitor_oxidation_reduction_potential
+      vpd: sensor.3x3_mothers_tent_vpd
+      leaf_vpd: sensor.3x3_mothers_tent_leaf_vpd
+      dew_point: sensor.3x3_mothers_tent_dew_point
+      stage: select.3x3_mothers_tent_growth_stage
+      stage_started: date.3x3_mothers_tent_stage_started
+      week: sensor.3x3_mothers_tent_week_in_stage
+      projection: sensor.3x3_mothers_tent_stage_projection
+      ai_health_score: sensor.3x3_mothers_tent_ai_health_score
+      ai_health_summary: sensor.3x3_mothers_tent_ai_health_summary
+      run_ai_health_check: button.3x3_mothers_tent_run_ai_health_check
+      mold_risk: binary_sensor.3x3_mothers_tent_mold_risk
+      flush_due: binary_sensor.3x3_mothers_tent_flush_due
+      target_ph_low: number.3x3_mothers_tent_target_ph_low
+      target_ph_high: number.3x3_mothers_tent_target_ph_high
+      target_ec_low: number.3x3_mothers_tent_target_ec_low
+      target_ec_high: number.3x3_mothers_tent_target_ec_high
+      target_vpd_low: number.3x3_mothers_tent_target_vpd_low
+      target_vpd_high: number.3x3_mothers_tent_target_vpd_high
+  - type: grid
+    cards:
+    - type: heading
+      heading: Controller Schedules & Ambient
+      heading_style: subtitle
+    - type: entities
+      title: Lung Room (Ambient)
+      entities:
+      - entity: sensor.3x3_controller_outside_temperature
+        name: Outside Temperature
+      - entity: sensor.3x3_controller_outside_humidity
+        name: Outside Humidity
+      - entity: sensor.3x3_controller_outside_vpd
+        name: Outside VPD
+  - type: grid
+    cards:
+    - type: heading
+      heading: Cultivation Plan & Tasks
+      heading_style: subtitle
+    - type: markdown
+      title: Projections
+      content: '**Projected stage end:** {{ state_attr(''sensor.3x3_mothers_tent_stage_projection'',''projected_stage_end'')
+        }}
 
-      - type: grid
-        cards:
-          - type: heading
-            heading: 24-Hour Telemetry Trends
-            heading_style: subtitle
-          - type: history-graph
-            title: Water Temperature & pH Trend (24h)
-            hours_to_show: 24
-            entities:
-              - sensor.3x3_water_monitor_temperature
-              - sensor.4x4_water_monitor_temperature
-              - sensor.3x3_water_monitor_ph
-              - sensor.4x4_water_monitor_ph
-        column_span: 2
 
-    badges:
-      - type: entity
-        entity: binary_sensor.3x3_mothers_tent_metrics_out_of_range
-        visibility:
-          - condition: state
-            entity: binary_sensor.3x3_mothers_tent_metrics_out_of_range
-            state: "on"
-      - type: entity
-        entity: binary_sensor.3x3_mothers_tent_flush_due
-        visibility:
-          - condition: state
-            entity: binary_sensor.3x3_mothers_tent_flush_due
-            state: "on"
-      - type: entity
-        entity: binary_sensor.3x3_mothers_tent_mold_risk
-        visibility:
-          - condition: state
-            entity: binary_sensor.3x3_mothers_tent_mold_risk
-            state: "on"
-      - type: entity
-        entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
-        visibility:
-          - condition: state
-            entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
-            state: "on"
-      - type: entity
-        entity: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
-        visibility:
-          - condition: state
-            entity: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
-            state: "on"
-      - type: entity
-        entity: binary_sensor.4x4_full_cycle_tent_flush_due
-        visibility:
-          - condition: state
-            entity: binary_sensor.4x4_full_cycle_tent_flush_due
-            state: "on"
-      - type: entity
-        entity: binary_sensor.4x4_full_cycle_tent_mold_risk
-        visibility:
-          - condition: state
-            entity: binary_sensor.4x4_full_cycle_tent_mold_risk
-            state: "on"
-      - type: entity
-        entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
-        visibility:
-          - condition: state
-            entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
-            state: "on"
-      - type: entity
-        entity: binary_sensor.basement_clone_metrics_out_of_range
-        visibility:
-          - condition: state
-            entity: binary_sensor.basement_clone_metrics_out_of_range
-            state: "on"
-      - type: entity
-        entity: binary_sensor.clone_flush_due
-        visibility:
-          - condition: state
-            entity: binary_sensor.clone_flush_due
-            state: "on"
-      - type: entity
-        entity: binary_sensor.basement_clone_mold_risk
-        visibility:
-          - condition: state
-            entity: binary_sensor.basement_clone_mold_risk
-            state: "on"
-      - type: entity
-        entity: binary_sensor.clone_ai_health_critical_alert
-        visibility:
-          - condition: state
-            entity: binary_sensor.clone_ai_health_critical_alert
-            state: "on"
+        **Projected harvest:** {{ state_attr(''sensor.3x3_mothers_tent_stage_projection'',''projected_harvest_date'')
+        }}
 
-  # ==========================================================================
-  # 3x3 MOTHERS TENT DIGITAL TWIN
-  # ==========================================================================
-  - path: zone-3x3_mothers_tent
-    title: 3x3 Mothers Tent
-    icon: mdi:sprout
-    type: sections
-    max_columns: 2
-    sections:
-      # HERO: DIGITAL TWIN INTERACTIVE CARD
-      - type: grid
-        cards:
-          - type: custom:tendrilgrow-twin-card
-            name: 3x3 Mothers Tent
-            camera: camera.grow_tent_3x3_fluent
-            # Equipment Controls
-            light: light.3x3_controller_grow_light
-            fan: fan.3x3_controller_circulation_fan
-            duct_fan: fan.3x3_controller_duct_fan
-            rdwc_pump: light.power01_light
-            air_pump: light.power01_light_2
-            chiller_pump: light.power01_light_3
-            # Atmosphere & Canopy
-            temperature: sensor.3x3_controller_inside_temperature
-            humidity: sensor.3x3_controller_inside_humidity
-            vpd: sensor.3x3_mothers_tent_vpd
-            leaf_vpd: sensor.3x3_mothers_tent_leaf_vpd
-            dew_point: sensor.3x3_mothers_tent_dew_point
-            # Hydroponics Reservoir
-            ph: sensor.3x3_water_monitor_ph
-            ec: sensor.3x3_water_monitor_electrical_conductivity
-            water_temperature: sensor.3x3_water_monitor_temperature
-            tds: sensor.3x3_water_monitor_total_dissolved_solids
-            orp: sensor.3x3_water_monitor_oxidation_reduction_potential
-            # Lifecycle & AI
-            stage: select.3x3_mothers_tent_growth_stage
-            stage_started: date.3x3_mothers_tent_stage_started
-            week: sensor.3x3_mothers_tent_week_in_stage
-            projection: sensor.3x3_mothers_tent_stage_projection
-            ai_health_score: sensor.3x3_mothers_tent_ai_health_score
-            ai_health_summary: sensor.3x3_mothers_tent_ai_health_summary
-            run_ai_health_check: button.3x3_mothers_tent_run_ai_health_check
-            # Alerts
-            mold_risk: binary_sensor.3x3_mothers_tent_mold_risk
-            flush_due: binary_sensor.3x3_mothers_tent_flush_due
-            metrics_out_of_range: binary_sensor.3x3_mothers_tent_metrics_out_of_range
-            ai_critical_alert: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
-            # Target Bands
-            target_ph_low: number.3x3_mothers_tent_target_ph_low
-            target_ph_high: number.3x3_mothers_tent_target_ph_high
-            target_ec_low: number.3x3_mothers_tent_target_ec_low
-            target_ec_high: number.3x3_mothers_tent_target_ec_high
-            target_vpd_low: number.3x3_mothers_tent_target_vpd_low
-            target_vpd_high: number.3x3_mothers_tent_target_vpd_high
-            # Ambient
-            ambient_temperature: sensor.3x3_controller_outside_temperature
-            ambient_humidity: sensor.3x3_controller_outside_humidity
-        column_span: 2
 
-      # CONTROLS & SCHEDULE STATUS
-      - type: grid
-        cards:
-          - type: heading
-            heading: Controller Schedules & Ambient
-            heading_style: subtitle
-          - type: entities
-            title: Controller Schedule Status
-            entities:
-              - entity: sensor.3x3_controller_plan_light_schedule
-                name: Light Schedule
-                icon: mdi:weather-sunset
-              - entity: sensor.3x3_controller_plan_circulator_fan_schedule
-                name: Circulation Fan Schedule
-                icon: mdi:fan-clock
-              - entity: sensor.3x3_controller_plan_duct_fan_schedule
-                name: Duct Fan Schedule
-                icon: mdi:fan-auto
-          - type: entities
-            title: Lung Room (Ambient)
-            entities:
-              - entity: sensor.3x3_controller_outside_temperature
-                name: Ambient Temperature
-              - entity: sensor.3x3_controller_outside_humidity
-                name: Ambient Humidity
-              - entity: sensor.3x3_mothers_tent_lung_room_vpd
-                name: Ambient VPD
+        **Projected ready:** {{ state_attr(''sensor.3x3_mothers_tent_stage_projection'',''projected_ready_date'')
+        }}'
+    - type: todo-list
+      entity: todo.3x3_mothers_tent_grow_tasks
+      title: Grow Tasks
+  - type: grid
+    cards:
+    - type: heading
+      heading: 24h Telemetry Trends
+      heading_style: subtitle
+    - type: history-graph
+      title: Canopy Climate History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.3x3_controller_inside_temperature
+      - sensor.3x3_controller_inside_humidity
+      - sensor.3x3_mothers_tent_vpd
+      - sensor.3x3_mothers_tent_leaf_vpd
+    - type: history-graph
+      title: Hydroponic Reservoir History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.3x3_water_monitor_ph
+      - sensor.3x3_water_monitor_electrical_conductivity
+      - sensor.3x3_water_monitor_temperature
+      - sensor.3x3_water_monitor_oxidation_reduction_potential
+  - type: grid
+    cards:
+    - type: heading
+      heading: AI Cultivation Intelligence
+      heading_style: subtitle
+    - type: markdown
+      title: AI Health Report
+      content: '{{ state_attr(''sensor.3x3_mothers_tent_ai_health_score'',''report'')
+        }}'
+    - type: markdown
+      title: AI Feeding Schedule
+      content: '{{ state_attr(''sensor.3x3_mothers_tent_ai_health_score'',''feeding_schedule_md'')
+        }}'
+  badges:
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_leak_detected
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_leak_detected
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_flush_due
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_flush_due
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.3x3_mothers_tent_metrics_out_of_range
+    visibility:
+    - condition: state
+      entity: binary_sensor.3x3_mothers_tent_metrics_out_of_range
+      state: 'on'
+  - type: entity
+    entity: select.3x3_mothers_tent_growth_stage
+- path: zone-4x4_full_cycle_tent
+  title: 4x4 Full Cycle Tent
+  icon: mdi:sprout
+  type: sections
+  max_columns: 2
+  sections:
+  - type: grid
+    cards:
+    - type: custom:tendrilgrow-twin-card
+      name: 4x4 Full Cycle Tent
+      camera: camera.grow_tent_4k_fluent
+      light: light.4x4_controller_grow_light
+      fan: fan.4x4_controller_circulation_fan
+      duct_fan: fan.4x4_controller_duct_fan
+      rdwc_pump: switch.power_4x4_grow_tent_switch
+      air_pump: switch.power_4x4_grow_tent_switch_2
+      chiller_pump: switch.power_4x4_grow_tent_switch_3
+      temperature: sensor.4x4_controller_inside_temperature
+      humidity: sensor.4x4_controller_inside_humidity
+      ph: sensor.4x4_water_monitor_ph
+      ec: sensor.4x4_water_monitor_electrical_conductivity
+      water_temperature: sensor.4x4_water_monitor_temperature
+      tds: sensor.4x4_water_monitor_total_dissolved_solids
+      orp: sensor.4x4_water_monitor_oxidation_reduction_potential
+      vpd: sensor.4x4_full_cycle_tent_vpd
+      leaf_vpd: sensor.4x4_full_cycle_tent_leaf_vpd
+      dew_point: sensor.4x4_full_cycle_tent_dew_point
+      stage: select.4x4_full_cycle_tent_growth_stage
+      stage_started: date.4x4_full_cycle_tent_stage_started
+      week: sensor.4x4_full_cycle_tent_week_in_stage
+      projection: sensor.4x4_full_cycle_tent_stage_projection
+      ai_health_score: sensor.4x4_full_cycle_tent_ai_health_score
+      ai_health_summary: sensor.4x4_full_cycle_tent_ai_health_summary
+      run_ai_health_check: button.4x4_full_cycle_tent_run_ai_health_check
+      mold_risk: binary_sensor.4x4_full_cycle_tent_mold_risk
+      flush_due: binary_sensor.4x4_full_cycle_tent_flush_due
+      target_ph_low: number.4x4_full_cycle_tent_target_ph_low
+      target_ph_high: number.4x4_full_cycle_tent_target_ph_high
+      target_ec_low: number.4x4_full_cycle_tent_target_ec_low
+      target_ec_high: number.4x4_full_cycle_tent_target_ec_high
+      target_vpd_low: number.4x4_full_cycle_tent_target_vpd_low
+      target_vpd_high: number.4x4_full_cycle_tent_target_vpd_high
+  - type: grid
+    cards:
+    - type: heading
+      heading: Controller Schedules & Ambient
+      heading_style: subtitle
+    - type: entities
+      title: Lung Room (Ambient)
+      entities:
+      - entity: sensor.4x4_controller_outside_temperature
+        name: Outside Temperature
+      - entity: sensor.4x4_controller_outside_humidity
+        name: Outside Humidity
+      - entity: sensor.4x4_controller_outside_vpd
+        name: Outside VPD
+  - type: grid
+    cards:
+    - type: heading
+      heading: Cultivation Plan & Tasks
+      heading_style: subtitle
+    - type: markdown
+      title: Projections
+      content: '**Projected stage end:** {{ state_attr(''sensor.4x4_full_cycle_tent_stage_projection'',''projected_stage_end'')
+        }}
 
-      # CULTIVATION PLAN & TASKS
-      - type: grid
-        cards:
-          - type: heading
-            heading: Cultivation Plan & Tasks
-            heading_style: subtitle
-          - type: markdown
-            title: Projections
-            content: >
-              **Projected stage end:** {{ state_attr('sensor.3x3_mothers_tent_stage_projection','projected_stage_end') }}
 
-              **Projected harvest:** {{ state_attr('sensor.3x3_mothers_tent_stage_projection','projected_harvest_date') }}
+        **Projected harvest:** {{ state_attr(''sensor.4x4_full_cycle_tent_stage_projection'',''projected_harvest_date'')
+        }}
 
-              **Projected ready:** {{ state_attr('sensor.3x3_mothers_tent_stage_projection','projected_ready_date') }}
-          - type: todo-list
-            entity: todo.3x3_mothers_tent_grow_tasks
-            title: Grow Tasks
 
-      # TELEMETRY TRENDS
-      - type: grid
-        cards:
-          - type: heading
-            heading: 24h Telemetry Trends
-            heading_style: subtitle
-          - type: history-graph
-            title: Canopy Climate History (24h)
-            hours_to_show: 24
-            entities:
-              - sensor.3x3_controller_inside_temperature
-              - sensor.3x3_controller_inside_humidity
-              - sensor.3x3_mothers_tent_vpd
-              - sensor.3x3_mothers_tent_leaf_vpd
-          - type: history-graph
-            title: Hydroponic Reservoir History (24h)
-            hours_to_show: 24
-            entities:
-              - sensor.3x3_water_monitor_ph
-              - sensor.3x3_water_monitor_electrical_conductivity
-              - sensor.3x3_water_monitor_temperature
-        column_span: 2
+        **Projected ready:** {{ state_attr(''sensor.4x4_full_cycle_tent_stage_projection'',''projected_ready_date'')
+        }}'
+    - type: todo-list
+      entity: todo.4x4_full_cycle_tent_grow_tasks
+      title: Grow Tasks
+  - type: grid
+    cards:
+    - type: heading
+      heading: 24h Telemetry Trends
+      heading_style: subtitle
+    - type: history-graph
+      title: Canopy Climate History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.4x4_controller_inside_temperature
+      - sensor.4x4_controller_inside_humidity
+      - sensor.4x4_full_cycle_tent_vpd
+      - sensor.4x4_full_cycle_tent_leaf_vpd
+    - type: history-graph
+      title: Hydroponic Reservoir History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.4x4_water_monitor_ph
+      - sensor.4x4_water_monitor_electrical_conductivity
+      - sensor.4x4_water_monitor_temperature
+      - sensor.4x4_water_monitor_oxidation_reduction_potential
+  - type: grid
+    cards:
+    - type: heading
+      heading: AI Cultivation Intelligence
+      heading_style: subtitle
+    - type: markdown
+      title: AI Health Report
+      content: '{{ state_attr(''sensor.4x4_full_cycle_tent_ai_health_score'',''report'')
+        }}'
+    - type: markdown
+      title: AI Feeding Schedule
+      content: '{{ state_attr(''sensor.4x4_full_cycle_tent_ai_health_score'',''feeding_schedule_md'')
+        }}'
+  badges:
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_leak_detected
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_leak_detected
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_flush_due
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_flush_due
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
+    visibility:
+    - condition: state
+      entity: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
+      state: 'on'
+  - type: entity
+    entity: select.4x4_full_cycle_tent_growth_stage
+- path: zone-clone
+  title: Clone
+  icon: mdi:sprout
+  type: sections
+  max_columns: 2
+  sections:
+  - type: grid
+    cards:
+    - type: custom:tendrilgrow-twin-card
+      name: Clone
+      vpd: sensor.basement_clone_vpd
+      leaf_vpd: sensor.basement_clone_leaf_vpd
+      dew_point: sensor.basement_clone_dew_point
+      stage: select.clone_growth_stage
+      stage_started: date.clone_stage_started
+      week: sensor.clone_week_in_stage
+      projection: sensor.clone_stage_projection
+      ai_health_score: sensor.basement_clone_ai_health_score
+      ai_health_summary: sensor.basement_clone_ai_health_summary
+      run_ai_health_check: button.clone_run_ai_health_check
+      mold_risk: binary_sensor.basement_clone_mold_risk
+      flush_due: binary_sensor.clone_flush_due
+      target_ph_low: number.basement_clone_target_ph_low
+      target_ph_high: number.basement_clone_target_ph_high
+      target_ec_low: number.basement_clone_target_ec_low
+      target_ec_high: number.basement_clone_target_ec_high
+      target_vpd_low: number.basement_clone_target_vpd_low
+      target_vpd_high: number.basement_clone_target_vpd_high
+  - type: grid
+    cards:
+    - type: heading
+      heading: Cultivation Plan & Tasks
+      heading_style: subtitle
+    - type: markdown
+      title: Projections
+      content: '**Projected stage end:** {{ state_attr(''sensor.clone_stage_projection'',''projected_stage_end'')
+        }}
 
-      # AI ADVISOR & FEEDING SCHEDULE
-      - type: grid
-        cards:
-          - type: heading
-            heading: AI Cultivation Intelligence
-            heading_style: subtitle
-          - type: markdown
-            title: AI Health Report
-            content: "{{ state_attr('sensor.3x3_mothers_tent_ai_health_score','report') }}"
-          - type: markdown
-            title: AI Feeding Schedule
-            content: "{{ state_attr('sensor.3x3_mothers_tent_ai_health_score','feeding_schedule_md') }}"
-        column_span: 2
 
-    badges:
-      - type: entity
-        entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
-        visibility:
-          - condition: state
-            entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert
-            state: "on"
-      - type: entity
-        entity: binary_sensor.3x3_mothers_tent_mold_risk
-        visibility:
-          - condition: state
-            entity: binary_sensor.3x3_mothers_tent_mold_risk
-            state: "on"
-      - type: entity
-        entity: binary_sensor.3x3_mothers_tent_flush_due
-        visibility:
-          - condition: state
-            entity: binary_sensor.3x3_mothers_tent_flush_due
-            state: "on"
-      - type: entity
-        entity: binary_sensor.3x3_mothers_tent_metrics_out_of_range
-        visibility:
-          - condition: state
-            entity: binary_sensor.3x3_mothers_tent_metrics_out_of_range
-            state: "on"
+        **Projected harvest:** {{ state_attr(''sensor.clone_stage_projection'',''projected_harvest_date'')
+        }}
 
-  # ==========================================================================
-  # 4x4 FULL CYCLE TENT DIGITAL TWIN
-  # ==========================================================================
-  - path: zone-4x4_full_cycle_tent
-    title: 4x4 Full Cycle Tent
-    icon: mdi:sprout
-    type: sections
-    max_columns: 2
-    sections:
-      # HERO: DIGITAL TWIN INTERACTIVE CARD
-      - type: grid
-        cards:
-          - type: custom:tendrilgrow-twin-card
-            name: 4x4 Full Cycle Tent
-            camera: camera.grow_tent_4k_fluent
-            # Equipment Controls
-            light: light.4x4_controller_grow_light
-            fan: fan.4x4_controller_circulation_fan
-            duct_fan: fan.4x4_controller_duct_fan
-            rdwc_pump: light.power02_light
-            air_pump: light.power02_light_2
-            chiller_pump: light.power02_light_3
-            # Atmosphere & Canopy
-            temperature: sensor.4x4_controller_inside_temperature
-            humidity: sensor.4x4_controller_inside_humidity
-            vpd: sensor.4x4_full_cycle_tent_vpd
-            leaf_vpd: sensor.4x4_full_cycle_tent_leaf_vpd
-            dew_point: sensor.4x4_full_cycle_tent_dew_point
-            # Hydroponics Reservoir
-            ph: sensor.4x4_water_monitor_ph
-            ec: sensor.4x4_water_monitor_electrical_conductivity
-            water_temperature: sensor.4x4_water_monitor_temperature
-            tds: sensor.4x4_water_monitor_total_dissolved_solids
-            orp: sensor.4x4_water_monitor_oxidation_reduction_potential
-            # Lifecycle & AI
-            stage: select.4x4_full_cycle_tent_growth_stage
-            stage_started: date.4x4_full_cycle_tent_stage_started
-            week: sensor.4x4_full_cycle_tent_week_in_stage
-            projection: sensor.4x4_full_cycle_tent_stage_projection
-            ai_health_score: sensor.4x4_full_cycle_tent_ai_health_score
-            ai_health_summary: sensor.4x4_full_cycle_tent_ai_health_summary
-            run_ai_health_check: button.4x4_full_cycle_tent_run_ai_health_check
-            # Alerts
-            mold_risk: binary_sensor.4x4_full_cycle_tent_mold_risk
-            flush_due: binary_sensor.4x4_full_cycle_tent_flush_due
-            metrics_out_of_range: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
-            ai_critical_alert: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
-            # Target Bands
-            target_ph_low: number.4x4_full_cycle_tent_target_ph_low
-            target_ph_high: number.4x4_full_cycle_tent_target_ph_high
-            target_ec_low: number.4x4_full_cycle_tent_target_ec_low
-            target_ec_high: number.4x4_full_cycle_tent_target_ec_high
-            target_vpd_low: number.4x4_full_cycle_tent_target_vpd_low
-            target_vpd_high: number.4x4_full_cycle_tent_target_vpd_high
-            # Ambient
-            ambient_temperature: sensor.4x4_controller_outside_temperature
-            ambient_humidity: sensor.4x4_controller_outside_humidity
-        column_span: 2
 
-      # CONTROLS & SCHEDULE STATUS
-      - type: grid
-        cards:
-          - type: heading
-            heading: Controller Schedules & Ambient
-            heading_style: subtitle
-          - type: entities
-            title: Controller Schedule Status
-            entities:
-              - entity: sensor.4x4_controller_plan_light_schedule
-                name: Light Schedule
-                icon: mdi:weather-sunset
-              - entity: sensor.4x4_controller_plan_circulator_fan_schedule
-                name: Circulation Fan Schedule
-                icon: mdi:fan-clock
-              - entity: sensor.4x4_controller_plan_duct_fan_schedule
-                name: Duct Fan Schedule
-                icon: mdi:fan-auto
-          - type: entities
-            title: Lung Room (Ambient)
-            entities:
-              - entity: sensor.4x4_controller_outside_temperature
-                name: Ambient Temperature
-              - entity: sensor.4x4_controller_outside_humidity
-                name: Ambient Humidity
-              - entity: sensor.4x4_full_cycle_tent_lung_room_vpd
-                name: Ambient VPD
-
-      # CULTIVATION PLAN & TASKS
-      - type: grid
-        cards:
-          - type: heading
-            heading: Cultivation Plan & Tasks
-            heading_style: subtitle
-          - type: markdown
-            title: Projections
-            content: >
-              **Projected stage end:** {{ state_attr('sensor.4x4_full_cycle_tent_stage_projection','projected_stage_end') }}
-
-              **Projected harvest:** {{ state_attr('sensor.4x4_full_cycle_tent_stage_projection','projected_harvest_date') }}
-
-              **Projected ready:** {{ state_attr('sensor.4x4_full_cycle_tent_stage_projection','projected_ready_date') }}
-          - type: todo-list
-            entity: todo.4x4_full_cycle_tent_grow_tasks
-            title: Grow Tasks
-
-      # TELEMETRY TRENDS
-      - type: grid
-        cards:
-          - type: heading
-            heading: 24h Telemetry Trends
-            heading_style: subtitle
-          - type: history-graph
-            title: Canopy Climate History (24h)
-            hours_to_show: 24
-            entities:
-              - sensor.4x4_controller_inside_temperature
-              - sensor.4x4_controller_inside_humidity
-              - sensor.4x4_full_cycle_tent_vpd
-              - sensor.4x4_full_cycle_tent_leaf_vpd
-          - type: history-graph
-            title: Hydroponic Reservoir History (24h)
-            hours_to_show: 24
-            entities:
-              - sensor.4x4_water_monitor_ph
-              - sensor.4x4_water_monitor_electrical_conductivity
-              - sensor.4x4_water_monitor_temperature
-        column_span: 2
-
-      # AI ADVISOR & FEEDING SCHEDULE
-      - type: grid
-        cards:
-          - type: heading
-            heading: AI Cultivation Intelligence
-            heading_style: subtitle
-          - type: markdown
-            title: AI Health Report
-            content: "{{ state_attr('sensor.4x4_full_cycle_tent_ai_health_score','report') }}"
-          - type: markdown
-            title: AI Feeding Schedule
-            content: "{{ state_attr('sensor.4x4_full_cycle_tent_ai_health_score','feeding_schedule_md') }}"
-        column_span: 2
-
-    badges:
-      - type: entity
-        entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
-        visibility:
-          - condition: state
-            entity: binary_sensor.4x4_full_cycle_tent_ai_health_critical_alert
-            state: "on"
-      - type: entity
-        entity: binary_sensor.4x4_full_cycle_tent_mold_risk
-        visibility:
-          - condition: state
-            entity: binary_sensor.4x4_full_cycle_tent_mold_risk
-            state: "on"
-      - type: entity
-        entity: binary_sensor.4x4_full_cycle_tent_flush_due
-        visibility:
-          - condition: state
-            entity: binary_sensor.4x4_full_cycle_tent_flush_due
-            state: "on"
-      - type: entity
-        entity: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
-        visibility:
-          - condition: state
-            entity: binary_sensor.4x4_full_cycle_tent_metrics_out_of_range
-            state: "on"
-
-  # ==========================================================================
-  # CLONE AREA DIGITAL TWIN
-  # ==========================================================================
-  - path: zone-clone
-    title: Clone
-    icon: mdi:sprout
-    type: sections
-    max_columns: 2
-    sections:
-      - type: grid
-        cards:
-          - type: custom:tendrilgrow-twin-card
-            name: Clone Station
-            # Sensors
-            vpd: sensor.basement_clone_vpd
-            leaf_vpd: sensor.basement_clone_leaf_vpd
-            dew_point: sensor.basement_clone_dew_point
-            # Lifecycle & AI
-            stage: select.clone_growth_stage
-            stage_started: date.clone_stage_started
-            week: sensor.clone_week_in_stage
-            projection: sensor.clone_stage_projection
-            ai_health_score: sensor.basement_clone_ai_health_score
-            ai_health_summary: sensor.basement_clone_ai_health_summary
-            run_ai_health_check: button.clone_run_ai_health_check
-            # Alerts
-            mold_risk: binary_sensor.basement_clone_mold_risk
-            flush_due: binary_sensor.clone_flush_due
-            metrics_out_of_range: binary_sensor.basement_clone_metrics_out_of_range
-            ai_critical_alert: binary_sensor.clone_ai_health_critical_alert
-            # Target Bands
-            target_ph_low: number.basement_clone_target_ph_low
-            target_ph_high: number.basement_clone_target_ph_high
-            target_ec_low: number.basement_clone_target_ec_low
-            target_ec_high: number.basement_clone_target_ec_high
-            target_vpd_low: number.basement_clone_target_vpd_low
-            target_vpd_high: number.basement_clone_target_vpd_high
-        column_span: 2
-
-      - type: grid
-        cards:
-          - type: heading
-            heading: Projections & History
-            heading_style: subtitle
-          - type: markdown
-            title: Projections
-            content: >
-              **Projected stage end:** {{ state_attr('sensor.clone_stage_projection','projected_stage_end') }}
-
-              **Projected harvest:** {{ state_attr('sensor.clone_stage_projection','projected_harvest_date') }}
-
-              **Projected ready:** {{ state_attr('sensor.clone_stage_projection','projected_ready_date') }}
-          - type: history-graph
-            title: Canopy Climate History (24h)
-            hours_to_show: 24
-            entities:
-              - sensor.basement_clone_vpd
-              - sensor.basement_clone_leaf_vpd
-
-      - type: grid
-        cards:
-          - type: heading
-            heading: Cultivation Plan
-            heading_style: subtitle
-          - type: entities
-            title: Cultivation Plan
-            state_color: true
-            entities:
-              - text.clone_strain_genetics
-              - select.basement_clone_water_type
-              - number.clone_sites_plants
-              - number.clone_total_system_volume
-              - number.clone_feed_interval
-              - number.clone_lights_on
-              - time.basement_clone_lights_on_time
-              - time.basement_clone_lights_off_time
-              - number.clone_runoff_target
-              - text.clone_nutrient_line
-              - text.clone_base_nutrients
-              - text.clone_additives
-              - number.basement_clone_electricity_price
-          - type: markdown
-            title: AI Health Report
-            content: "{{ state_attr('sensor.basement_clone_ai_health_score','report') }}"
-
-    badges:
-      - type: entity
-        entity: binary_sensor.clone_ai_health_critical_alert
-        visibility:
-          - condition: state
-            entity: binary_sensor.clone_ai_health_critical_alert
-            state: "on"
-      - type: entity
-        entity: binary_sensor.basement_clone_mold_risk
-        visibility:
-          - condition: state
-            entity: binary_sensor.basement_clone_mold_risk
-            state: "on"
-      - type: entity
-        entity: binary_sensor.clone_flush_due
-        visibility:
-          - condition: state
-            entity: binary_sensor.clone_flush_due
-            state: "on"
-      - type: entity
-        entity: binary_sensor.basement_clone_metrics_out_of_range
-        visibility:
-          - condition: state
-            entity: binary_sensor.basement_clone_metrics_out_of_range
-            state: "on"
+        **Projected ready:** {{ state_attr(''sensor.clone_stage_projection'',''projected_ready_date'')
+        }}'
+    - type: todo-list
+      entity: todo.clone_grow_tasks
+      title: Grow Tasks
+  - type: grid
+    cards:
+    - type: heading
+      heading: 24h Telemetry Trends
+      heading_style: subtitle
+    - type: history-graph
+      title: Canopy Climate History (24h)
+      hours_to_show: 24
+      entities:
+      - sensor.basement_clone_vpd
+      - sensor.basement_clone_leaf_vpd
+  - type: grid
+    cards:
+    - type: heading
+      heading: AI Cultivation Intelligence
+      heading_style: subtitle
+    - type: markdown
+      title: AI Health Report
+      content: '{{ state_attr(''sensor.basement_clone_ai_health_score'',''report'')
+        }}'
+    - type: markdown
+      title: AI Feeding Schedule
+      content: '{{ state_attr(''sensor.basement_clone_ai_health_score'',''feeding_schedule_md'')
+        }}'
+  badges:
+  - type: entity
+    entity: binary_sensor.clone_ai_health_critical_alert
+    visibility:
+    - condition: state
+      entity: binary_sensor.clone_ai_health_critical_alert
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.basement_clone_mold_risk
+    visibility:
+    - condition: state
+      entity: binary_sensor.basement_clone_mold_risk
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.basement_clone_leak_detected
+    visibility:
+    - condition: state
+      entity: binary_sensor.basement_clone_leak_detected
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.clone_flush_due
+    visibility:
+    - condition: state
+      entity: binary_sensor.clone_flush_due
+      state: 'on'
+  - type: entity
+    entity: binary_sensor.basement_clone_metrics_out_of_range
+    visibility:
+    - condition: state
+      entity: binary_sensor.basement_clone_metrics_out_of_range
+      state: 'on'
+  - type: entity
+    entity: select.clone_growth_stage

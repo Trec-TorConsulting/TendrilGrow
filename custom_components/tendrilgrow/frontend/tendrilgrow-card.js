@@ -929,7 +929,14 @@ class TendrilGrowTwinCard extends HTMLElement {
           <div class="camera-container ${this._viewMode === "camera" ? "active" : ""}" id="camera-box">
             ${
               hasCamera
-                ? `<img class="camera-feed" id="camera-img" src="/api/camera_proxy_stream/${this._config.camera}" alt="Live Tent Feed" />`
+                ? (() => {
+                    const camState = getState(this._hass, this._config.camera);
+                    const token = camState?.attributes?.access_token;
+                    const initialSrc = token
+                      ? `/api/camera_proxy_stream/${this._config.camera}?token=${token}`
+                      : (camState?.attributes?.entity_picture || `/api/camera_proxy/${this._config.camera}`);
+                    return `<img class="camera-feed" id="camera-img" src="${initialSrc}" alt="Live Tent Feed" />`;
+                  })()
                 : ""
             }
             <div class="camera-scrim"></div>
@@ -1325,6 +1332,22 @@ class TendrilGrowTwinCard extends HTMLElement {
 
     // Range Meters in Bands Drawer
     this._renderRangeMeters();
+
+    // Camera Feed Refresh with Access Token
+    const camImg = root.getElementById("camera-img");
+    if (camImg && this._config.camera) {
+      const camState = getState(this._hass, this._config.camera);
+      if (camState) {
+        const token = camState.attributes?.access_token;
+        const pic = camState.attributes?.entity_picture;
+        const targetSrc = token
+          ? `/api/camera_proxy_stream/${this._config.camera}?token=${token}`
+          : (pic || `/api/camera_proxy/${this._config.camera}`);
+        if (targetSrc && camImg.src !== targetSrc && !camImg.src.endsWith(targetSrc)) {
+          camImg.src = targetSrc;
+        }
+      }
+    }
   }
 
   _renderRangeMeters() {
@@ -1426,7 +1449,7 @@ class TendrilGrowOverviewCard extends HTMLElement {
 
   setConfig(config) {
     this._config = {
-      title: config.title || "Executive Overview",
+      title: config.title || "Cultivation Network Overview",
       spaces: config.spaces || [],
       ...config,
     };
@@ -1439,7 +1462,12 @@ class TendrilGrowOverviewCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 4;
+    return 6;
+  }
+
+  _callService(domain, service, data = {}) {
+    if (!this._hass) return;
+    this._hass.callService(domain, service, data);
   }
 
   _navigate(path) {
@@ -1455,136 +1483,429 @@ class TendrilGrowOverviewCard extends HTMLElement {
       <style>
         :host {
           display: block;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
           color: #e6edf3;
+          --tg-bg: #0b0f17;
+          --tg-card-bg: rgba(18, 24, 38, 0.9);
+          --tg-border: rgba(255, 255, 255, 0.08);
+          --tg-green: #10b981;
+          --tg-cyan: #06b6d4;
+          --tg-amber: #f59e0b;
+          --tg-red: #ef4444;
+          --tg-glow-green: 0 0 16px rgba(16, 185, 129, 0.35);
+        }
+
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
         }
 
         .container {
-          background: #0d1117;
-          border-radius: 16px;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          padding: 16px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+          background: var(--tg-bg);
+          border-radius: 18px;
+          border: 1px solid var(--tg-border);
+          padding: 18px;
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
         }
 
+        /* HEADER */
         .header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          margin-bottom: 16px;
+          margin-bottom: 20px;
+          padding-bottom: 14px;
+          border-bottom: 1px solid var(--tg-border);
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+
+        .header-title-box {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .brand-badge {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+          background: linear-gradient(135deg, #10b981, #059669);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          box-shadow: var(--tg-glow-green);
         }
 
         .header h2 {
-          font-size: 18px;
+          font-size: 19px;
           font-weight: 700;
+          letter-spacing: -0.3px;
           color: #f0f6fc;
         }
 
-        .spaces-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-          gap: 14px;
+        .header-subtitle {
+          font-size: 12px;
+          color: #8b949e;
+          font-weight: 500;
         }
 
+        .global-alert-badge {
+          background: rgba(239, 68, 68, 0.15);
+          border: 1px solid rgba(239, 68, 68, 0.4);
+          color: #fca5a5;
+          padding: 5px 12px;
+          border-radius: 20px;
+          font-size: 12px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          animation: pulse-alert 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse-alert {
+          0%, 100% { opacity: 0.9; }
+          50% { opacity: 1; filter: brightness(1.2); }
+        }
+
+        /* SPACES GRID */
+        .spaces-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+          gap: 18px;
+        }
+
+        /* SPACE CARD */
         .space-card {
-          background: rgba(22, 27, 34, 0.85);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 12px;
-          padding: 14px;
-          cursor: pointer;
-          transition: all 0.25s ease;
-          position: relative;
+          background: var(--tg-card-bg);
+          border: 1px solid var(--tg-border);
+          border-radius: 16px;
           overflow: hidden;
+          cursor: pointer;
+          transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+          position: relative;
         }
 
         .space-card:hover {
-          border-color: rgba(16, 185, 129, 0.4);
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+          border-color: rgba(16, 185, 129, 0.45);
+          transform: translateY(-3px);
+          box-shadow: 0 10px 32px rgba(16, 185, 129, 0.18), 0 4px 20px rgba(0, 0, 0, 0.5);
         }
 
-        .card-top {
+        /* HERO VISUAL AREA */
+        .space-hero {
+          position: relative;
+          width: 100%;
+          height: 180px;
+          background: #0d1117;
+          overflow: hidden;
+        }
+
+        .space-cam-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+          transition: transform 0.4s ease;
+        }
+
+        .space-card:hover .space-cam-img {
+          transform: scale(1.03);
+        }
+
+        .cam-scrim {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(180deg, rgba(11, 15, 23, 0.5) 0%, transparent 40%, rgba(18, 24, 38, 0.95) 100%);
+          pointer-events: none;
+        }
+
+        .schematic-hero {
+          height: 120px;
+          background: radial-gradient(circle at 50% 40%, #162438 0%, #0d121c 100%);
           display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          position: relative;
+        }
+
+        .schematic-icon {
+          font-size: 38px;
+          filter: drop-shadow(0 0 16px rgba(16, 185, 129, 0.5));
+        }
+
+        .live-tag {
+          position: absolute;
+          top: 10px;
+          left: 10px;
+          background: rgba(0, 0, 0, 0.7);
+          backdrop-filter: blur(6px);
+          border: 1px solid rgba(16, 185, 129, 0.5);
+          color: #34d399;
+          font-size: 10px;
+          font-weight: 700;
+          padding: 3px 8px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          letter-spacing: 0.5px;
+        }
+
+        .pulse-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          background: #10b981;
+          box-shadow: 0 0 6px #10b981;
+          animation: pulse 1.5s infinite;
+        }
+
+        .stage-tag {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          background: rgba(0, 0, 0, 0.75);
+          backdrop-filter: blur(6px);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          color: #e6edf3;
+          font-size: 10px;
+          font-weight: 700;
+          padding: 3px 8px;
+          border-radius: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .cam-alert-banner {
+          position: absolute;
+          bottom: 8px;
+          left: 10px;
+          right: 10px;
+          background: rgba(239, 68, 68, 0.9);
+          backdrop-filter: blur(8px);
+          color: #fff;
+          font-size: 11px;
+          font-weight: 700;
+          padding: 5px 10px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+          animation: pulse-alert 2s infinite ease-in-out;
+        }
+
+        /* CARD BODY */
+        .card-body {
+          padding: 14px 16px 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          flex: 1;
+        }
+
+        .title-row {
+          display: flex;
+          align-items: center;
           justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 10px;
         }
 
         .space-name {
-          font-size: 15px;
+          font-size: 16px;
           font-weight: 700;
+          color: #fff;
+          letter-spacing: -0.2px;
+        }
+
+        /* RADIAL HEALTH DIAL */
+        .health-dial-box {
+          position: relative;
+          width: 44px;
+          height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .health-dial-box svg {
+          transform: rotate(-90deg);
+          width: 44px;
+          height: 44px;
+        }
+
+        .health-dial-box circle {
+          fill: none;
+          stroke-width: 3.5;
+        }
+
+        .health-track {
+          stroke: rgba(255, 255, 255, 0.08);
+        }
+
+        .health-ring {
+          stroke-linecap: round;
+          transition: stroke-dashoffset 0.8s ease, stroke 0.3s ease;
+        }
+
+        .health-score-val {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          font-weight: 800;
           color: #fff;
         }
 
-        .space-stage {
-          font-size: 11px;
-          color: #34d399;
-          font-weight: 600;
-          text-transform: uppercase;
-        }
-
-        .health-badge {
-          background: rgba(16, 185, 129, 0.15);
-          border: 1px solid rgba(16, 185, 129, 0.3);
-          color: #10b981;
-          padding: 3px 8px;
-          border-radius: 20px;
-          font-size: 11px;
-          font-weight: 700;
-        }
-
-        .telemetry-row {
+        /* TELEMETRY CAPSULES */
+        .capsules-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: 1fr 1fr;
           gap: 8px;
-          margin-top: 12px;
-          background: rgba(13, 17, 23, 0.6);
-          padding: 8px;
-          border-radius: 8px;
         }
 
-        .tel-item {
+        .telemetry-capsule {
+          background: rgba(13, 17, 23, 0.7);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 10px;
+          padding: 8px 10px;
           display: flex;
           flex-direction: column;
-          align-items: center;
+          gap: 4px;
         }
 
-        .tel-label {
+        .capsule-title {
           font-size: 9px;
-          color: #8b949e;
+          font-weight: 700;
           text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: #8b949e;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .capsule-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: baseline;
+        }
+
+        .metric-cell {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .metric-label {
+          font-size: 8.5px;
+          text-transform: uppercase;
+          color: #6e7681;
           font-weight: 600;
         }
 
-        .tel-val {
+        .metric-val {
           font-size: 13px;
           font-weight: 700;
           color: #f0f6fc;
         }
 
-        .status-indicators {
-          display: flex;
-          gap: 8px;
-          margin-top: 10px;
-          font-size: 11px;
+        .metric-val.cyan {
+          color: #38bdf8;
         }
 
-        .status-pill {
+        .metric-val.green {
+          color: #34d399;
+        }
+
+        /* CONTROLS & ACTION ROW */
+        .controls-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-top: 4px;
+          padding-top: 10px;
+          border-top: 1px solid rgba(255, 255, 255, 0.06);
+          gap: 8px;
+        }
+
+        .quick-toggles {
+          display: flex;
+          gap: 6px;
+        }
+
+        .btn-toggle {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--tg-border);
+          color: #8b949e;
+          padding: 5px 9px;
+          border-radius: 8px;
+          font-size: 11px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          transition: all 0.2s ease;
+        }
+
+        .btn-toggle:hover {
+          background: rgba(255, 255, 255, 0.1);
+          color: #fff;
+        }
+
+        .btn-toggle.active {
+          background: rgba(16, 185, 129, 0.15);
+          border-color: rgba(16, 185, 129, 0.4);
+          color: #34d399;
+          box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
+        .btn-cockpit {
+          background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.2));
+          border: 1px solid rgba(16, 185, 129, 0.4);
+          color: #34d399;
+          padding: 5px 12px;
+          border-radius: 8px;
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
           display: flex;
           align-items: center;
           gap: 4px;
-          color: #8b949e;
+          transition: all 0.2s ease;
+          margin-left: auto;
         }
 
-        .status-pill.on {
-          color: #10b981;
+        .btn-cockpit:hover {
+          background: #10b981;
+          color: #0b0f17;
+          border-color: #10b981;
+          box-shadow: var(--tg-glow-green);
         }
       </style>
 
       <div class="container">
         <div class="header">
-          <h2>${this._config.title}</h2>
-          <span style="font-size: 12px; color: #8b949e;">Multi-Space Telemetry</span>
+          <div class="header-title-box">
+            <div class="brand-badge">🌿</div>
+            <div>
+              <h2>${this._config.title}</h2>
+              <div class="header-subtitle" id="network-subtitle">Cultivation Network Active</div>
+            </div>
+          </div>
+          <div class="global-alert-badge" id="global-alert-badge" style="display: none;">
+            <span>⚠️</span>
+            <span id="global-alert-count">Active Alerts</span>
+          </div>
         </div>
         <div class="spaces-grid" id="spaces-grid">
           <!-- Dynamically populated -->
@@ -1601,66 +1922,190 @@ class TendrilGrowOverviewCard extends HTMLElement {
     if (!grid) return;
 
     const spaces = this._config.spaces || [];
+    let activeAlertCount = 0;
+
     grid.innerHTML = spaces
       .map((s, idx) => {
         const temp = getStateStr(this._hass, s.temperature, "--");
         const rh = getStateStr(this._hass, s.humidity, "--");
-        const vpd = getStateStr(this._hass, s.vpd, "--");
+        const vpd = getStateStr(this._hass, s.leaf_vpd || s.vpd, "--");
         const ph = getStateStr(this._hass, s.ph, "--");
+        const ec = getStateStr(this._hass, s.ec, "--");
+        const waterTemp = getStateStr(this._hass, s.water_temperature, "--");
         const score = getStateNum(this._hass, s.ai_health_score, 90);
         const stage = getStateStr(this._hass, s.stage, "Grow Space");
         const lightOn = getState(this._hass, s.light)?.state === "on";
         const fanOn = getState(this._hass, s.fan)?.state === "on";
 
+        // Alerts check
+        const moldRisk = getState(this._hass, s.mold_risk)?.state === "on";
+        const flushDue = getState(this._hass, s.flush_due)?.state === "on";
+        const metricsOut = getState(this._hass, s.metrics_out_of_range)?.state === "on";
+        const criticalAlert = getState(this._hass, s.ai_critical_alert)?.state === "on";
+
+        let alertMsg = null;
+        if (criticalAlert) alertMsg = "Critical AI Alert";
+        else if (moldRisk) alertMsg = "High Mold Risk Detected";
+        else if (flushDue) alertMsg = "Reservoir Flush Due";
+        else if (metricsOut) alertMsg = "Target Bands Out of Range";
+
+        if (alertMsg) activeAlertCount++;
+
+        // Camera image URL with token
+        let camUrl = null;
+        if (s.camera) {
+          const camState = getState(this._hass, s.camera);
+          if (camState) {
+            const token = camState.attributes?.access_token;
+            camUrl = token
+              ? `/api/camera_proxy_stream/${s.camera}?token=${token}`
+              : (camState.attributes?.entity_picture || `/api/camera_proxy/${s.camera}`);
+          }
+        }
+
+        // Circular Dial Progress
+        const circumference = 2 * Math.PI * 17; // ~106.8
+        const validScore = score !== null ? Math.max(0, Math.min(100, score)) : 90;
+        const offset = circumference - (validScore / 100) * circumference;
+        const ringColor = validScore >= 75 ? "#10b981" : validScore >= 50 ? "#f59e0b" : "#ef4444";
+
         return `
           <div class="space-card" data-idx="${idx}">
-            <div class="card-top">
-              <div>
+            ${
+              camUrl
+                ? `
+                  <div class="space-hero">
+                    <img class="space-cam-img" src="${camUrl}" alt="${s.name}" loading="lazy" />
+                    <div class="cam-scrim"></div>
+                    <div class="live-tag"><span class="pulse-dot"></span> LIVE</div>
+                    <div class="stage-tag">${stage}</div>
+                    ${alertMsg ? `<div class="cam-alert-banner">⚠️ ${alertMsg}</div>` : ""}
+                  </div>
+                `
+                : `
+                  <div class="schematic-hero">
+                    <div class="schematic-icon">🌱</div>
+                    <div class="stage-tag">${stage}</div>
+                    ${alertMsg ? `<div class="cam-alert-banner">⚠️ ${alertMsg}</div>` : ""}
+                  </div>
+                `
+            }
+
+            <div class="card-body">
+              <div class="title-row">
                 <div class="space-name">${s.name || `Space ${idx + 1}`}</div>
-                <div class="space-stage">${stage}</div>
+                <div class="health-dial-box" title="AI Health Score: ${Math.round(validScore)}/100">
+                  <svg>
+                    <circle class="health-track" cx="22" cy="22" r="17" />
+                    <circle class="health-ring" cx="22" cy="22" r="17" style="stroke: ${ringColor}; stroke-dasharray: ${circumference}; stroke-dashoffset: ${offset};" />
+                  </svg>
+                  <div class="health-score-val" style="color: ${ringColor}">${Math.round(validScore)}%</div>
+                </div>
               </div>
-              <div class="health-badge" style="${score < 75 ? (score < 50 ? "color: #ef4444; border-color: #ef4444; background: rgba(239,68,68,0.15);" : "color: #f59e0b; border-color: #f59e0b; background: rgba(245,158,11,0.15);") : ""}">
-                ${score !== null ? `${Math.round(score)}/100` : "--"}
-              </div>
-            </div>
 
-            <div class="telemetry-row">
-              <div class="tel-item">
-                <span class="tel-label">Temp</span>
-                <span class="tel-val">${temp}°</span>
-              </div>
-              <div class="tel-item">
-                <span class="tel-label">RH</span>
-                <span class="tel-val">${rh}%</span>
-              </div>
-              <div class="tel-item">
-                <span class="tel-label">VPD</span>
-                <span class="tel-val">${vpd}</span>
-              </div>
-              <div class="tel-item">
-                <span class="tel-label">pH</span>
-                <span class="tel-val" style="color: #38bdf8;">${ph}</span>
-              </div>
-            </div>
+              <div class="capsules-grid">
+                <!-- Canopy Telemetry -->
+                <div class="telemetry-capsule">
+                  <div class="capsule-title">🌿 Canopy Air</div>
+                  <div class="capsule-row">
+                    <div class="metric-cell">
+                      <span class="metric-label">Temp</span>
+                      <span class="metric-val">${temp}°</span>
+                    </div>
+                    <div class="metric-cell">
+                      <span class="metric-label">RH</span>
+                      <span class="metric-val">${rh}%</span>
+                    </div>
+                    <div class="metric-cell">
+                      <span class="metric-label">VPD</span>
+                      <span class="metric-val green">${vpd}</span>
+                    </div>
+                  </div>
+                </div>
 
-            <div class="status-indicators">
-              <span class="status-pill ${lightOn ? "on" : ""}">💡 ${lightOn ? "Light ON" : "Light OFF"}</span>
-              <span class="status-pill ${fanOn ? "on" : ""}">💨 ${fanOn ? "Air ON" : "Air OFF"}</span>
+                <!-- Hydroponic Reservoir -->
+                <div class="telemetry-capsule">
+                  <div class="capsule-title">💧 Reservoir</div>
+                  <div class="capsule-row">
+                    <div class="metric-cell">
+                      <span class="metric-label">pH</span>
+                      <span class="metric-val cyan">${ph}</span>
+                    </div>
+                    <div class="metric-cell">
+                      <span class="metric-label">EC</span>
+                      <span class="metric-val">${ec}</span>
+                    </div>
+                    <div class="metric-cell">
+                      <span class="metric-label">Water</span>
+                      <span class="metric-val">${waterTemp}°</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="controls-row">
+                <div class="quick-toggles">
+                  ${
+                    s.light
+                      ? `<button class="btn-toggle ${lightOn ? "active" : ""}" data-action="toggle-light" data-idx="${idx}">💡 ${lightOn ? "Light ON" : "Light OFF"}</button>`
+                      : ""
+                  }
+                  ${
+                    s.fan
+                      ? `<button class="btn-toggle ${fanOn ? "active" : ""}" data-action="toggle-fan" data-idx="${idx}">💨 ${fanOn ? "Fan ON" : "Fan OFF"}</button>`
+                      : ""
+                  }
+                </div>
+                <button class="btn-cockpit" data-action="nav" data-idx="${idx}">Cockpit HUD →</button>
+              </div>
             </div>
           </div>
         `;
       })
       .join("");
 
-    // Bind navigation clicks
+    // Update Global Alerts
+    const globalAlertBadge = this.shadowRoot.getElementById("global-alert-badge");
+    const globalAlertCount = this.shadowRoot.getElementById("global-alert-count");
+    if (globalAlertBadge && globalAlertCount) {
+      if (activeAlertCount > 0) {
+        globalAlertBadge.style.display = "flex";
+        globalAlertCount.textContent = `${activeAlertCount} Alert${activeAlertCount > 1 ? "s" : ""} Active`;
+      } else {
+        globalAlertBadge.style.display = "none";
+      }
+    }
+
+    // Bind navigation clicks on the card
     grid.querySelectorAll(".space-card").forEach((card) => {
-      card.onclick = () => {
+      card.addEventListener("click", (e) => {
+        // If clicking a button, handled separately
+        if (e.target.closest("button")) return;
         const idx = parseInt(card.getAttribute("data-idx"), 10);
         const target = spaces[idx];
         if (target && target.path) {
           this._navigate(target.path);
         }
-      };
+      });
+    });
+
+    // Bind button actions
+    grid.querySelectorAll("button[data-action]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const action = btn.getAttribute("data-action");
+        const idx = parseInt(btn.getAttribute("data-idx"), 10);
+        const s = spaces[idx];
+        if (!s) return;
+
+        if (action === "toggle-light" && s.light) {
+          this._callService("homeassistant", "toggle", { entity_id: s.light });
+        } else if (action === "toggle-fan" && s.fan) {
+          this._callService("homeassistant", "toggle", { entity_id: s.fan });
+        } else if (action === "nav" && s.path) {
+          this._navigate(s.path);
+        }
+      });
     });
   }
 }

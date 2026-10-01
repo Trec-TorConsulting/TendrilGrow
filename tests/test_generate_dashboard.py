@@ -136,9 +136,10 @@ def test_populated_zone_is_a_sections_cockpit():
         "Plan",
     ]
     assert _card_types(view) <= GEN.CARD_TYPES
-    assert _section(view, "Watch", space)["column_span"] == 2
-    assert _section(view, "Trends", space)["column_span"] == 2
-    assert _section(view, "Advisor", space)["column_span"] == 2
+    assert _section(view, "Watch", space) is not None
+    assert _section(view, "Trends", space) is not None
+    assert _section(view, "Advisor", space) is not None
+    assert "column_span" not in _section(view, "Watch", space)
 
     lifecycle = _section(view, "Lifecycle", space)
     assert _heading(lifecycle) == space["title"]
@@ -436,4 +437,3 @@ def test_digital_twin_overview_generation():
     assert overview_card["spaces"][0]["name"] == "Tent A"
     assert overview_card["spaces"][0]["path"] == "/tendrial-grow/zone-tent_a"
     assert overview_card["spaces"][1]["name"] == "Tent B"
-
