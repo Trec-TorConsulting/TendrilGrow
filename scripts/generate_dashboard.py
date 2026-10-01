@@ -1000,14 +1000,43 @@ def build_digital_twin_space_view(space: dict) -> dict:
         }
     )
 
-    trend_cards = _trends_cards(space)
-    if trend_cards:
+    trend_item: dict[str, Any] = {
+        "name": title,
+        "path": f"/tendrial-grow/zone-{slug}",
+    }
+    for k, v in {
+        "temperature": sensors.get("temperature"),
+        "humidity": sensors.get("humidity"),
+        "vpd": reg.get("vpd"),
+        "leaf_vpd": reg.get("leaf_vpd"),
+        "ph": sensors.get("ph"),
+        "ec": sensors.get("ec"),
+        "water_temperature": sensors.get("water_temperature"),
+    }.items():
+        if v:
+            trend_item[k] = v
+
+    telemetry_keys = (
+        "temperature",
+        "humidity",
+        "vpd",
+        "leaf_vpd",
+        "ph",
+        "ec",
+        "water_temperature",
+    )
+    if any(k in trend_item for k in telemetry_keys):
         sections.append(
             {
                 "type": "grid",
                 "cards": [
                     _heading("24h Telemetry Trends", style="subtitle"),
-                    *trend_cards,
+                    {
+                        "type": "custom:tendrilgrow-trends-card",
+                        "title": f"{title} Telemetry Curves",
+                        "hours_to_show": 24,
+                        "spaces": [trend_item],
+                    },
                 ],
             }
         )

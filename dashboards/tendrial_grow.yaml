@@ -249,22 +249,19 @@ views:
     - type: heading
       heading: 24h Telemetry Trends
       heading_style: subtitle
-    - type: history-graph
-      title: Canopy Climate History (24h)
+    - type: custom:tendrilgrow-trends-card
+      title: 3x3 Mothers Tent Telemetry Curves
       hours_to_show: 24
-      entities:
-      - sensor.3x3_controller_inside_temperature
-      - sensor.3x3_controller_inside_humidity
-      - sensor.3x3_mothers_tent_vpd
-      - sensor.3x3_mothers_tent_leaf_vpd
-    - type: history-graph
-      title: Hydroponic Reservoir History (24h)
-      hours_to_show: 24
-      entities:
-      - sensor.3x3_water_monitor_ph
-      - sensor.3x3_water_monitor_electrical_conductivity
-      - sensor.3x3_water_monitor_temperature
-      - sensor.3x3_water_monitor_oxidation_reduction_potential
+      spaces:
+      - name: 3x3 Mothers Tent
+        path: /tendrial-grow/zone-3x3_mothers_tent
+        temperature: sensor.3x3_controller_inside_temperature
+        humidity: sensor.3x3_controller_inside_humidity
+        vpd: sensor.3x3_mothers_tent_vpd
+        leaf_vpd: sensor.3x3_mothers_tent_leaf_vpd
+        ph: sensor.3x3_water_monitor_ph
+        ec: sensor.3x3_water_monitor_electrical_conductivity
+        water_temperature: sensor.3x3_water_monitor_temperature
   - type: grid
     cards:
     - type: heading
@@ -392,22 +389,19 @@ views:
     - type: heading
       heading: 24h Telemetry Trends
       heading_style: subtitle
-    - type: history-graph
-      title: Canopy Climate History (24h)
+    - type: custom:tendrilgrow-trends-card
+      title: 4x4 Full Cycle Tent Telemetry Curves
       hours_to_show: 24
-      entities:
-      - sensor.4x4_controller_inside_temperature
-      - sensor.4x4_controller_inside_humidity
-      - sensor.4x4_full_cycle_tent_vpd
-      - sensor.4x4_full_cycle_tent_leaf_vpd
-    - type: history-graph
-      title: Hydroponic Reservoir History (24h)
-      hours_to_show: 24
-      entities:
-      - sensor.4x4_water_monitor_ph
-      - sensor.4x4_water_monitor_electrical_conductivity
-      - sensor.4x4_water_monitor_temperature
-      - sensor.4x4_water_monitor_oxidation_reduction_potential
+      spaces:
+      - name: 4x4 Full Cycle Tent
+        path: /tendrial-grow/zone-4x4_full_cycle_tent
+        temperature: sensor.4x4_controller_inside_temperature
+        humidity: sensor.4x4_controller_inside_humidity
+        vpd: sensor.4x4_full_cycle_tent_vpd
+        leaf_vpd: sensor.4x4_full_cycle_tent_leaf_vpd
+        ph: sensor.4x4_water_monitor_ph
+        ec: sensor.4x4_water_monitor_electrical_conductivity
+        water_temperature: sensor.4x4_water_monitor_temperature
   - type: grid
     cards:
     - type: heading
@@ -507,12 +501,14 @@ views:
     - type: heading
       heading: 24h Telemetry Trends
       heading_style: subtitle
-    - type: history-graph
-      title: Canopy Climate History (24h)
+    - type: custom:tendrilgrow-trends-card
+      title: Clone Telemetry Curves
       hours_to_show: 24
-      entities:
-      - sensor.basement_clone_vpd
-      - sensor.basement_clone_leaf_vpd
+      spaces:
+      - name: Clone
+        path: /tendrial-grow/zone-clone
+        vpd: sensor.basement_clone_vpd
+        leaf_vpd: sensor.basement_clone_leaf_vpd
   - type: grid
     cards:
     - type: heading

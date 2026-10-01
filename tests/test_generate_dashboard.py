@@ -421,6 +421,23 @@ def test_digital_twin_space_view_generation():
     assert twin_card["ec"] == "sensor.tent_ec"
     assert twin_card["target_ph_low"] == "number.tent_ph_low"
 
+    trends_section = next(
+        s
+        for s in view["sections"]
+        if any(
+            c.get("type") == "custom:tendrilgrow-trends-card"
+            for c in s.get("cards", [])
+        )
+    )
+    trends_card = next(
+        c
+        for c in trends_section["cards"]
+        if c.get("type") == "custom:tendrilgrow-trends-card"
+    )
+    assert trends_card["hours_to_show"] == 24
+    assert len(trends_card["spaces"]) == 1
+    assert trends_card["spaces"][0]["name"] == "3x3 Mothers Tent"
+
 
 def test_digital_twin_overview_generation():
     first = _space("Tent A", "tent_a", "a")

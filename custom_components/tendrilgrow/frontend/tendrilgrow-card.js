@@ -9,7 +9,7 @@
  *   active alerts, and at-a-glance telemetry.
  */
 
-const CARD_VERSION = "2.0.0";
+const CARD_VERSION = "2.1.0";
 console.info(
   `%c TENDRILGROW DIGITAL TWIN CARD %c v${CARD_VERSION} `,
   "color: #0d1117; background: #10b981; font-weight: 700; padding: 3px 6px; border-radius: 3px 0 0 3px;",
@@ -45,9 +45,18 @@ class TendrilGrowTwinCard extends HTMLElement {
     this._config = {};
     this._hass = null;
     this._viewMode = "schematic"; // 'schematic' | 'camera'
-    this._activeDrawer = null; // 'bands' | 'advisor' | 'lung' | null
-    this._fanPopoverOpen = false;
-    this._lightPopoverOpen = false;
+    this._activeDrawer = null; // 'bands' | 'advisor' | 'actions' | null
+    this._renderedStage = null;
+  }
+
+  static getStubConfig() {
+    return {
+      title: "Grow Tent HUD",
+      camera: "camera.tent",
+      light: "light.tent_light",
+      fan: "fan.tent_fan",
+      duct_fan: "fan.tent_duct",
+    };
   }
 
   setConfig(config) {
@@ -114,16 +123,21 @@ class TendrilGrowTwinCard extends HTMLElement {
       if (!this._config.water_temperature) this._config.water_temperature = `sensor.${p}_water_monitor_temperature`;
     }
 
+    this._renderedStage = null;
     this._render();
   }
 
   set hass(hass) {
-    this._hass = hass;
-    this._updateStates();
+    try {
+      this._hass = hass;
+      this._updateStates();
+    } catch (err) {
+      console.error("TendrilGrowTwinCard: Error in set hass:", err);
+    }
   }
 
   getCardSize() {
-    return 7;
+    return 8;
   }
 
   _callService(domain, service, data = {}) {
@@ -151,6 +165,196 @@ class TendrilGrowTwinCard extends HTMLElement {
     this._render();
   }
 
+  _normalizeStage(stageRaw) {
+    if (!stageRaw) return "veg";
+    const s = String(stageRaw).toLowerCase();
+    if (s.includes("seed") || s.includes("clone") || s.includes("sprout") || s.includes("germ")) return "seedling";
+    if (s.includes("flower") || s.includes("bloom")) return "flower";
+    if (s.includes("flush") || s.includes("harvest") || s.includes("cure")) return "flush";
+    return "veg";
+  }
+
+  _evalTarget(val, low, high) {
+    if (val === null || val === undefined || isNaN(val)) return { status: "unknown", label: "--" };
+    if (low !== null && low !== undefined && val < low) return { status: "low", label: "LOW" };
+    if (high !== null && high !== undefined && val > high) return { status: "high", label: "HIGH" };
+    return { status: "optimal", label: "OPTIMAL" };
+  }
+
+  _renderBotanicalCanopy(stageKey) {
+    const stage = this._normalizeStage(stageKey);
+    const radLeafUrl = stage === "flush" ? "url(#radFlushLeaf)" : "url(#radVegLeaf)";
+
+    const defs = `
+      <defs>
+        <!-- Leaf Gradients -->
+        <radialGradient id="radVegLeaf" cx="50%" cy="30%" r="70%">
+          <stop offset="0%" stop-color="#34d399"/>
+          <stop offset="35%" stop-color="#10b981"/>
+          <stop offset="85%" stop-color="#047857"/>
+          <stop offset="100%" stop-color="#064e3b"/>
+        </radialGradient>
+        <radialGradient id="radFlushLeaf" cx="50%" cy="30%" r="70%">
+          <stop offset="0%" stop-color="#fbbf24"/>
+          <stop offset="28%" stop-color="#f43f5e"/>
+          <stop offset="65%" stop-color="#7c3aed"/>
+          <stop offset="100%" stop-color="#312e81"/>
+        </radialGradient>
+        <!-- Stalk Gradient -->
+        <linearGradient id="linStalk" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#065f46"/>
+          <stop offset="45%" stop-color="#10b981"/>
+          <stop offset="100%" stop-color="#064e3b"/>
+        </linearGradient>
+        <!-- Flower Cola Gradient -->
+        <radialGradient id="radBudCola" cx="40%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#86efac"/>
+          <stop offset="35%" stop-color="#16a34a"/>
+          <stop offset="75%" stop-color="#14532d"/>
+          <stop offset="100%" stop-color="#052e16"/>
+        </radialGradient>
+        <!-- Single 7-Blade Cannabis Fan Leaf -->
+        <g id="fan-leaf-7">
+          <line x1="0" y1="0" x2="0" y2="24" stroke="#047857" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M 0 0 C -7 -18, -9 -45, 0 -68 C 9 -45, 7 -18, 0 0" fill="${radLeafUrl}" stroke="#064e3b" stroke-width="0.8"/>
+          <line x1="0" y1="0" x2="0" y2="-64" stroke="#a7f3d0" stroke-width="1" opacity="0.6"/>
+          <g transform="rotate(-24)">
+            <path d="M 0 0 C -6 -15, -8 -38, 0 -56 C 8 -38, 6 -15, 0 0" fill="${radLeafUrl}" stroke="#064e3b" stroke-width="0.7"/>
+            <line x1="0" y1="0" x2="0" y2="-52" stroke="#a7f3d0" stroke-width="0.9" opacity="0.5"/>
+          </g>
+          <g transform="rotate(24)">
+            <path d="M 0 0 C -6 -15, -8 -38, 0 -56 C 8 -38, 6 -15, 0 0" fill="${radLeafUrl}" stroke="#064e3b" stroke-width="0.7"/>
+            <line x1="0" y1="0" x2="0" y2="-52" stroke="#a7f3d0" stroke-width="0.9" opacity="0.5"/>
+          </g>
+          <g transform="rotate(-48)">
+            <path d="M 0 0 C -5 -12, -7 -30, 0 -44 C 7 -30, 5 -12, 0 0" fill="${radLeafUrl}" stroke="#064e3b" stroke-width="0.6"/>
+            <line x1="0" y1="0" x2="0" y2="-40" stroke="#a7f3d0" stroke-width="0.8" opacity="0.4"/>
+          </g>
+          <g transform="rotate(48)">
+            <path d="M 0 0 C -5 -12, -7 -30, 0 -44 C 7 -30, 5 -12, 0 0" fill="${radLeafUrl}" stroke="#064e3b" stroke-width="0.6"/>
+            <line x1="0" y1="0" x2="0" y2="-40" stroke="#a7f3d0" stroke-width="0.8" opacity="0.4"/>
+          </g>
+          <g transform="rotate(-72)">
+            <path d="M 0 0 C -4 -8, -6 -20, 0 -30 C 6 -20, 4 -8, 0 0" fill="${radLeafUrl}" stroke="#064e3b" stroke-width="0.5"/>
+          </g>
+          <g transform="rotate(72)">
+            <path d="M 0 0 C -4 -8, -6 -20, 0 -30 C 6 -20, 4 -8, 0 0" fill="${radLeafUrl}" stroke="#064e3b" stroke-width="0.5"/>
+          </g>
+        </g>
+        <!-- Flower Cola (Dense frosty bud with amber pistils) -->
+        <g id="flower-cola">
+          <ellipse cx="0" cy="-22" rx="16" ry="24" fill="url(#radBudCola)" stroke="#064e3b" stroke-width="0.8"/>
+          <ellipse cx="-8" cy="-14" rx="12" ry="16" fill="url(#radBudCola)"/>
+          <ellipse cx="8" cy="-14" rx="12" ry="16" fill="url(#radBudCola)"/>
+          <ellipse cx="-6" cy="-30" rx="10" ry="14" fill="url(#radBudCola)"/>
+          <ellipse cx="6" cy="-30" rx="10" ry="14" fill="url(#radBudCola)"/>
+          <circle cx="0" cy="-40" r="10" fill="url(#radBudCola)"/>
+          <circle cx="-4" cy="-26" r="1.5" fill="#fef08a" opacity="0.9"/>
+          <circle cx="5" cy="-22" r="1.8" fill="#ffffff" opacity="0.85"/>
+          <circle cx="-1" cy="-34" r="1.6" fill="#fef08a" opacity="0.9"/>
+          <circle cx="3" cy="-14" r="1.4" fill="#ffffff" opacity="0.8"/>
+          <circle cx="-7" cy="-16" r="1.5" fill="#fef08a" opacity="0.85"/>
+          <circle cx="1" cy="-42" r="1.3" fill="#ffffff" opacity="0.9"/>
+          <path d="M -6 -42 Q -12 -54 -7 -60" stroke="#f59e0b" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+          <path d="M 0 -44 Q 2 -56 8 -62" stroke="#d97706" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M 6 -40 Q 14 -50 12 -58" stroke="#f59e0b" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+          <path d="M -12 -28 Q -20 -36 -18 -44" stroke="#d97706" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+          <path d="M 12 -26 Q 22 -32 20 -40" stroke="#f59e0b" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+          <path d="M -10 -16 Q -18 -22 -16 -28" stroke="#f59e0b" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+          <path d="M 10 -14 Q 18 -18 17 -26" stroke="#d97706" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+        </g>
+      </defs>
+    `;
+
+    const baseHardware = `
+      <g class="submerged-roots" opacity="0.85">
+        <path d="M 210 240 Q 200 258 206 275" stroke="#f1f5f9" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M 220 240 Q 212 260 224 280" stroke="#e2e8f0" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <path d="M 230 240 Q 232 262 228 285" stroke="#f8fafc" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        <path d="M 240 240 Q 248 260 244 280" stroke="#cbd5e1" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <path d="M 250 240 Q 258 258 252 275" stroke="#f1f5f9" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+      </g>
+      <rect x="195" y="218" width="70" height="22" rx="3" fill="#1e293b" stroke="#475569" stroke-width="1.5"/>
+      <line x1="204" y1="218" x2="216" y2="240" stroke="#334155" stroke-width="1.2"/>
+      <line x1="218" y1="218" x2="230" y2="240" stroke="#334155" stroke-width="1.2"/>
+      <line x1="232" y1="218" x2="244" y2="240" stroke="#334155" stroke-width="1.2"/>
+      <line x1="246" y1="218" x2="258" y2="240" stroke="#334155" stroke-width="1.2"/>
+      <rect x="212" y="208" width="36" height="15" rx="2" fill="#57534e" stroke="#78716c" stroke-width="1"/>
+    `;
+
+    let stageContent = "";
+
+    if (stage === "seedling") {
+      stageContent = `
+        <path d="M 230 210 Q 230 185 230 168" stroke="#34d399" stroke-width="4.5" stroke-linecap="round"/>
+        <ellipse cx="218" cy="180" rx="10" ry="6" fill="#10b981" stroke="#059669" stroke-width="0.8" transform="rotate(-15 218 180)"/>
+        <ellipse cx="242" cy="180" rx="10" ry="6" fill="#10b981" stroke="#059669" stroke-width="0.8" transform="rotate(15 242 180)"/>
+        <g transform="translate(230, 168)">
+          <path d="M 0 0 C -4 -10, -6 -24, 0 -36 C 6 -24, 4 -10, 0 0" fill="#10b981" stroke="#047857" stroke-width="0.7"/>
+          <g transform="rotate(-35)">
+            <path d="M 0 0 C -3 -8, -5 -18, 0 -28 C 5 -18, 3 -8, 0 0" fill="#10b981" stroke="#047857" stroke-width="0.6"/>
+          </g>
+          <g transform="rotate(35)">
+            <path d="M 0 0 C -3 -8, -5 -18, 0 -28 C 5 -18, 3 -8, 0 0" fill="#10b981" stroke="#047857" stroke-width="0.6"/>
+          </g>
+        </g>
+      `;
+    } else if (stage === "flower" || stage === "flush") {
+      stageContent = `
+        <path d="M 230 210 Q 230 145 230 85" stroke="url(#linStalk)" stroke-width="7" stroke-linecap="round"/>
+        <path d="M 230 170 Q 180 165 140 145" stroke="url(#linStalk)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M 230 170 Q 280 165 320 145" stroke="url(#linStalk)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M 230 130 Q 195 120 175 105" stroke="url(#linStalk)" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+        <path d="M 230 130 Q 265 120 285 105" stroke="url(#linStalk)" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+
+        <g transform="translate(100, 165) scale(0.85) rotate(-35)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(360, 165) scale(0.85) rotate(35)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(150, 120) scale(0.75) rotate(-20)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(310, 120) scale(0.75) rotate(20)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(195, 95) scale(0.65) rotate(-15)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(265, 95) scale(0.65) rotate(15)"><use href="#fan-leaf-7"/></g>
+
+        <g transform="translate(140, 145) scale(0.9)"><use href="#flower-cola"/></g>
+        <g transform="translate(320, 145) scale(0.9)"><use href="#flower-cola"/></g>
+        <g transform="translate(175, 105) scale(0.85)"><use href="#flower-cola"/></g>
+        <g transform="translate(285, 105) scale(0.85)"><use href="#flower-cola"/></g>
+        <g transform="translate(230, 80) scale(1.15)"><use href="#flower-cola"/></g>
+      `;
+    } else {
+      stageContent = `
+        <path d="M 230 210 Q 230 140 230 75" stroke="url(#linStalk)" stroke-width="7" stroke-linecap="round"/>
+        <path d="M 230 175 Q 170 170 120 155" stroke="url(#linStalk)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M 230 175 Q 290 170 340 155" stroke="url(#linStalk)" stroke-width="5" stroke-linecap="round" fill="none"/>
+        <path d="M 230 135 Q 185 125 155 110" stroke="url(#linStalk)" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+        <path d="M 230 135 Q 275 125 305 110" stroke="url(#linStalk)" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+        <path d="M 230 100 Q 200 90 185 80" stroke="url(#linStalk)" stroke-width="4" stroke-linecap="round" fill="none"/>
+        <path d="M 230 100 Q 260 90 275 80" stroke="url(#linStalk)" stroke-width="4" stroke-linecap="round" fill="none"/>
+
+        <g transform="translate(90, 165) scale(0.95) rotate(-45)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(370, 165) scale(0.95) rotate(45)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(135, 155) scale(0.9) rotate(-25)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(325, 155) scale(0.9) rotate(25)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(145, 115) scale(0.85) rotate(-35)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(315, 115) scale(0.85) rotate(35)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(175, 105) scale(0.8) rotate(-15)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(285, 105) scale(0.8) rotate(15)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(185, 80) scale(0.7) rotate(-20)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(275, 80) scale(0.7) rotate(20)"><use href="#fan-leaf-7"/></g>
+        <g transform="translate(230, 70) scale(0.85)"><use href="#fan-leaf-7"/></g>
+      `;
+    }
+
+    return `
+      <svg class="botanical-canopy-svg" viewBox="0 0 460 270" preserveAspectRatio="xMidYMid meet">
+        ${defs}
+        ${baseHardware}
+        <g class="canopy-sway-group" id="canopy-sway-group">
+          ${stageContent}
+        </g>
+      </svg>
+    `;
+  }
+
   _render() {
     if (!this.shadowRoot) return;
 
@@ -163,17 +367,18 @@ class TendrilGrowTwinCard extends HTMLElement {
           display: block;
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
           color: #e6edf3;
-          --tg-bg: #0d1117;
-          --tg-card-bg: rgba(22, 27, 34, 0.85);
+          --tg-bg: #0b0f17;
+          --tg-card-bg: rgba(15, 23, 42, 0.88);
           --tg-border: rgba(255, 255, 255, 0.08);
+          --tg-border-active: rgba(16, 185, 129, 0.4);
           --tg-green: #10b981;
           --tg-cyan: #06b6d4;
           --tg-amber: #f59e0b;
           --tg-red: #ef4444;
           --tg-violet: #8b5cf6;
-          --tg-glow-green: 0 0 16px rgba(16, 185, 129, 0.4);
-          --tg-glow-cyan: 0 0 16px rgba(6, 182, 212, 0.4);
-          --tg-glow-amber: 0 0 16px rgba(245, 158, 11, 0.4);
+          --tg-glow-green: 0 0 16px rgba(16, 185, 129, 0.35);
+          --tg-glow-cyan: 0 0 16px rgba(6, 182, 212, 0.35);
+          --tg-glow-amber: 0 0 16px rgba(245, 158, 11, 0.35);
         }
 
         * {
@@ -187,7 +392,7 @@ class TendrilGrowTwinCard extends HTMLElement {
           border-radius: 16px;
           border: 1px solid var(--tg-border);
           overflow: hidden;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
           position: relative;
         }
 
@@ -196,10 +401,12 @@ class TendrilGrowTwinCard extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 14px 18px;
+          padding: 13px 18px;
           background: rgba(13, 17, 23, 0.95);
           border-bottom: 1px solid var(--tg-border);
-          backdrop-filter: blur(10px);
+          backdrop-filter: blur(12px);
+          position: relative;
+          z-index: 10;
         }
 
         .header-title-box {
@@ -223,7 +430,7 @@ class TendrilGrowTwinCard extends HTMLElement {
         }
 
         .title-text h2 {
-          font-size: 17px;
+          font-size: 16.5px;
           font-weight: 700;
           letter-spacing: -0.3px;
           color: #f0f6fc;
@@ -233,7 +440,7 @@ class TendrilGrowTwinCard extends HTMLElement {
           display: inline-flex;
           align-items: center;
           gap: 5px;
-          font-size: 11px;
+          font-size: 10.5px;
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -251,7 +458,7 @@ class TendrilGrowTwinCard extends HTMLElement {
           gap: 12px;
         }
 
-        /* AI HEALTH SCORE RING */
+        /* AI HEALTH SCORE DIAL */
         .health-ring-box {
           display: flex;
           align-items: center;
@@ -261,8 +468,8 @@ class TendrilGrowTwinCard extends HTMLElement {
 
         .health-dial {
           position: relative;
-          width: 44px;
-          height: 44px;
+          width: 42px;
+          height: 42px;
         }
 
         .health-dial svg {
@@ -290,7 +497,7 @@ class TendrilGrowTwinCard extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 13px;
+          font-size: 12.5px;
           font-weight: 700;
           color: #fff;
         }
@@ -301,14 +508,14 @@ class TendrilGrowTwinCard extends HTMLElement {
         }
 
         .health-label-text {
-          font-size: 10px;
+          font-size: 9.5px;
           text-transform: uppercase;
           color: #8b949e;
           font-weight: 600;
         }
 
         .health-status-text {
-          font-size: 12px;
+          font-size: 11.5px;
           font-weight: 600;
           color: var(--tg-green);
         }
@@ -320,7 +527,7 @@ class TendrilGrowTwinCard extends HTMLElement {
           color: #c9d1d9;
           padding: 6px 12px;
           border-radius: 8px;
-          font-size: 12px;
+          font-size: 11.5px;
           font-weight: 600;
           cursor: pointer;
           display: flex;
@@ -339,13 +546,13 @@ class TendrilGrowTwinCard extends HTMLElement {
           display: none;
           align-items: center;
           justify-content: space-between;
-          padding: 10px 16px;
+          padding: 9px 16px;
           background: linear-gradient(90deg, rgba(239, 68, 68, 0.2), rgba(245, 158, 11, 0.2));
           border-bottom: 1px solid rgba(239, 68, 68, 0.4);
-          font-size: 12px;
+          font-size: 11.5px;
           font-weight: 600;
           color: #fca5a5;
-          animation: pulse-ribbon 2s infinite ease-in-out;
+          animation: pulse-ribbon 2.5s infinite ease-in-out;
         }
 
         .alert-ribbon.visible {
@@ -369,7 +576,7 @@ class TendrilGrowTwinCard extends HTMLElement {
           border: none;
           padding: 4px 10px;
           border-radius: 6px;
-          font-size: 11px;
+          font-size: 10.5px;
           font-weight: 700;
           cursor: pointer;
         }
@@ -378,13 +585,24 @@ class TendrilGrowTwinCard extends HTMLElement {
         .twin-canvas {
           position: relative;
           width: 100%;
-          min-height: 380px;
-          background: radial-gradient(circle at 50% 30%, #161f2e 0%, #090d13 85%);
+          min-height: 480px;
+          background: radial-gradient(circle at 50% 25%, #131c2b 0%, #080d14 85%);
           overflow: hidden;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
           padding: 16px;
+        }
+
+        /* TENT MYLAR REFLECTIVE OVERLAY */
+        .tent-backdrop {
+          position: absolute;
+          inset: 0;
+          background-image: 
+            linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+          background-size: 24px 24px;
+          pointer-events: none;
         }
 
         /* CAMERA MODE CONTAINER */
@@ -409,7 +627,7 @@ class TendrilGrowTwinCard extends HTMLElement {
         .camera-scrim {
           position: absolute;
           inset: 0;
-          background: linear-gradient(to bottom, rgba(13,17,23,0.4) 0%, transparent 40%, rgba(13,17,23,0.7) 100%);
+          background: linear-gradient(to bottom, rgba(11,15,23,0.45) 0%, transparent 40%, rgba(11,15,23,0.75) 100%);
         }
 
         /* SCHEMATIC LAYERS */
@@ -421,7 +639,7 @@ class TendrilGrowTwinCard extends HTMLElement {
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          gap: 16px;
+          gap: 12px;
         }
 
         /* TOP RIG (LIGHT & DUCT FAN) */
@@ -431,8 +649,10 @@ class TendrilGrowTwinCard extends HTMLElement {
           align-items: flex-start;
           width: 100%;
           position: relative;
+          z-index: 5;
         }
 
+        /* LIGHT FIXTURE ASSEMBLY */
         .light-assembly {
           position: absolute;
           left: 50%;
@@ -444,27 +664,27 @@ class TendrilGrowTwinCard extends HTMLElement {
         }
 
         .light-bar {
-          width: 240px;
+          width: 250px;
           height: 14px;
-          background: #30363d;
+          background: #21262d;
           border-radius: 4px;
-          border: 1px solid #484f58;
+          border: 1px solid #30363d;
           position: relative;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.6);
           transition: all 0.3s ease;
         }
 
         .light-bar.on {
           background: #fffbeb;
           border-color: #fde68a;
-          box-shadow: 0 0 25px rgba(253, 224, 71, 0.75), 0 0 50px rgba(245, 158, 11, 0.4);
+          box-shadow: 0 0 25px rgba(253, 224, 71, 0.8), 0 0 50px rgba(245, 158, 11, 0.45);
         }
 
         .light-cone {
-          width: 290px;
-          height: 160px;
-          background: linear-gradient(to bottom, rgba(254, 240, 138, 0.28) 0%, rgba(254, 240, 138, 0.03) 80%, transparent 100%);
-          clip-path: polygon(15% 0%, 85% 0%, 100% 100%, 0% 100%);
+          width: 320px;
+          height: 180px;
+          background: linear-gradient(to bottom, rgba(254, 240, 138, 0.28) 0%, rgba(254, 240, 138, 0.04) 75%, transparent 100%);
+          clip-path: polygon(18% 0%, 82% 0%, 100% 100%, 0% 100%);
           opacity: 0;
           transition: opacity 0.4s ease;
           pointer-events: none;
@@ -474,11 +694,52 @@ class TendrilGrowTwinCard extends HTMLElement {
           opacity: 1;
         }
 
+        /* PHOTON PARTICLE SHOWER */
+        .photon-stream {
+          position: absolute;
+          top: 32px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 280px;
+          height: 190px;
+          pointer-events: none;
+          overflow: hidden;
+          opacity: 0;
+          transition: opacity 0.4s ease;
+          z-index: 2;
+        }
+
+        .photon-stream.on {
+          opacity: 1;
+        }
+
+        .photon-particle {
+          position: absolute;
+          width: 2px;
+          border-radius: 2px;
+          background: linear-gradient(180deg, rgba(254, 240, 138, 0.95), rgba(245, 158, 11, 0));
+          animation: photon-fall 1.8s linear infinite;
+        }
+
+        .p1 { left: 18%; height: 16px; animation-delay: 0.1s; animation-duration: 1.7s; }
+        .p2 { left: 32%; height: 22px; animation-delay: 0.6s; animation-duration: 2.1s; }
+        .p3 { left: 50%; height: 18px; animation-delay: 0.3s; animation-duration: 1.9s; }
+        .p4 { left: 68%; height: 24px; animation-delay: 0.9s; animation-duration: 2.0s; }
+        .p5 { left: 82%; height: 15px; animation-delay: 0.4s; animation-duration: 1.8s; }
+        .p6 { left: 42%; height: 20px; animation-delay: 1.2s; animation-duration: 2.2s; }
+
+        @keyframes photon-fall {
+          0% { transform: translateY(-15px); opacity: 0; }
+          25% { opacity: 0.9; }
+          75% { opacity: 0.9; }
+          100% { transform: translateY(185px); opacity: 0; }
+        }
+
         .light-badge {
           margin-top: 4px;
-          background: rgba(22, 27, 34, 0.85);
+          background: rgba(15, 23, 42, 0.9);
           border: 1px solid var(--tg-border);
-          padding: 3px 8px;
+          padding: 3px 9px;
           border-radius: 12px;
           font-size: 11px;
           font-weight: 600;
@@ -486,7 +747,7 @@ class TendrilGrowTwinCard extends HTMLElement {
           display: flex;
           align-items: center;
           gap: 4px;
-          backdrop-filter: blur(6px);
+          backdrop-filter: blur(8px);
         }
 
         /* DUCT / INLINE EXHAUST FAN */
@@ -494,13 +755,14 @@ class TendrilGrowTwinCard extends HTMLElement {
           display: flex;
           align-items: center;
           gap: 8px;
-          background: rgba(22, 27, 34, 0.85);
+          background: rgba(15, 23, 42, 0.9);
           border: 1px solid var(--tg-border);
           padding: 6px 12px;
           border-radius: 10px;
           cursor: pointer;
           backdrop-filter: blur(8px);
           transition: all 0.2s ease;
+          position: relative;
         }
 
         .duct-fan-box:hover {
@@ -509,8 +771,8 @@ class TendrilGrowTwinCard extends HTMLElement {
         }
 
         .fan-icon {
-          width: 24px;
-          height: 24px;
+          width: 22px;
+          height: 22px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -525,7 +787,7 @@ class TendrilGrowTwinCard extends HTMLElement {
         }
 
         .fan-rotor.spinning-fast {
-          animation: spin 0.4s linear infinite;
+          animation: spin 0.35s linear infinite;
         }
 
         @keyframes spin {
@@ -539,7 +801,7 @@ class TendrilGrowTwinCard extends HTMLElement {
         }
 
         .fan-title {
-          font-size: 10px;
+          font-size: 9.5px;
           color: #8b949e;
           text-transform: uppercase;
           font-weight: 600;
@@ -551,44 +813,137 @@ class TendrilGrowTwinCard extends HTMLElement {
           color: var(--tg-cyan);
         }
 
+        /* EXHAUST AIRFLOW VORTEX */
+        .exhaust-vortex {
+          position: absolute;
+          top: -12px;
+          left: 10px;
+          width: 44px;
+          height: 32px;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+
+        .exhaust-vortex.active {
+          opacity: 1;
+        }
+
+        .vortex-trail {
+          stroke-dashoffset: 0;
+          animation: vortex-flow 0.9s linear infinite;
+        }
+
+        @keyframes vortex-flow {
+          from { stroke-dashoffset: 24; }
+          to { stroke-dashoffset: 0; }
+        }
+
         /* CIRCULATION FAN */
         .circ-fan-box {
           display: flex;
           align-items: center;
           gap: 8px;
-          background: rgba(22, 27, 34, 0.85);
+          background: rgba(15, 23, 42, 0.9);
           border: 1px solid var(--tg-border);
           padding: 6px 12px;
           border-radius: 10px;
           cursor: pointer;
           backdrop-filter: blur(8px);
+          position: relative;
         }
 
-        /* CANOPY HUD CAPSULE */
+        .circ-breeze {
+          position: absolute;
+          top: 36px;
+          right: 12px;
+          width: 75px;
+          height: 45px;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 0.3s ease;
+        }
+
+        .circ-breeze.active {
+          opacity: 1;
+        }
+
+        .breeze-curve {
+          stroke-dashoffset: 0;
+          animation: breeze-sweep 1.4s linear infinite;
+        }
+
+        @keyframes breeze-sweep {
+          from { stroke-dashoffset: 26; }
+          to { stroke-dashoffset: 0; }
+        }
+
+        /* BOTANICAL CANOPY VIEWPORT */
+        .canopy-viewport {
+          position: relative;
+          width: 100%;
+          height: 250px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 4px 0;
+          pointer-events: none;
+        }
+
+        .botanical-canopy-svg {
+          width: 100%;
+          max-width: 460px;
+          height: 100%;
+          overflow: visible;
+        }
+
+        .canopy-sway-group {
+          transform-origin: 230px 225px;
+          transition: transform 0.6s ease;
+        }
+
+        .canopy-sway-group.swaying {
+          animation: canopy-breeze 4s ease-in-out infinite alternate;
+        }
+
+        @keyframes canopy-breeze {
+          0% { transform: rotate(-1.5deg) skewX(-1deg); }
+          50% { transform: rotate(1.4deg) skewX(0.9deg); }
+          100% { transform: rotate(-1.5deg) skewX(-1deg); }
+        }
+
+        /* FLOATING CANOPY TELEMETRY HUD CAPSULE */
         .canopy-hud-wrapper {
           display: flex;
           justify-content: center;
           width: 100%;
           position: relative;
-          z-index: 3;
+          z-index: 10;
         }
 
         .hud-capsule {
-          background: rgba(13, 17, 23, 0.88);
-          border: 1px solid rgba(16, 185, 129, 0.4);
+          background: rgba(13, 17, 23, 0.86);
+          border: 1px solid rgba(16, 185, 129, 0.35);
           border-radius: 16px;
-          padding: 10px 18px;
+          padding: 8px 18px;
           display: flex;
           align-items: center;
-          gap: 20px;
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), var(--tg-glow-green);
-          backdrop-filter: blur(14px);
+          gap: 16px;
+          box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 0 20px rgba(16, 185, 129, 0.22);
+          backdrop-filter: blur(16px);
+          cursor: pointer;
           transition: all 0.3s ease;
+        }
+
+        .hud-capsule:hover {
+          transform: translateY(-2px);
+          border-color: rgba(16, 185, 129, 0.6);
+          box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7), 0 0 28px rgba(16, 185, 129, 0.35);
         }
 
         .hud-capsule.alert {
           border-color: var(--tg-red);
-          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 16px rgba(239, 68, 68, 0.4);
+          box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 0 18px rgba(239, 68, 68, 0.4);
         }
 
         .hud-metric {
@@ -598,24 +953,67 @@ class TendrilGrowTwinCard extends HTMLElement {
         }
 
         .hud-metric-label {
-          font-size: 10px;
+          font-size: 9.5px;
           color: #8b949e;
-          font-weight: 600;
+          font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.6px;
         }
 
         .hud-metric-val {
           font-size: 18px;
           font-weight: 800;
           color: #f0f6fc;
-          letter-spacing: -0.5px;
+          letter-spacing: -0.4px;
+          display: flex;
+          align-items: baseline;
+          gap: 2px;
         }
 
         .hud-metric-val span {
-          font-size: 12px;
-          font-weight: 500;
+          font-size: 11px;
+          font-weight: 600;
           color: #8b949e;
+        }
+
+        .hud-status-badge {
+          font-size: 8.5px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          padding: 1px 6px;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.06);
+          color: #8b949e;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          margin-top: 3px;
+          transition: all 0.2s ease;
+        }
+
+        .hud-status-badge.optimal {
+          background: rgba(16, 185, 129, 0.16);
+          color: #34d399;
+          border-color: rgba(16, 185, 129, 0.35);
+          box-shadow: 0 0 8px rgba(16, 185, 129, 0.25);
+        }
+
+        .hud-status-badge.low {
+          background: rgba(6, 182, 212, 0.16);
+          color: #22d3ee;
+          border-color: rgba(6, 182, 212, 0.35);
+        }
+
+        .hud-status-badge.high {
+          background: rgba(245, 158, 11, 0.16);
+          color: #fbbf24;
+          border-color: rgba(245, 158, 11, 0.35);
+        }
+
+        .hud-status-badge.critical {
+          background: rgba(239, 68, 68, 0.18);
+          color: #f87171;
+          border-color: rgba(239, 68, 68, 0.4);
+          box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
         }
 
         .hud-divider {
@@ -624,22 +1022,28 @@ class TendrilGrowTwinCard extends HTMLElement {
           background: rgba(255, 255, 255, 0.1);
         }
 
-        /* RESERVOIR & PUMP DOCK (BOTTOM) */
+        /* TRANSLUCENT RESERVOIR & PUMP DOCK (BOTTOM) */
         .reservoir-dock {
           width: 100%;
-          background: rgba(13, 17, 23, 0.92);
-          border: 1px solid rgba(6, 182, 212, 0.3);
-          border-radius: 14px;
-          padding: 12px 16px;
+          background: linear-gradient(180deg, rgba(13, 17, 23, 0.95) 0%, rgba(8, 47, 73, 0.88) 100%);
+          border: 1px solid rgba(6, 182, 212, 0.35);
+          border-radius: 16px;
+          padding: 12px 18px;
           display: flex;
           flex-wrap: wrap;
           align-items: center;
           justify-content: space-between;
           gap: 12px;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.5), var(--tg-glow-cyan);
-          backdrop-filter: blur(12px);
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(6, 182, 212, 0.25);
+          backdrop-filter: blur(14px);
           position: relative;
           overflow: hidden;
+          z-index: 10;
+        }
+
+        .reservoir-dock.chiller-active {
+          border-color: rgba(56, 189, 248, 0.65);
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 25px rgba(56, 189, 248, 0.35);
         }
 
         .water-wave-bg {
@@ -647,6 +1051,66 @@ class TendrilGrowTwinCard extends HTMLElement {
           inset: 0;
           background: linear-gradient(180deg, transparent 40%, rgba(6, 182, 212, 0.08) 100%);
           pointer-events: none;
+        }
+
+        /* RESERVOIR AERATION BUBBLES */
+        .aeration-bubbles {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          overflow: hidden;
+          opacity: 0;
+          transition: opacity 0.4s ease;
+        }
+
+        .aeration-bubbles.active {
+          opacity: 1;
+        }
+
+        .bubble-dot {
+          position: absolute;
+          bottom: -8px;
+          border-radius: 50%;
+          background: radial-gradient(circle at 30% 30%, #ffffff, rgba(6, 182, 212, 0.5));
+          box-shadow: 0 0 4px rgba(6, 182, 212, 0.6);
+          animation: bubble-rise 2.4s ease-in infinite;
+        }
+
+        .b1 { left: 12%; width: 5px; height: 5px; animation-delay: 0.1s; }
+        .b2 { left: 24%; width: 7px; height: 7px; animation-delay: 0.5s; }
+        .b3 { left: 38%; width: 6px; height: 6px; animation-delay: 1.1s; }
+        .b4 { left: 52%; width: 8px; height: 8px; animation-delay: 0.3s; }
+        .b5 { left: 68%; width: 5px; height: 5px; animation-delay: 0.8s; }
+        .b6 { left: 82%; width: 7px; height: 7px; animation-delay: 1.4s; }
+
+        @keyframes bubble-rise {
+          0% { transform: translateY(0) scale(0.6); opacity: 0; }
+          20% { opacity: 0.8; }
+          80% { opacity: 0.8; }
+          100% { transform: translateY(-65px) scale(1.2); opacity: 0; }
+        }
+
+        /* RDWC FLUID RECIRCULATION STREAM */
+        .res-flow-stream {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 4px;
+          background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.6), transparent);
+          background-size: 200% 100%;
+          opacity: 0;
+          transition: opacity 0.4s ease;
+        }
+
+        .res-flow-stream.active {
+          opacity: 1;
+          animation: flow-shimmer 2s linear infinite;
+        }
+
+        @keyframes flow-shimmer {
+          from { background-position: 200% 0; }
+          to { background-position: -200% 0; }
         }
 
         .reservoir-metrics {
@@ -688,8 +1152,8 @@ class TendrilGrowTwinCard extends HTMLElement {
         .pump-btn {
           background: rgba(255, 255, 255, 0.05);
           border: 1px solid var(--tg-border);
-          border-radius: 8px;
-          padding: 6px 10px;
+          border-radius: 9px;
+          padding: 6px 11px;
           display: flex;
           align-items: center;
           gap: 6px;
@@ -697,25 +1161,31 @@ class TendrilGrowTwinCard extends HTMLElement {
           font-weight: 600;
           color: #8b949e;
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .pump-btn:hover {
           background: rgba(255, 255, 255, 0.1);
           color: #fff;
+          transform: translateY(-1px);
+        }
+
+        .pump-btn:active {
+          transform: translateY(1px);
         }
 
         .pump-btn.active {
           background: rgba(6, 182, 212, 0.2);
           border-color: var(--tg-cyan);
           color: #e0f2fe;
-          box-shadow: 0 0 10px rgba(6, 182, 212, 0.35);
+          box-shadow: 0 0 12px rgba(6, 182, 212, 0.35);
         }
 
         .pump-btn.active.chiller {
-          background: rgba(56, 189, 248, 0.2);
+          background: rgba(56, 189, 248, 0.22);
           border-color: #38bdf8;
           color: #f0f9ff;
+          box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
         }
 
         .pump-dot {
@@ -723,11 +1193,28 @@ class TendrilGrowTwinCard extends HTMLElement {
           height: 7px;
           border-radius: 50%;
           background: #484f58;
+          transition: all 0.2s ease;
         }
 
         .pump-btn.active .pump-dot {
           background: var(--tg-cyan);
-          box-shadow: 0 0 6px var(--tg-cyan);
+          box-shadow: 0 0 7px var(--tg-cyan);
+        }
+
+        .pump-btn.active.chiller .pump-dot {
+          background: #38bdf8;
+          box-shadow: 0 0 7px #38bdf8;
+        }
+
+        .pump-status-text {
+          font-size: 9px;
+          font-weight: 700;
+          text-transform: uppercase;
+          color: #6e7681;
+        }
+
+        .pump-btn.active .pump-status-text {
+          color: #a5f3fc;
         }
 
         /* BOTTOM DRAWER / TABS */
@@ -735,6 +1222,8 @@ class TendrilGrowTwinCard extends HTMLElement {
           display: flex;
           border-top: 1px solid var(--tg-border);
           background: rgba(13, 17, 23, 0.95);
+          position: relative;
+          z-index: 10;
         }
 
         .drawer-tab {
@@ -828,7 +1317,7 @@ class TendrilGrowTwinCard extends HTMLElement {
         .actions-tray {
           display: flex;
           gap: 8px;
-          margin-top: 12px;
+          margin-top: 8px;
           flex-wrap: wrap;
         }
 
@@ -854,17 +1343,17 @@ class TendrilGrowTwinCard extends HTMLElement {
         /* RESPONSIVE QUERIES */
         @media (max-width: 600px) {
           .hud-capsule {
-            padding: 8px 12px;
-            gap: 12px;
+            padding: 7px 12px;
+            gap: 10px;
           }
           .hud-metric-val {
             font-size: 15px;
           }
           .light-bar {
-            width: 160px;
+            width: 170px;
           }
           .light-cone {
-            width: 200px;
+            width: 220px;
           }
           .reservoir-dock {
             flex-direction: column;
@@ -891,9 +1380,9 @@ class TendrilGrowTwinCard extends HTMLElement {
             <!-- AI HEALTH SCORE DIAL -->
             <div class="health-ring-box" id="health-ring-box" title="AI Health Diagnostics">
               <div class="health-dial">
-                <svg width="44" height="44">
-                  <circle class="dial-track" cx="22" cy="22" r="17" />
-                  <circle class="dial-progress" id="dial-bar" cx="22" cy="22" r="17" stroke-dasharray="106.8" stroke-dashoffset="106.8" />
+                <svg width="42" height="42">
+                  <circle class="dial-track" cx="21" cy="21" r="16" />
+                  <circle class="dial-progress" id="dial-bar" cx="21" cy="21" r="16" stroke-dasharray="100.5" stroke-dashoffset="100.5" />
                 </svg>
                 <div class="dial-value" id="dial-val">--</div>
               </div>
@@ -925,6 +1414,8 @@ class TendrilGrowTwinCard extends HTMLElement {
 
         <!-- MAIN DIGITAL TWIN CANVAS -->
         <div class="twin-canvas">
+          <div class="tent-backdrop"></div>
+
           <!-- LIVE CAMERA BACKDROP -->
           <div class="camera-container ${this._viewMode === "camera" ? "active" : ""}" id="camera-box">
             ${
@@ -948,6 +1439,12 @@ class TendrilGrowTwinCard extends HTMLElement {
             <div class="overhead-rig">
               <!-- DUCT FAN -->
               <div class="duct-fan-box" id="duct-fan-box" title="Inline Exhaust Fan">
+                <div class="exhaust-vortex" id="exhaust-vortex">
+                  <svg viewBox="0 0 50 36" fill="none">
+                    <path class="vortex-trail" d="M 8 32 C 14 20, 26 16, 24 8 C 22 2, 34 0, 42 2" stroke="#06b6d4" stroke-width="1.5" stroke-dasharray="4 3" />
+                    <path class="vortex-trail" d="M 16 34 C 20 22, 32 18, 30 10 C 28 4, 38 2, 46 4" stroke="#22d3ee" stroke-width="1.2" stroke-dasharray="3 3" />
+                  </svg>
+                </div>
                 <div class="fan-icon">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2">
                     <g class="fan-rotor" id="duct-rotor">
@@ -969,6 +1466,15 @@ class TendrilGrowTwinCard extends HTMLElement {
               <div class="light-assembly" id="light-box" title="Grow Light Fixture">
                 <div class="light-bar" id="light-bar"></div>
                 <div class="light-cone" id="light-cone"></div>
+                <!-- Photon Particles -->
+                <div class="photon-stream" id="photon-stream">
+                  <div class="photon-particle p1"></div>
+                  <div class="photon-particle p2"></div>
+                  <div class="photon-particle p3"></div>
+                  <div class="photon-particle p4"></div>
+                  <div class="photon-particle p5"></div>
+                  <div class="photon-particle p6"></div>
+                </div>
                 <div class="light-badge">
                   <span>💡</span>
                   <span id="light-power-text">OFF</span>
@@ -977,6 +1483,12 @@ class TendrilGrowTwinCard extends HTMLElement {
 
               <!-- CIRCULATION FAN -->
               <div class="circ-fan-box" id="circ-fan-box" title="Circulation Fan">
+                <div class="circ-breeze" id="circ-breeze">
+                  <svg viewBox="0 0 80 40" fill="none">
+                    <path class="breeze-curve" d="M 75 5 C 50 15, 25 15, 5 30" stroke="rgba(16, 185, 129, 0.6)" stroke-width="1.5" stroke-dasharray="6 4" stroke-linecap="round" />
+                    <path class="breeze-curve" d="M 70 18 C 45 28, 20 25, 8 36" stroke="rgba(52, 211, 153, 0.45)" stroke-width="1.2" stroke-dasharray="5 5" stroke-linecap="round" />
+                  </svg>
+                </div>
                 <div class="fan-icon">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2">
                     <g class="fan-rotor" id="circ-rotor">
@@ -995,29 +1507,55 @@ class TendrilGrowTwinCard extends HTMLElement {
               </div>
             </div>
 
-            <!-- CANOPY HUD CAPSULE -->
+            <!-- BOTANICAL PLANT CANOPY VIEWPORT -->
+            <div class="canopy-viewport" id="canopy-viewport">
+              <!-- Rendered dynamically by _renderBotanicalCanopy -->
+            </div>
+
+            <!-- FLOATING CANOPY TELEMETRY HUD CAPSULE -->
             <div class="canopy-hud-wrapper">
-              <div class="hud-capsule" id="canopy-hud">
+              <div class="hud-capsule" id="canopy-hud" title="Click to view Sweet-Spot Range Meters">
                 <div class="hud-metric">
                   <span class="hud-metric-label">Temp</span>
                   <div class="hud-metric-val" id="canopy-temp">--<span>°F</span></div>
+                  <span class="hud-status-badge optimal" id="temp-badge">OPT</span>
                 </div>
                 <div class="hud-divider"></div>
                 <div class="hud-metric">
                   <span class="hud-metric-label">Humidity</span>
                   <div class="hud-metric-val" id="canopy-rh">--<span>%</span></div>
+                  <span class="hud-status-badge optimal" id="rh-badge">OPT</span>
                 </div>
                 <div class="hud-divider"></div>
                 <div class="hud-metric">
                   <span class="hud-metric-label">Leaf VPD</span>
                   <div class="hud-metric-val" id="canopy-vpd" style="color: #34d399;">--<span> kPa</span></div>
+                  <span class="hud-status-badge optimal" id="vpd-badge">OPT</span>
+                </div>
+                <div class="hud-divider"></div>
+                <div class="hud-metric">
+                  <span class="hud-metric-label">Dew Point</span>
+                  <div class="hud-metric-val" id="canopy-dew">--<span>°F</span></div>
+                  <span class="hud-status-badge" id="dew-badge" style="color: #94a3b8;">AIR</span>
                 </div>
               </div>
             </div>
 
-            <!-- RESERVOIR BASE DOCK -->
-            <div class="reservoir-dock">
+            <!-- TRANSLUCENT RESERVOIR BASE DOCK -->
+            <div class="reservoir-dock" id="res-dock">
               <div class="water-wave-bg"></div>
+              <!-- Bubbler Aeration -->
+              <div class="aeration-bubbles" id="res-bubbles">
+                <div class="bubble-dot b1"></div>
+                <div class="bubble-dot b2"></div>
+                <div class="bubble-dot b3"></div>
+                <div class="bubble-dot b4"></div>
+                <div class="bubble-dot b5"></div>
+                <div class="bubble-dot b6"></div>
+              </div>
+              <!-- Recirculation Flow Shimmer -->
+              <div class="res-flow-stream" id="res-flow"></div>
+
               <div class="reservoir-metrics">
                 <div class="res-pill">
                   <span class="res-pill-label">pH</span>
@@ -1039,17 +1577,20 @@ class TendrilGrowTwinCard extends HTMLElement {
 
               <!-- PUMP CONTROLS -->
               <div class="pump-controls">
-                <button class="pump-btn" id="btn-rdwc" title="Toggle RDWC Circulation Pump">
+                <button class="pump-btn" id="btn-rdwc" title="Toggle RDWC Recirculation Pump">
                   <span class="pump-dot"></span>
                   <span>RDWC</span>
+                  <span class="pump-status-text" id="status-rdwc">OFF</span>
                 </button>
                 <button class="pump-btn" id="btn-air" title="Toggle Aeration Bubbler">
                   <span class="pump-dot"></span>
-                  <span>Air Pump</span>
+                  <span>Air</span>
+                  <span class="pump-status-text" id="status-air">OFF</span>
                 </button>
                 <button class="pump-btn chiller" id="btn-chiller" title="Toggle Water Chiller Pump">
                   <span class="pump-dot"></span>
                   <span>Chiller</span>
+                  <span class="pump-status-text" id="status-chiller">OFF</span>
                 </button>
               </div>
             </div>
@@ -1073,7 +1614,7 @@ class TendrilGrowTwinCard extends HTMLElement {
         <div class="drawer-body ${this._activeDrawer === "advisor" ? "open" : ""}" id="body-advisor">
           <p id="advisor-summary-text" style="line-height: 1.5; color: #c9d1d9;">No AI summary available yet.</p>
           <div style="margin-top: 12px; display: flex; gap: 8px;">
-            <button class="alert-action-btn" id="btn-run-ai" style="background: var(--tg-violet);">🧠 Run AI Health Check Now</button>
+            <button class="alert-action-btn" id="btn-run-ai" style="background: var(--tg-violet); font-size: 11.5px; padding: 6px 12px;">🧠 Run AI Health Check Now</button>
           </div>
         </div>
 
@@ -1106,6 +1647,10 @@ class TendrilGrowTwinCard extends HTMLElement {
     if (tabAdvisor) tabAdvisor.onclick = () => this._toggleDrawer("advisor");
     const tabActions = root.getElementById("tab-actions");
     if (tabActions) tabActions.onclick = () => this._toggleDrawer("actions");
+
+    // Click on HUD capsule opens Target Bands
+    const hudCapsule = root.getElementById("canopy-hud");
+    if (hudCapsule) hudCapsule.onclick = () => this._toggleDrawer("bands");
 
     // Controls
     const lightBox = root.getElementById("light-box");
@@ -1173,7 +1718,7 @@ class TendrilGrowTwinCard extends HTMLElement {
     if (!this._hass || !this.shadowRoot) return;
     const root = this.shadowRoot;
 
-    // Stage
+    // Stage & Week
     const stage = getStateStr(this._hass, this._config.stage, "Vegetative");
     const week = getStateStr(this._hass, this._config.week, "1");
     const stageBadge = root.getElementById("stage-badge");
@@ -1181,14 +1726,24 @@ class TendrilGrowTwinCard extends HTMLElement {
       stageBadge.textContent = `${stage.toUpperCase()} • WEEK ${week}`;
     }
 
+    // Render Botanical Canopy SVG if stage changed or not yet rendered
+    const normalizedStage = this._normalizeStage(stage);
+    if (this._renderedStage !== normalizedStage) {
+      const viewport = root.getElementById("canopy-viewport");
+      if (viewport) {
+        viewport.innerHTML = this._renderBotanicalCanopy(normalizedStage);
+        this._renderedStage = normalizedStage;
+      }
+    }
+
     // AI Health Dial
     const score = getStateNum(this._hass, this._config.ai_health_score, 90);
     const dialVal = root.getElementById("dial-val");
-    const dialBar = root.getElementById("dial-progress") || root.getElementById("dial-bar");
+    const dialBar = root.getElementById("dial-bar");
     const healthStatus = root.getElementById("health-status");
     if (dialVal && dialBar) {
       dialVal.textContent = score !== null ? Math.round(score) : "--";
-      const circumference = 2 * Math.PI * 17; // ~106.8
+      const circumference = 2 * Math.PI * 16; // ~100.5
       const offset = circumference - ((score || 0) / 100) * circumference;
       dialBar.style.strokeDashoffset = offset;
       if (score >= 75) {
@@ -1216,17 +1771,22 @@ class TendrilGrowTwinCard extends HTMLElement {
     const lightState = getState(this._hass, this._config.light);
     const lightBar = root.getElementById("light-bar");
     const lightCone = root.getElementById("light-cone");
+    const photonStream = root.getElementById("photon-stream");
     const lightPower = root.getElementById("light-power-text");
     if (lightState && lightBar && lightCone && lightPower) {
       const isOn = lightState.state === "on";
-      const brightness = lightState.attributes.brightness ? Math.round((lightState.attributes.brightness / 255) * 100) : null;
+      const brightness = lightState.attributes?.brightness
+        ? Math.round((lightState.attributes.brightness / 255) * 100)
+        : null;
       if (isOn) {
         lightBar.classList.add("on");
         lightCone.classList.add("on");
+        if (photonStream) photonStream.classList.add("on");
         lightPower.textContent = brightness !== null ? `${brightness}%` : "ON";
       } else {
         lightBar.classList.remove("on");
         lightCone.classList.remove("on");
+        if (photonStream) photonStream.classList.remove("on");
         lightPower.textContent = "OFF";
       }
     }
@@ -1235,74 +1795,143 @@ class TendrilGrowTwinCard extends HTMLElement {
     const ductState = getState(this._hass, this._config.duct_fan);
     const ductRotor = root.getElementById("duct-rotor");
     const ductSpeed = root.getElementById("duct-speed-text");
+    const exhaustVortex = root.getElementById("exhaust-vortex");
     if (ductState && ductRotor && ductSpeed) {
       const isFanOn = ductState.state === "on";
-      const pct = ductState.attributes.percentage || (isFanOn ? 100 : 0);
+      const pct = ductState.attributes?.percentage || (isFanOn ? 100 : 0);
       ductSpeed.textContent = isFanOn ? `${pct}%` : "OFF";
       if (isFanOn) {
         ductRotor.classList.add(pct > 60 ? "spinning-fast" : "spinning");
+        if (exhaustVortex) exhaustVortex.classList.add("active");
       } else {
         ductRotor.classList.remove("spinning", "spinning-fast");
+        if (exhaustVortex) exhaustVortex.classList.remove("active");
       }
     }
 
-    // Circulation Fan
+    // Circulation Fan & Canopy Breeze
     const circState = getState(this._hass, this._config.fan);
     const circRotor = root.getElementById("circ-rotor");
     const circText = root.getElementById("circ-fan-text");
+    const circBreeze = root.getElementById("circ-breeze");
+    const swayGroup = root.getElementById("canopy-sway-group");
     if (circState && circRotor && circText) {
       const isOn = circState.state === "on";
       circText.textContent = isOn ? "ON" : "OFF";
       if (isOn) {
         circRotor.classList.add("spinning");
+        if (circBreeze) circBreeze.classList.add("active");
+        if (swayGroup) swayGroup.classList.add("swaying");
       } else {
         circRotor.classList.remove("spinning");
+        if (circBreeze) circBreeze.classList.remove("active");
+        if (swayGroup) swayGroup.classList.remove("swaying");
       }
     }
 
-    // Canopy Climate
-    const temp = getStateStr(this._hass, this._config.temperature, "--");
-    const rh = getStateStr(this._hass, this._config.humidity, "--");
-    const vpd = getStateStr(this._hass, this._config.leaf_vpd || this._config.vpd, "--");
+    // Target Bands definitions
+    const targetVpdLow = getStateNum(this._hass, this._config.target_vpd_low, 0.9);
+    const targetVpdHigh = getStateNum(this._hass, this._config.target_vpd_high, 1.3);
+    const targetPhLow = getStateNum(this._hass, this._config.target_ph_low, 5.7);
+    const targetPhHigh = getStateNum(this._hass, this._config.target_ph_high, 6.2);
+    const targetEcLow = getStateNum(this._hass, this._config.target_ec_low, 1.4);
+    const targetEcHigh = getStateNum(this._hass, this._config.target_ec_high, 2.2);
+
+    // Canopy Climate Telemetry & Status Badges
+    const tempNum = getStateNum(this._hass, this._config.temperature, null);
+    const rhNum = getStateNum(this._hass, this._config.humidity, null);
+    const vpdNum = getStateNum(this._hass, this._config.leaf_vpd || this._config.vpd, null);
+    const dewNum = getStateNum(this._hass, this._config.dew_point, null);
+
+    const tempStr = tempNum !== null ? tempNum.toFixed(1) : "--";
+    const rhStr = rhNum !== null ? Math.round(rhNum) : "--";
+    const vpdStr = vpdNum !== null ? vpdNum.toFixed(2) : "--";
+    const dewStr = dewNum !== null ? dewNum.toFixed(1) : "--";
+
     const elTemp = root.getElementById("canopy-temp");
     const elRh = root.getElementById("canopy-rh");
     const elVpd = root.getElementById("canopy-vpd");
-    if (elTemp) elTemp.innerHTML = `${temp}<span>°F</span>`;
-    if (elRh) elRh.innerHTML = `${rh}<span>%</span>`;
-    if (elVpd) elVpd.innerHTML = `${vpd}<span> kPa</span>`;
+    const elDew = root.getElementById("canopy-dew");
+
+    if (elTemp) elTemp.innerHTML = `${tempStr}<span>°F</span>`;
+    if (elRh) elRh.innerHTML = `${rhStr}<span>%</span>`;
+    if (elVpd) elVpd.innerHTML = `${vpdStr}<span> kPa</span>`;
+    if (elDew) elDew.innerHTML = `${dewStr}<span>°F</span>`;
+
+    // Dynamic Target Badges
+    const tempTarget = this._evalTarget(tempNum, 72, 82);
+    const rhTarget = this._evalTarget(rhNum, 55, 68);
+    const vpdTarget = this._evalTarget(vpdNum, targetVpdLow, targetVpdHigh);
+
+    const bTemp = root.getElementById("temp-badge");
+    const bRh = root.getElementById("rh-badge");
+    const bVpd = root.getElementById("vpd-badge");
+
+    if (bTemp) {
+      bTemp.className = `hud-status-badge ${tempTarget.status}`;
+      bTemp.textContent = tempTarget.label;
+    }
+    if (bRh) {
+      bRh.className = `hud-status-badge ${rhTarget.status}`;
+      bRh.textContent = rhTarget.label;
+    }
+    if (bVpd) {
+      bVpd.className = `hud-status-badge ${vpdTarget.status}`;
+      bVpd.textContent = vpdTarget.label;
+    }
 
     // Hydro Reservoir
-    const ph = getStateStr(this._hass, this._config.ph, "--");
-    const ec = getStateStr(this._hass, this._config.ec, "--");
+    const phNum = getStateNum(this._hass, this._config.ph, null);
+    const ecNum = getStateNum(this._hass, this._config.ec, null);
     const wtemp = getStateStr(this._hass, this._config.water_temperature, "--");
     const tds = getStateStr(this._hass, this._config.tds, "--");
+
     const elPh = root.getElementById("res-ph");
     const elEc = root.getElementById("res-ec");
     const elWtemp = root.getElementById("res-temp");
     const elTds = root.getElementById("res-tds");
-    if (elPh) elPh.textContent = ph;
-    if (elEc) elEc.textContent = ec;
+
+    if (elPh) elPh.textContent = phNum !== null ? phNum.toFixed(2) : "--";
+    if (elEc) elEc.textContent = ecNum !== null ? ecNum.toFixed(2) : "--";
     if (elWtemp) elWtemp.textContent = `${wtemp}°F`;
     if (elTds) elTds.textContent = tds;
 
-    // Pumps
+    // Pumps & Equipment
     const rdwcState = getState(this._hass, this._config.rdwc_pump);
     const airState = getState(this._hass, this._config.air_pump);
     const chillerState = getState(this._hass, this._config.chiller_pump);
+
     const btnRdwc = root.getElementById("btn-rdwc");
     const btnAir = root.getElementById("btn-air");
     const btnChiller = root.getElementById("btn-chiller");
+    const statRdwc = root.getElementById("status-rdwc");
+    const statAir = root.getElementById("status-air");
+    const statChiller = root.getElementById("status-chiller");
+
+    const resDock = root.getElementById("res-dock");
+    const resBubbles = root.getElementById("res-bubbles");
+    const resFlow = root.getElementById("res-flow");
+
     if (btnRdwc && rdwcState) {
-      btnRdwc.classList.toggle("active", rdwcState.state === "on");
+      const isOn = rdwcState.state === "on";
+      btnRdwc.classList.toggle("active", isOn);
+      if (statRdwc) statRdwc.textContent = isOn ? "ON" : "OFF";
+      if (resFlow) resFlow.classList.toggle("active", isOn);
     }
     if (btnAir && airState) {
-      btnAir.classList.toggle("active", airState.state === "on");
+      const isOn = airState.state === "on";
+      btnAir.classList.toggle("active", isOn);
+      if (statAir) statAir.textContent = isOn ? "ON" : "OFF";
+      if (resBubbles) resBubbles.classList.toggle("active", isOn);
     }
     if (btnChiller && chillerState) {
-      btnChiller.classList.toggle("active", chillerState.state === "on");
+      const isOn = chillerState.state === "on";
+      btnChiller.classList.toggle("active", isOn);
+      if (statChiller) statChiller.textContent = isOn ? "ON" : "OFF";
+      if (resDock) resDock.classList.toggle("chiller-active", isOn);
     }
 
-    // Alerts
+    // Alerts Ribbon
     const moldRisk = getState(this._hass, this._config.mold_risk);
     const flushDue = getState(this._hass, this._config.flush_due);
     const metricsOutOfRange = getState(this._hass, this._config.metrics_out_of_range);
@@ -1380,8 +2009,8 @@ class TendrilGrowTwinCard extends HTMLElement {
         unit: "kPa",
         min: 0.4,
         max: 2.0,
-        optLow: 0.9,
-        optHigh: 1.3,
+        optLow: getStateNum(this._hass, this._config.target_vpd_low, 0.9),
+        optHigh: getStateNum(this._hass, this._config.target_vpd_high, 1.3),
       },
       {
         label: "Hydroponic pH",
@@ -1389,8 +2018,8 @@ class TendrilGrowTwinCard extends HTMLElement {
         unit: "",
         min: 4.5,
         max: 7.5,
-        optLow: 5.7,
-        optHigh: 6.2,
+        optLow: getStateNum(this._hass, this._config.target_ph_low, 5.7),
+        optHigh: getStateNum(this._hass, this._config.target_ph_high, 6.2),
       },
       {
         label: "Electrical Conductivity (EC)",
@@ -1398,8 +2027,8 @@ class TendrilGrowTwinCard extends HTMLElement {
         unit: "mS",
         min: 0.5,
         max: 3.5,
-        optLow: 1.4,
-        optHigh: 2.2,
+        optLow: getStateNum(this._hass, this._config.target_ec_low, 1.4),
+        optHigh: getStateNum(this._hass, this._config.target_ec_high, 2.2),
       },
       {
         label: "Water Temperature",
