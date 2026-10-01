@@ -6,20 +6,22 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.15] - 2026-10-01
+
 ### Added
+- **Dedicated Standalone AI Agronomist Chat Card (`<tendrilgrow-chat-card>`)**:
+  - Independent 2-way AI agronomist chat window grounded in live tent telemetry (pH, EC, VPD, Air/Water Temp, Days Since Flush).
+  - Bypasses Home Assistant voice intent matchers (`conversation.home_assistant`) to eliminate device control error messages (*"Sorry, I see you're referring to Light..."*).
+  - Stage-specific canopy defoliation & trimming guidance (`should I trim now or wait?`) with clear recommendations per stage.
+  - Deep VPD suppression alerts & transpiration diagnostics for mid-flower mold/botrytis prevention.
+  - Color-accented chat markdown typography parser for styled headers, dividers, and step-by-step horticultural protocols.
+- **Horticultural Water Prep & Nutrient Mixing Order Protocol**:
+  - Locked-in 8-step chemical mixing sequence in the Feeding Recipe tab (Silica first $\rightarrow$ wait 15 min $\rightarrow$ Cal-Mag second $\rightarrow$ Micro $\rightarrow$ Grow $\rightarrow$ Bloom $\rightarrow$ Additives $\rightarrow$ Hydroguard $\rightarrow$ pH Buffer last) to prevent salt precipitation and nutrient lockout.
 - **Ultimate HACS Digital Twin & Cockpit Frontend**:
-  - Bundled custom Lovelace cards directly within the integration: `<tendrilgrow-twin-card>` and `<tendrilgrow-overview-card>`.
-  - Automatic frontend resource injection via `StaticPathConfig` (`/tendrilgrow_static/`) and `add_extra_js_url`, eliminating manual dashboard resource setup in Home Assistant.
-  - Interactive 2.5D visual grow tent schematic HUD:
-    - Dynamic animated ceiling exhaust duct fan (spins with RPM proportional to fan speed).
-    - Glowing quantum LED grow light bar with radiating beam and tap-to-dim controls.
-    - Glassmorphism Canopy Telemetry capsule (Canopy Temp, RH, Leaf VPD) with dynamic optimal-band glowing border.
-    - Cutaway hydroponic reservoir with liquid ripple animation, active aeration bubbles, and 1-tap pump controls (RDWC, Air, Chiller).
-    - Seamless 1-click toggle between 2.5D Digital Twin schematic and live camera stream overlay.
-  - Sweet-spot target range visual meters for Canopy Temp, Humidity, Leaf VPD, pH, EC, and Water Temperature.
-  - Responsive multi-device ergonomics optimized for mobile phones (vertical compact stack), wall-mounted tablets (split-screen HUD), and desktop browsers (wide telemetry command center).
-  - Modernized `dashboards/tendrial_grow.yaml` replacing 136 repetitive rectangular tiles with clean digital twin cockpits.
-  - Added `--twin` / `--digital-twin` mode to `scripts/generate_dashboard.py`.
+  - Bundled custom Lovelace cards directly within the integration: `<tendrilgrow-twin-card>`, `<tendrilgrow-overview-card>`, `<tendrilgrow-plan-card>`, `<tendrilgrow-chat-card>`.
+  - Automatic frontend resource injection via `StaticPathConfig` (`/tendrilgrow_static/`) and `add_extra_js_url`.
+  - Interactive 2.5D visual grow tent schematic HUD with dynamic fan animation, quantum LED light beam, glassmorphism telemetry capsule, and cutaway reservoir.
+  - Responsive multi-device ergonomics for mobile phones, wall tablets, and desktop displays.
 
 ## [0.3.14] - 2026-09-30
 
