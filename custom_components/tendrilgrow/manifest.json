@@ -1,6 +1,9 @@
 {
   "domain": "tendrilgrow",
   "name": "TendrilGrow",
+  "after_dependencies": [
+    "http"
+  ],
   "codeowners": [
     "@Trec-TorConsulting"
   ],

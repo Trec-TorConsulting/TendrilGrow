@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   hassfest:
     runs-on: arc-runner-tendrilgrow-amd64
