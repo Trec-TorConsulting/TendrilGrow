@@ -437,3 +437,9 @@ def test_digital_twin_overview_generation():
     assert overview_card["spaces"][0]["name"] == "Tent A"
     assert overview_card["spaces"][0]["path"] == "/tendrial-grow/zone-tent_a"
     assert overview_card["spaces"][1]["name"] == "Tent B"
+
+    assert len(view["sections"]) == 2
+    trends_card = view["sections"][1]["cards"][1]
+    assert trends_card["type"] == "custom:tendrilgrow-trends-card"
+    assert trends_card["hours_to_show"] == 24
+    assert len(trends_card["spaces"]) == 2

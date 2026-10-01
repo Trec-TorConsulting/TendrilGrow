@@ -13,7 +13,7 @@ views:
       heading_style: title
     - type: custom:tendrilgrow-overview-card
       title: Cultivation Network Overview
-      spaces:
+      spaces: &id001
       - name: 3x3 Mothers Tent
         path: /tendrial-grow/zone-3x3_mothers_tent
         camera: camera.grow_tent_3x3_fluent
@@ -65,29 +65,12 @@ views:
   - type: grid
     cards:
     - type: heading
-      heading: 24-Hour Telemetry Trends
+      heading: 24-Hour Telemetry Intelligence & Trends
       heading_style: subtitle
-    - type: history-graph
-      title: Canopy Climate History (24h)
+    - type: custom:tendrilgrow-trends-card
+      title: Cultivation Telemetry Curves
       hours_to_show: 24
-      entities:
-      - sensor.3x3_controller_inside_temperature
-      - sensor.3x3_controller_inside_humidity
-      - sensor.3x3_mothers_tent_vpd
-      - sensor.4x4_controller_inside_temperature
-      - sensor.4x4_controller_inside_humidity
-      - sensor.4x4_full_cycle_tent_vpd
-      - sensor.basement_clone_vpd
-    - type: history-graph
-      title: Hydroponic Reservoir History (24h)
-      hours_to_show: 24
-      entities:
-      - sensor.3x3_water_monitor_ph
-      - sensor.3x3_water_monitor_electrical_conductivity
-      - sensor.3x3_water_monitor_temperature
-      - sensor.4x4_water_monitor_ph
-      - sensor.4x4_water_monitor_electrical_conductivity
-      - sensor.4x4_water_monitor_temperature
+      spaces: *id001
   badges:
   - type: entity
     entity: binary_sensor.3x3_mothers_tent_ai_health_critical_alert

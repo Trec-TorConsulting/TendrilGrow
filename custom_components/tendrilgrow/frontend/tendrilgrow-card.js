@@ -1585,7 +1585,7 @@ class TendrilGrowOverviewCard extends HTMLElement {
           border-radius: 16px;
           overflow: hidden;
           cursor: pointer;
-          transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
           display: flex;
           flex-direction: column;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
@@ -1593,9 +1593,9 @@ class TendrilGrowOverviewCard extends HTMLElement {
         }
 
         .space-card:hover {
-          border-color: rgba(16, 185, 129, 0.45);
-          transform: translateY(-3px);
-          box-shadow: 0 10px 32px rgba(16, 185, 129, 0.18), 0 4px 20px rgba(0, 0, 0, 0.5);
+          border-color: rgba(16, 185, 129, 0.55);
+          box-shadow: 0 0 24px rgba(16, 185, 129, 0.2), 0 8px 32px rgba(0, 0, 0, 0.6);
+          background: rgba(22, 30, 48, 0.95);
         }
 
         /* HERO VISUAL AREA */
@@ -1612,11 +1612,7 @@ class TendrilGrowOverviewCard extends HTMLElement {
           height: 100%;
           object-fit: cover;
           display: block;
-          transition: transform 0.4s ease;
-        }
-
-        .space-card:hover .space-cam-img {
-          transform: scale(1.03);
+          transition: opacity 0.3s ease;
         }
 
         .cam-scrim {
@@ -1924,145 +1920,128 @@ class TendrilGrowOverviewCard extends HTMLElement {
     const spaces = this._config.spaces || [];
     let activeAlertCount = 0;
 
-    grid.innerHTML = spaces
-      .map((s, idx) => {
-        const temp = getStateStr(this._hass, s.temperature, "--");
-        const rh = getStateStr(this._hass, s.humidity, "--");
-        const vpd = getStateStr(this._hass, s.leaf_vpd || s.vpd, "--");
-        const ph = getStateStr(this._hass, s.ph, "--");
-        const ec = getStateStr(this._hass, s.ec, "--");
-        const waterTemp = getStateStr(this._hass, s.water_temperature, "--");
-        const score = getStateNum(this._hass, s.ai_health_score, 90);
-        const stage = getStateStr(this._hass, s.stage, "Grow Space");
-        const lightOn = getState(this._hass, s.light)?.state === "on";
-        const fanOn = getState(this._hass, s.fan)?.state === "on";
+    // Check if we need to build the card DOM nodes
+    const existingCards = grid.querySelectorAll(".space-card");
+    if (existingCards.length !== spaces.length) {
+      this._buildCardSkeletons(grid, spaces);
+    }
 
-        // Alerts check
-        const moldRisk = getState(this._hass, s.mold_risk)?.state === "on";
-        const flushDue = getState(this._hass, s.flush_due)?.state === "on";
-        const metricsOut = getState(this._hass, s.metrics_out_of_range)?.state === "on";
-        const criticalAlert = getState(this._hass, s.ai_critical_alert)?.state === "on";
+    // Update in-place to prevent DOM recreation and eliminate mouse hover jitter
+    spaces.forEach((s, idx) => {
+      const card = grid.querySelector(`.space-card[data-idx="${idx}"]`);
+      if (!card) return;
 
-        let alertMsg = null;
-        if (criticalAlert) alertMsg = "Critical AI Alert";
-        else if (moldRisk) alertMsg = "High Mold Risk Detected";
-        else if (flushDue) alertMsg = "Reservoir Flush Due";
-        else if (metricsOut) alertMsg = "Target Bands Out of Range";
+      const temp = getStateStr(this._hass, s.temperature, "--");
+      const rh = getStateStr(this._hass, s.humidity, "--");
+      const vpd = getStateStr(this._hass, s.leaf_vpd || s.vpd, "--");
+      const ph = getStateStr(this._hass, s.ph, "--");
+      const ec = getStateStr(this._hass, s.ec, "--");
+      const waterTemp = getStateStr(this._hass, s.water_temperature, "--");
+      const score = getStateNum(this._hass, s.ai_health_score, 90);
+      const stage = getStateStr(this._hass, s.stage, "Grow Space");
+      const lightOn = getState(this._hass, s.light)?.state === "on";
+      const fanOn = getState(this._hass, s.fan)?.state === "on";
 
-        if (alertMsg) activeAlertCount++;
+      // Alerts check
+      const moldRisk = getState(this._hass, s.mold_risk)?.state === "on";
+      const flushDue = getState(this._hass, s.flush_due)?.state === "on";
+      const metricsOut = getState(this._hass, s.metrics_out_of_range)?.state === "on";
+      const criticalAlert = getState(this._hass, s.ai_critical_alert)?.state === "on";
 
-        // Camera image URL with token
-        let camUrl = null;
-        if (s.camera) {
+      let alertMsg = null;
+      if (criticalAlert) alertMsg = "Critical AI Alert";
+      else if (moldRisk) alertMsg = "High Mold Risk Detected";
+      else if (flushDue) alertMsg = "Reservoir Flush Due";
+      else if (metricsOut) alertMsg = "Target Bands Out of Range";
+
+      if (alertMsg) activeAlertCount++;
+
+      // Update stage
+      const stageEl = card.querySelector(".stage-tag");
+      if (stageEl && stageEl.textContent !== stage) stageEl.textContent = stage;
+
+      // Update alert banner
+      const alertBanner = card.querySelector(".cam-alert-banner");
+      if (alertBanner) {
+        if (alertMsg) {
+          alertBanner.style.display = "flex";
+          alertBanner.textContent = `⚠️ ${alertMsg}`;
+        } else {
+          alertBanner.style.display = "none";
+        }
+      }
+
+      // Update camera image URL with token
+      if (s.camera) {
+        const camImg = card.querySelector(".space-cam-img");
+        if (camImg) {
           const camState = getState(this._hass, s.camera);
           if (camState) {
             const token = camState.attributes?.access_token;
-            camUrl = token
+            const targetUrl = token
               ? `/api/camera_proxy_stream/${s.camera}?token=${token}`
               : (camState.attributes?.entity_picture || `/api/camera_proxy/${s.camera}`);
+            if (targetUrl && camImg.src !== targetUrl && !camImg.src.endsWith(targetUrl)) {
+              camImg.src = targetUrl;
+            }
           }
         }
+      }
 
-        // Circular Dial Progress
-        const circumference = 2 * Math.PI * 17; // ~106.8
-        const validScore = score !== null ? Math.max(0, Math.min(100, score)) : 90;
-        const offset = circumference - (validScore / 100) * circumference;
-        const ringColor = validScore >= 75 ? "#10b981" : validScore >= 50 ? "#f59e0b" : "#ef4444";
+      // Circular Dial Progress
+      const circumference = 2 * Math.PI * 17; // ~106.8
+      const validScore = score !== null ? Math.max(0, Math.min(100, score)) : 90;
+      const offset = circumference - (validScore / 100) * circumference;
+      const ringColor = validScore >= 75 ? "#10b981" : validScore >= 50 ? "#f59e0b" : "#ef4444";
 
-        return `
-          <div class="space-card" data-idx="${idx}">
-            ${
-              camUrl
-                ? `
-                  <div class="space-hero">
-                    <img class="space-cam-img" src="${camUrl}" alt="${s.name}" loading="lazy" />
-                    <div class="cam-scrim"></div>
-                    <div class="live-tag"><span class="pulse-dot"></span> LIVE</div>
-                    <div class="stage-tag">${stage}</div>
-                    ${alertMsg ? `<div class="cam-alert-banner">⚠️ ${alertMsg}</div>` : ""}
-                  </div>
-                `
-                : `
-                  <div class="schematic-hero">
-                    <div class="schematic-icon">🌱</div>
-                    <div class="stage-tag">${stage}</div>
-                    ${alertMsg ? `<div class="cam-alert-banner">⚠️ ${alertMsg}</div>` : ""}
-                  </div>
-                `
-            }
+      const scoreEl = card.querySelector(".health-score-val");
+      if (scoreEl) {
+        scoreEl.textContent = `${Math.round(validScore)}%`;
+        scoreEl.style.color = ringColor;
+      }
+      const ringEl = card.querySelector(".health-ring");
+      if (ringEl) {
+        ringEl.style.stroke = ringColor;
+        ringEl.style.strokeDashoffset = offset;
+      }
 
-            <div class="card-body">
-              <div class="title-row">
-                <div class="space-name">${s.name || `Space ${idx + 1}`}</div>
-                <div class="health-dial-box" title="AI Health Score: ${Math.round(validScore)}/100">
-                  <svg>
-                    <circle class="health-track" cx="22" cy="22" r="17" />
-                    <circle class="health-ring" cx="22" cy="22" r="17" style="stroke: ${ringColor}; stroke-dasharray: ${circumference}; stroke-dashoffset: ${offset};" />
-                  </svg>
-                  <div class="health-score-val" style="color: ${ringColor}">${Math.round(validScore)}%</div>
-                </div>
-              </div>
+      // Telemetry metrics
+      const tempEl = card.querySelector(".metric-temp");
+      if (tempEl && tempEl.textContent !== `${temp}°`) tempEl.textContent = `${temp}°`;
+      const rhEl = card.querySelector(".metric-rh");
+      if (rhEl && rhEl.textContent !== `${rh}%`) rhEl.textContent = `${rh}%`;
+      const vpdEl = card.querySelector(".metric-vpd");
+      if (vpdEl && vpdEl.textContent !== `${vpd}`) vpdEl.textContent = `${vpd}`;
 
-              <div class="capsules-grid">
-                <!-- Canopy Telemetry -->
-                <div class="telemetry-capsule">
-                  <div class="capsule-title">🌿 Canopy Air</div>
-                  <div class="capsule-row">
-                    <div class="metric-cell">
-                      <span class="metric-label">Temp</span>
-                      <span class="metric-val">${temp}°</span>
-                    </div>
-                    <div class="metric-cell">
-                      <span class="metric-label">RH</span>
-                      <span class="metric-val">${rh}%</span>
-                    </div>
-                    <div class="metric-cell">
-                      <span class="metric-label">VPD</span>
-                      <span class="metric-val green">${vpd}</span>
-                    </div>
-                  </div>
-                </div>
+      const phEl = card.querySelector(".metric-ph");
+      if (phEl && phEl.textContent !== `${ph}`) phEl.textContent = `${ph}`;
+      const ecEl = card.querySelector(".metric-ec");
+      if (ecEl && ecEl.textContent !== `${ec}`) ecEl.textContent = `${ec}`;
+      const waterEl = card.querySelector(".metric-water");
+      if (waterEl && waterEl.textContent !== `${waterTemp}°`) waterEl.textContent = `${waterTemp}°`;
 
-                <!-- Hydroponic Reservoir -->
-                <div class="telemetry-capsule">
-                  <div class="capsule-title">💧 Reservoir</div>
-                  <div class="capsule-row">
-                    <div class="metric-cell">
-                      <span class="metric-label">pH</span>
-                      <span class="metric-val cyan">${ph}</span>
-                    </div>
-                    <div class="metric-cell">
-                      <span class="metric-label">EC</span>
-                      <span class="metric-val">${ec}</span>
-                    </div>
-                    <div class="metric-cell">
-                      <span class="metric-label">Water</span>
-                      <span class="metric-val">${waterTemp}°</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="controls-row">
-                <div class="quick-toggles">
-                  ${
-                    s.light
-                      ? `<button class="btn-toggle ${lightOn ? "active" : ""}" data-action="toggle-light" data-idx="${idx}">💡 ${lightOn ? "Light ON" : "Light OFF"}</button>`
-                      : ""
-                  }
-                  ${
-                    s.fan
-                      ? `<button class="btn-toggle ${fanOn ? "active" : ""}" data-action="toggle-fan" data-idx="${idx}">💨 ${fanOn ? "Fan ON" : "Fan OFF"}</button>`
-                      : ""
-                  }
-                </div>
-                <button class="btn-cockpit" data-action="nav" data-idx="${idx}">Cockpit HUD →</button>
-              </div>
-            </div>
-          </div>
-        `;
-      })
-      .join("");
+      // Buttons
+      const btnLight = card.querySelector('button[data-action="toggle-light"]');
+      if (btnLight) {
+        if (lightOn) {
+          btnLight.classList.add("active");
+          btnLight.textContent = "💡 Light ON";
+        } else {
+          btnLight.classList.remove("active");
+          btnLight.textContent = "💡 Light OFF";
+        }
+      }
+      const btnFan = card.querySelector('button[data-action="toggle-fan"]');
+      if (btnFan) {
+        if (fanOn) {
+          btnFan.classList.add("active");
+          btnFan.textContent = "💨 Fan ON";
+        } else {
+          btnFan.classList.remove("active");
+          btnFan.textContent = "💨 Fan OFF";
+        }
+      }
+    });
 
     // Update Global Alerts
     const globalAlertBadge = this.shadowRoot.getElementById("global-alert-badge");
@@ -2075,11 +2054,110 @@ class TendrilGrowOverviewCard extends HTMLElement {
         globalAlertBadge.style.display = "none";
       }
     }
+  }
+
+  _buildCardSkeletons(grid, spaces) {
+    grid.innerHTML = spaces
+      .map((s, idx) => {
+        const hasCamera = Boolean(s.camera);
+        return `
+          <div class="space-card" data-idx="${idx}">
+            ${
+              hasCamera
+                ? `
+                  <div class="space-hero">
+                    <img class="space-cam-img" src="" alt="${s.name}" loading="lazy" />
+                    <div class="cam-scrim"></div>
+                    <div class="live-tag"><span class="pulse-dot"></span> LIVE</div>
+                    <div class="stage-tag">...</div>
+                    <div class="cam-alert-banner" style="display: none;"></div>
+                  </div>
+                `
+                : `
+                  <div class="schematic-hero">
+                    <div class="schematic-icon">🌱</div>
+                    <div class="stage-tag">...</div>
+                    <div class="cam-alert-banner" style="display: none;"></div>
+                  </div>
+                `
+            }
+
+            <div class="card-body">
+              <div class="title-row">
+                <div class="space-name">${s.name || `Space ${idx + 1}`}</div>
+                <div class="health-dial-box" title="AI Health Score">
+                  <svg>
+                    <circle class="health-track" cx="22" cy="22" r="17" />
+                    <circle class="health-ring" cx="22" cy="22" r="17" style="stroke: #10b981; stroke-dasharray: 106.8; stroke-dashoffset: 0;" />
+                  </svg>
+                  <div class="health-score-val" style="color: #10b981">--%</div>
+                </div>
+              </div>
+
+              <div class="capsules-grid">
+                <!-- Canopy Telemetry -->
+                <div class="telemetry-capsule">
+                  <div class="capsule-title">🌿 Canopy Air</div>
+                  <div class="capsule-row">
+                    <div class="metric-cell">
+                      <span class="metric-label">Temp</span>
+                      <span class="metric-val metric-temp">--°</span>
+                    </div>
+                    <div class="metric-cell">
+                      <span class="metric-label">RH</span>
+                      <span class="metric-val metric-rh">--%</span>
+                    </div>
+                    <div class="metric-cell">
+                      <span class="metric-label">VPD</span>
+                      <span class="metric-val green metric-vpd">--</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Hydroponic Reservoir -->
+                <div class="telemetry-capsule">
+                  <div class="capsule-title">💧 Reservoir</div>
+                  <div class="capsule-row">
+                    <div class="metric-cell">
+                      <span class="metric-label">pH</span>
+                      <span class="metric-val cyan metric-ph">--</span>
+                    </div>
+                    <div class="metric-cell">
+                      <span class="metric-label">EC</span>
+                      <span class="metric-val metric-ec">--</span>
+                    </div>
+                    <div class="metric-cell">
+                      <span class="metric-label">Water</span>
+                      <span class="metric-val metric-water">--°</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="controls-row">
+                <div class="quick-toggles">
+                  ${
+                    s.light
+                      ? `<button class="btn-toggle" data-action="toggle-light" data-idx="${idx}">💡 Light</button>`
+                      : ""
+                  }
+                  ${
+                    s.fan
+                      ? `<button class="btn-toggle" data-action="toggle-fan" data-idx="${idx}">💨 Fan</button>`
+                      : ""
+                  }
+                </div>
+                <button class="btn-cockpit" data-action="nav" data-idx="${idx}">Cockpit HUD →</button>
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
 
     // Bind navigation clicks on the card
     grid.querySelectorAll(".space-card").forEach((card) => {
       card.addEventListener("click", (e) => {
-        // If clicking a button, handled separately
         if (e.target.closest("button")) return;
         const idx = parseInt(card.getAttribute("data-idx"), 10);
         const target = spaces[idx];
@@ -2110,9 +2188,737 @@ class TendrilGrowOverviewCard extends HTMLElement {
   }
 }
 
+// ============================================================================
+// 3. TENDRILGROW TELEMETRY TRENDS CARD (<tendrilgrow-trends-card>)
+// ============================================================================
+class TendrilGrowTrendsCard extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._config = {};
+    this._hass = null;
+    this._mode = "canopy"; // 'canopy' | 'hydro'
+    this._hours = 24; // 6 | 12 | 24
+    this._historyData = {}; // entityId -> [{val, time}]
+    this._lastFetchTime = 0;
+    this._hoverData = null; // { spaceIdx, x, y, time, val, label }
+  }
+
+  setConfig(config) {
+    this._config = {
+      title: config.title || "24-Hour Telemetry Intelligence & Trends",
+      hours_to_show: config.hours_to_show || 24,
+      spaces: config.spaces || [],
+      ...config,
+    };
+    this._hours = this._config.hours_to_show;
+    this._render();
+  }
+
+  set hass(hass) {
+    const oldHass = this._hass;
+    this._hass = hass;
+    if (!oldHass || Date.now() - this._lastFetchTime > 60000) {
+      this._fetchHistory();
+    } else {
+      this._updateStats();
+    }
+  }
+
+  getCardSize() {
+    return 6;
+  }
+
+  _getAllEntityIds() {
+    const ids = new Set();
+    (this._config.spaces || []).forEach((s) => {
+      [s.temperature, s.humidity, s.vpd, s.leaf_vpd, s.ph, s.ec, s.water_temperature].forEach(
+        (id) => {
+          if (id) ids.add(id);
+        }
+      );
+    });
+    return Array.from(ids);
+  }
+
+  async _fetchHistory(force = false) {
+    if (!this._hass) return;
+    const now = Date.now();
+    if (!force && now - this._lastFetchTime < 45000 && Object.keys(this._historyData).length > 0) {
+      return;
+    }
+    this._lastFetchTime = now;
+    const hours = this._hours || 24;
+    const startTime = new Date(now - hours * 3600 * 1000).toISOString();
+    const entityIds = this._getAllEntityIds();
+    if (entityIds.length === 0) return;
+
+    try {
+      const path = `history/period/${encodeURIComponent(startTime)}?filter_entity_id=${encodeURIComponent(
+        entityIds.join(",")
+      )}&minimal_response&significant_changes_only=1`;
+      const data = await this._hass.callApi("GET", path);
+      if (Array.isArray(data)) {
+        data.forEach((entityList) => {
+          if (Array.isArray(entityList) && entityList.length > 0) {
+            const entityId = entityList[0].entity_id;
+            const points = entityList
+              .map((item) => {
+                const val = parseFloat(item.state);
+                const time = new Date(item.last_changed || item.last_updated).getTime();
+                return isNaN(val) ? null : { val, time };
+              })
+              .filter(Boolean);
+            this._historyData[entityId] = points;
+          }
+        });
+        this._renderCharts();
+      }
+    } catch (err) {
+      console.debug("TendrilGrow: Could not fetch history period:", err);
+      this._renderCharts();
+    }
+  }
+
+  _render() {
+    if (!this.shadowRoot) return;
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          display: block;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          color: #e6edf3;
+          --tg-bg: #0b0f17;
+          --tg-card-bg: rgba(18, 24, 38, 0.9);
+          --tg-border: rgba(255, 255, 255, 0.08);
+          --tg-green: #10b981;
+          --tg-cyan: #06b6d4;
+          --tg-blue: #38bdf8;
+          --tg-violet: #8b5cf6;
+          --tg-amber: #f59e0b;
+        }
+
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+
+        .container {
+          background: var(--tg-bg);
+          border-radius: 18px;
+          border: 1px solid var(--tg-border);
+          padding: 18px;
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+        }
+
+        /* HEADER */
+        .header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 18px;
+          padding-bottom: 14px;
+          border-bottom: 1px solid var(--tg-border);
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+
+        .header-title-box {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .brand-badge {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+          background: linear-gradient(135deg, #06b6d4, #0891b2);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          box-shadow: 0 0 16px rgba(6, 182, 212, 0.35);
+        }
+
+        .header h2 {
+          font-size: 19px;
+          font-weight: 700;
+          letter-spacing: -0.3px;
+          color: #f0f6fc;
+        }
+
+        .header-subtitle {
+          font-size: 12px;
+          color: #8b949e;
+          font-weight: 500;
+        }
+
+        /* CONTROLS (TABS & TIME WINDOW) */
+        .header-controls {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .tabs-pill-box {
+          background: rgba(13, 17, 23, 0.85);
+          border: 1px solid var(--tg-border);
+          border-radius: 10px;
+          padding: 3px;
+          display: flex;
+          gap: 4px;
+        }
+
+        .tab-btn {
+          background: transparent;
+          border: none;
+          color: #8b949e;
+          font-size: 12px;
+          font-weight: 600;
+          padding: 5px 12px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+          color: #fff;
+        }
+
+        .tab-btn.active {
+          background: rgba(16, 185, 129, 0.18);
+          color: #34d399;
+          font-weight: 700;
+          box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
+        .tab-btn.active.hydro {
+          background: rgba(6, 182, 212, 0.18);
+          color: #38bdf8;
+          box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+        }
+
+        .time-box {
+          background: rgba(13, 17, 23, 0.85);
+          border: 1px solid var(--tg-border);
+          border-radius: 10px;
+          padding: 3px;
+          display: flex;
+          gap: 2px;
+        }
+
+        .time-btn {
+          background: transparent;
+          border: none;
+          color: #8b949e;
+          font-size: 11px;
+          font-weight: 600;
+          padding: 5px 8px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .time-btn:hover {
+          color: #fff;
+        }
+
+        .time-btn.active {
+          background: rgba(255, 255, 255, 0.1);
+          color: #fff;
+          font-weight: 700;
+        }
+
+        /* SPACES PANELS */
+        .trends-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 16px;
+        }
+
+        .trend-space-panel {
+          background: var(--tg-card-bg);
+          border: 1px solid var(--tg-border);
+          border-radius: 14px;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+          transition: border-color 0.25s ease;
+        }
+
+        .trend-space-panel:hover {
+          border-color: rgba(6, 182, 212, 0.4);
+        }
+
+        .panel-top {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .space-title-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .panel-space-name {
+          font-size: 16px;
+          font-weight: 700;
+          color: #fff;
+        }
+
+        .target-corridor-badge {
+          background: rgba(16, 185, 129, 0.12);
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          color: #34d399;
+          font-size: 11px;
+          font-weight: 600;
+          padding: 2px 8px;
+          border-radius: 10px;
+        }
+
+        /* STATS PILLS */
+        .stats-pills-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        .stat-pill {
+          background: rgba(13, 17, 23, 0.7);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 8px;
+          padding: 4px 10px;
+          font-size: 11px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .stat-pill-label {
+          color: #8b949e;
+          text-transform: uppercase;
+          font-size: 9px;
+          font-weight: 700;
+        }
+
+        .stat-pill-val {
+          color: #fff;
+          font-weight: 700;
+          font-size: 12px;
+        }
+
+        .stat-pill-range {
+          color: #6e7681;
+          font-size: 10px;
+        }
+
+        /* SVG CHART CONTAINER */
+        .chart-container {
+          position: relative;
+          width: 100%;
+          height: 140px;
+          background: rgba(10, 14, 22, 0.6);
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.04);
+          overflow: hidden;
+        }
+
+        .chart-svg {
+          width: 100%;
+          height: 100%;
+          display: block;
+        }
+
+        /* TOOLTIP */
+        .chart-tooltip {
+          position: absolute;
+          display: none;
+          background: rgba(13, 17, 23, 0.95);
+          backdrop-filter: blur(8px);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          color: #fff;
+          padding: 4px 10px;
+          border-radius: 6px;
+          font-size: 11px;
+          pointer-events: none;
+          white-space: nowrap;
+          z-index: 10;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+        }
+      </style>
+
+      <div class="container">
+        <div class="header">
+          <div class="header-title-box">
+            <div class="brand-badge">📈</div>
+            <div>
+              <h2>${this._config.title}</h2>
+              <div class="header-subtitle">24-Hour Telemetry Intelligence & Environmental Trends</div>
+            </div>
+          </div>
+
+          <div class="header-controls">
+            <div class="tabs-pill-box">
+              <button class="tab-btn ${this._mode === "canopy" ? "active" : ""}" data-mode="canopy">🌿 Canopy Climate</button>
+              <button class="tab-btn ${this._mode === "hydro" ? "active hydro" : ""}" data-mode="hydro">💧 Reservoir Chemistry</button>
+            </div>
+            <div class="time-box">
+              <button class="time-btn ${this._hours === 6 ? "active" : ""}" data-hours="6">6h</button>
+              <button class="time-btn ${this._hours === 12 ? "active" : ""}" data-hours="12">12h</button>
+              <button class="time-btn ${this._hours === 24 ? "active" : ""}" data-hours="24">24h</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="trends-grid" id="trends-grid">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    `;
+
+    this._bindHeaderEvents();
+    this._renderCharts();
+  }
+
+  _bindHeaderEvents() {
+    const root = this.shadowRoot;
+    root.querySelectorAll("button[data-mode]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const mode = btn.getAttribute("data-mode");
+        if (mode && this._mode !== mode) {
+          this._mode = mode;
+          this._render();
+        }
+      });
+    });
+
+    root.querySelectorAll("button[data-hours]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const hours = parseInt(btn.getAttribute("data-hours"), 10);
+        if (hours && this._hours !== hours) {
+          this._hours = hours;
+          this._fetchHistory(true);
+          this._render();
+        }
+      });
+    });
+  }
+
+  _updateStats() {
+    // Light update of live stats without full SVG redraw
+    this._renderCharts();
+  }
+
+  _renderCharts() {
+    if (!this._hass || !this.shadowRoot) return;
+    const grid = this.shadowRoot.getElementById("trends-grid");
+    if (!grid) return;
+
+    const spaces = this._config.spaces || [];
+    const mode = this._mode;
+    const hours = this._hours || 24;
+    const now = Date.now();
+    const windowStart = now - hours * 3600 * 1000;
+
+    grid.innerHTML = spaces
+      .map((s, sIdx) => {
+        let primaryEntity = null;
+        let secondaryEntity = null;
+        let primaryLabel = "";
+        let secondaryLabel = "";
+        let primaryUnit = "";
+        let targetLow = null;
+        let targetHigh = null;
+        let strokeColor = "#10b981";
+        let secondaryStroke = "#38bdf8";
+
+        if (mode === "canopy") {
+          primaryEntity = s.leaf_vpd || s.vpd;
+          secondaryEntity = s.temperature;
+          primaryLabel = "Leaf VPD";
+          secondaryLabel = "Temp";
+          primaryUnit = "kPa";
+          targetLow = 0.9;
+          targetHigh = 1.3;
+          strokeColor = "#10b981";
+          secondaryStroke = "#38bdf8";
+        } else {
+          primaryEntity = s.ph;
+          secondaryEntity = s.water_temperature;
+          primaryLabel = "Hydro pH";
+          secondaryLabel = "Water Temp";
+          primaryUnit = "";
+          targetLow = 5.7;
+          targetHigh = 6.2;
+          strokeColor = "#06b6d4";
+          secondaryStroke = "#2dd4bf";
+        }
+
+        // Live values
+        const primaryCurrent = getStateNum(this._hass, primaryEntity, null);
+        const secondaryCurrent = getStateNum(this._hass, secondaryEntity, null);
+        const humidityCurrent = getStateNum(this._hass, s.humidity, null);
+        const ecCurrent = getStateNum(this._hass, s.ec, null);
+
+        // History points for primary entity
+        const rawPoints = (this._historyData[primaryEntity] || []).filter((p) => p.time >= windowStart);
+        let minVal = targetLow ? targetLow * 0.9 : 0;
+        let maxVal = targetHigh ? targetHigh * 1.1 : 100;
+        let avgVal = primaryCurrent;
+
+        if (rawPoints.length > 0) {
+          const vals = rawPoints.map((p) => p.val);
+          minVal = Math.min(...vals);
+          maxVal = Math.max(...vals);
+          avgVal = vals.reduce((a, b) => a + b, 0) / vals.length;
+        }
+
+        // Ensure reasonable spread for SVG plotting
+        if (maxVal === minVal) {
+          minVal -= 0.5;
+          maxVal += 0.5;
+        }
+        const valSpan = maxVal - minVal || 1;
+        const padMin = minVal - valSpan * 0.1;
+        const padMax = maxVal + valSpan * 0.1;
+        const totalSpan = padMax - padMin;
+
+        // SVG Layout constants
+        const svgW = 600;
+        const svgH = 130;
+        const padLeft = 40;
+        const padRight = 15;
+        const padTop = 15;
+        const padBottom = 25;
+        const plotW = svgW - padLeft - padRight;
+        const plotH = svgH - padTop - padBottom;
+
+        // Points mapping
+        let plottedPoints = [];
+        if (rawPoints.length >= 2) {
+          plottedPoints = rawPoints.map((p) => {
+            const x = padLeft + ((p.time - windowStart) / (now - windowStart)) * plotW;
+            const y = padTop + plotH - ((p.val - padMin) / totalSpan) * plotH;
+            return { x, y, val: p.val, time: p.time };
+          });
+        } else {
+          // Fallback smooth sparkline curve if history is pending
+          const base = primaryCurrent !== null ? primaryCurrent : (targetLow + targetHigh) / 2;
+          for (let step = 0; step <= 10; step++) {
+            const ratio = step / 10;
+            const x = padLeft + ratio * plotW;
+            const wave = Math.sin(ratio * Math.PI * 2) * (valSpan * 0.15);
+            const val = base + wave;
+            const y = padTop + plotH - ((val - padMin) / totalSpan) * plotH;
+            plottedPoints.push({ x, y, val, time: windowStart + ratio * (now - windowStart) });
+          }
+        }
+
+        // Generate smooth cubic bezier spline
+        let splinePath = "";
+        let areaPath = "";
+        if (plottedPoints.length > 0) {
+          splinePath = `M ${plottedPoints[0].x.toFixed(1)} ${plottedPoints[0].y.toFixed(1)}`;
+          for (let i = 0; i < plottedPoints.length - 1; i++) {
+            const p0 = plottedPoints[Math.max(i - 1, 0)];
+            const p1 = plottedPoints[i];
+            const p2 = plottedPoints[i + 1];
+            const p3 = plottedPoints[Math.min(i + 2, plottedPoints.length - 1)];
+            const cp1x = p1.x + (p2.x - p0.x) / 6;
+            const cp1y = p1.y + (p2.y - p0.y) / 6;
+            const cp2x = p2.x - (p3.x - p1.x) / 6;
+            const cp2y = p2.y - (p3.y - p1.y) / 6;
+            splinePath += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+          }
+          const lastP = plottedPoints[plottedPoints.length - 1];
+          const firstP = plottedPoints[0];
+          const groundY = padTop + plotH;
+          areaPath = `${splinePath} L ${lastP.x.toFixed(1)} ${groundY} L ${firstP.x.toFixed(1)} ${groundY} Z`;
+        }
+
+        // Target band corridor rect
+        let targetRectSvg = "";
+        if (targetLow !== null && targetHigh !== null) {
+          const corridorTop = padTop + plotH - ((targetHigh - padMin) / totalSpan) * plotH;
+          const corridorBottom = padTop + plotH - ((targetLow - padMin) / totalSpan) * plotH;
+          const corridorH = Math.max(2, corridorBottom - corridorTop);
+          targetRectSvg = `
+            <rect x="${padLeft}" y="${corridorTop.toFixed(1)}" width="${plotW}" height="${corridorH.toFixed(1)}" fill="${mode === "canopy" ? "rgba(16, 185, 129, 0.08)" : "rgba(6, 182, 212, 0.08)"}" rx="3" />
+            <line x1="${padLeft}" y1="${corridorTop.toFixed(1)}" x2="${padLeft + plotW}" y2="${corridorTop.toFixed(1)}" stroke="${strokeColor}" stroke-dasharray="3,3" stroke-opacity="0.35" />
+            <line x1="${padLeft}" y1="${corridorBottom.toFixed(1)}" x2="${padLeft + plotW}" y2="${corridorBottom.toFixed(1)}" stroke="${strokeColor}" stroke-dasharray="3,3" stroke-opacity="0.35" />
+          `;
+        }
+
+        const gradId = `area-grad-${sIdx}-${mode}`;
+        this._spaceChartData[sIdx] = { plottedPoints, primaryLabel, primaryUnit, svgW, svgH };
+
+        return `
+          <div class="trend-space-panel" data-space="${sIdx}">
+            <div class="panel-top">
+              <div class="space-title-row">
+                <span class="panel-space-name">${s.name || `Space ${sIdx + 1}`}</span>
+                ${
+                  targetLow !== null
+                    ? `<span class="target-corridor-badge">Target: ${targetLow}–${targetHigh} ${primaryUnit}</span>`
+                    : ""
+                }
+              </div>
+
+              <div class="stats-pills-row">
+                <div class="stat-pill">
+                  <span class="stat-pill-label">${primaryLabel}</span>
+                  <span class="stat-pill-val" style="color: ${strokeColor}">${primaryCurrent !== null ? primaryCurrent + primaryUnit : "--"}</span>
+                  <span class="stat-pill-range">Low: ${minVal.toFixed(2)} • High: ${maxVal.toFixed(2)}</span>
+                </div>
+
+                ${
+                  mode === "canopy" && secondaryCurrent !== null
+                    ? `
+                      <div class="stat-pill">
+                        <span class="stat-pill-label">Temp</span>
+                        <span class="stat-pill-val" style="color: #38bdf8">${secondaryCurrent}°F</span>
+                      </div>
+                      ${
+                        humidityCurrent !== null
+                          ? `
+                            <div class="stat-pill">
+                              <span class="stat-pill-label">RH</span>
+                              <span class="stat-pill-val" style="color: #60a5fa">${humidityCurrent}%</span>
+                            </div>
+                          `
+                          : ""
+                      }
+                    `
+                    : ""
+                }
+
+                ${
+                  mode === "hydro" && secondaryCurrent !== null
+                    ? `
+                      <div class="stat-pill">
+                        <span class="stat-pill-label">Water</span>
+                        <span class="stat-pill-val" style="color: #2dd4bf">${secondaryCurrent}°F</span>
+                      </div>
+                      ${
+                        ecCurrent !== null
+                          ? `
+                            <div class="stat-pill">
+                              <span class="stat-pill-label">EC</span>
+                              <span class="stat-pill-val" style="color: #a78bfa">${ecCurrent}</span>
+                            </div>
+                          `
+                          : ""
+                      }
+                    `
+                    : ""
+                }
+              </div>
+            </div>
+
+            <div class="chart-container" id="chart-box-${sIdx}">
+              <div class="chart-tooltip" id="tooltip-${sIdx}"></div>
+              <svg class="chart-svg" viewBox="0 0 ${svgW} ${svgH}" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="${strokeColor}" stop-opacity="0.35" />
+                    <stop offset="100%" stop-color="${strokeColor}" stop-opacity="0.0" />
+                  </linearGradient>
+                </defs>
+
+                <!-- Grid Background -->
+                <line x1="${padLeft}" y1="${padTop}" x2="${padLeft + plotW}" y2="${padTop}" stroke="rgba(255,255,255,0.05)" />
+                <line x1="${padLeft}" y1="${padTop + plotH * 0.5}" x2="${padLeft + plotW}" y2="${padTop + plotH * 0.5}" stroke="rgba(255,255,255,0.05)" />
+                <line x1="${padLeft}" y1="${padTop + plotH}" x2="${padLeft + plotW}" y2="${padTop + plotH}" stroke="rgba(255,255,255,0.08)" />
+
+                <!-- Target Corridor -->
+                ${targetRectSvg}
+
+                <!-- Filled Area -->
+                <path d="${areaPath}" fill="url(#${gradId})" />
+
+                <!-- Main Spline -->
+                <path d="${splinePath}" fill="none" stroke="${strokeColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+
+                <!-- End Node Pulsing Circle -->
+                ${
+                  plottedPoints.length > 0
+                    ? `
+                      <circle cx="${plottedPoints[plottedPoints.length - 1].x}" cy="${plottedPoints[plottedPoints.length - 1].y}" r="4" fill="${strokeColor}" stroke="#fff" stroke-width="1.5" />
+                    `
+                    : ""
+                }
+
+                <!-- Y Axis Labels -->
+                <text x="${padLeft - 6}" y="${padTop + 4}" fill="#6e7681" font-size="9" text-anchor="end" font-weight="600">${maxVal.toFixed(1)}</text>
+                <text x="${padLeft - 6}" y="${padTop + plotH}" fill="#6e7681" font-size="9" text-anchor="end" font-weight="600">${minVal.toFixed(1)}</text>
+
+                <!-- X Axis Time Labels -->
+                <text x="${padLeft}" y="${svgH - 6}" fill="#6e7681" font-size="9" text-anchor="start">-${hours}h</text>
+                <text x="${padLeft + plotW * 0.5}" y="${svgH - 6}" fill="#6e7681" font-size="9" text-anchor="middle">-${Math.round(hours / 2)}h</text>
+                <text x="${padLeft + plotW}" y="${svgH - 6}" fill="#6e7681" font-size="9" text-anchor="end">Now</text>
+              </svg>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    spaces.forEach((_, sIdx) => {
+      const box = this.shadowRoot.getElementById(`chart-box-${sIdx}`);
+      const tooltip = this.shadowRoot.getElementById(`tooltip-${sIdx}`);
+      if (!box || !tooltip) return;
+
+      box.addEventListener("mousemove", (e) => {
+        const info = this._spaceChartData?.[sIdx];
+        if (!info || !info.plottedPoints || info.plottedPoints.length === 0) return;
+        const rect = box.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const scaleX = info.svgW / rect.width;
+        const targetSvgX = mouseX * scaleX;
+
+        let closest = info.plottedPoints[0];
+        let minDiff = Math.abs(closest.x - targetSvgX);
+        for (let i = 1; i < info.plottedPoints.length; i++) {
+          const diff = Math.abs(info.plottedPoints[i].x - targetSvgX);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closest = info.plottedPoints[i];
+          }
+        }
+
+        if (closest) {
+          const timeStr = new Date(closest.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          tooltip.style.display = "block";
+          const leftPos = (closest.x / info.svgW) * rect.width;
+          const clampedLeft = Math.max(10, Math.min(rect.width - 150, leftPos - 50));
+          tooltip.style.left = `${clampedLeft}px`;
+          tooltip.style.top = "10px";
+          tooltip.innerHTML = `<strong>${closest.val.toFixed(2)} ${info.primaryUnit}</strong> <span style="color:#8b949e">(${timeStr})</span>`;
+        }
+      });
+
+      box.addEventListener("mouseleave", () => {
+        tooltip.style.display = "none";
+      });
+    });
+  }
+}
+
 // Register Custom Elements
 customElements.define("tendrilgrow-twin-card", TendrilGrowTwinCard);
 customElements.define("tendrilgrow-overview-card", TendrilGrowOverviewCard);
+customElements.define("tendrilgrow-trends-card", TendrilGrowTrendsCard);
 
 // Register in Home Assistant Lovelace Card Picker
 window.customCards = window.customCards || [];
@@ -2130,3 +2936,11 @@ window.customCards.push({
   preview: true,
   documentationURL: "https://github.com/Trec-TorConsulting/TendrilGrow",
 });
+window.customCards.push({
+  type: "tendrilgrow-trends-card",
+  name: "TendrilGrow Telemetry Trends Card",
+  description: "High-resolution 24h environmental & hydroponic trendlines with sweet-spot target corridors.",
+  preview: true,
+  documentationURL: "https://github.com/Trec-TorConsulting/TendrilGrow",
+});
+

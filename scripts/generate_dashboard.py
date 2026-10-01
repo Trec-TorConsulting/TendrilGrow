@@ -1038,8 +1038,6 @@ def build_digital_twin_space_view(space: dict) -> dict:
 def build_digital_twin_overview(spaces: list[dict]) -> dict:
     """Build the modern executive overview card comparing all spaces."""
     overview_spaces = []
-    canopy_trends: list[str] = []
-    hydro_trends: list[str] = []
 
     for s in spaces:
         reg = s.get("reg") or {}
@@ -1053,24 +1051,18 @@ def build_digital_twin_overview(spaces: list[dict]) -> dict:
             item["camera"] = s["camera"]
         if sensors.get("temperature"):
             item["temperature"] = sensors["temperature"]
-            canopy_trends.append(sensors["temperature"])
         if sensors.get("humidity"):
             item["humidity"] = sensors["humidity"]
-            canopy_trends.append(sensors["humidity"])
         if reg.get("vpd"):
             item["vpd"] = reg["vpd"]
-            canopy_trends.append(reg["vpd"])
         if reg.get("leaf_vpd"):
             item["leaf_vpd"] = reg["leaf_vpd"]
         if sensors.get("ph"):
             item["ph"] = sensors["ph"]
-            hydro_trends.append(sensors["ph"])
         if sensors.get("ec"):
             item["ec"] = sensors["ec"]
-            hydro_trends.append(sensors["ec"])
         if sensors.get("water_temperature"):
             item["water_temperature"] = sensors["water_temperature"]
-            hydro_trends.append(sensors["water_temperature"])
         if reg.get("ai_health_score"):
             item["ai_health_score"] = reg["ai_health_score"]
         if reg.get("ctx_stage"):
@@ -1107,33 +1099,20 @@ def build_digital_twin_overview(spaces: list[dict]) -> dict:
         }
     ]
 
-    trend_cards = []
-    if canopy_trends:
-        trend_cards.append(
-            {
-                "type": "history-graph",
-                "title": "Canopy Climate History (24h)",
-                "hours_to_show": 24,
-                "entities": canopy_trends,
-            }
-        )
-    if hydro_trends:
-        trend_cards.append(
-            {
-                "type": "history-graph",
-                "title": "Hydroponic Reservoir History (24h)",
-                "hours_to_show": 24,
-                "entities": hydro_trends,
-            }
-        )
-
-    if trend_cards:
+    if overview_spaces:
         sections.append(
             {
                 "type": "grid",
                 "cards": [
-                    _heading("24-Hour Telemetry Trends", style="subtitle"),
-                    *trend_cards,
+                    _heading(
+                        "24-Hour Telemetry Intelligence & Trends", style="subtitle"
+                    ),
+                    {
+                        "type": "custom:tendrilgrow-trends-card",
+                        "title": "Cultivation Telemetry Curves",
+                        "hours_to_show": 24,
+                        "spaces": overview_spaces,
+                    },
                 ],
             }
         )
@@ -1305,6 +1284,20 @@ async def main() -> int:
                 print(f"SAVE FAILED: {saved.get('error')}")
                 return 1
             print(f"\nSaved generated dashboard to live '{url_path}'.")
+
+            dash_dir = Path(__file__).resolve().parent.parent / "dashboards"
+            if dash_dir.exists():
+                local_dash = dash_dir / f"{_slug(url_path)}.yaml"
+                local_dash.write_text(
+                    yaml.safe_dump(
+                        config,
+                        default_flow_style=False,
+                        sort_keys=False,
+                        allow_unicode=True,
+                    ),
+                    encoding="utf-8",
+                )
+                print(f"Synchronized local file -> {local_dash}")
     return 0
 
 
