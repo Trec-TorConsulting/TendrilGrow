@@ -207,7 +207,47 @@ function generateAgronomyAdvice(query, ctx) {
   const phNum = ph !== null ? Number(ph) : null;
   const ecNum = ec !== null ? Number(ec) : null;
 
-  // 1. WATER PREPARATION & MIXING ORDER PROTOCOL (High priority match)
+  // 1. PRUNING, DEFOLIATION, TRIM & LOLLIPOPPING GUIDANCE (High priority match)
+  if (q.includes("trim") || q.includes("prune") || q.includes("defoliat") || q.includes("lollipop") || q.includes("leaves") || q.includes("cut") || q.includes("pluck") || q.includes("fan leaf") || q.includes("shading")) {
+    let trimAdvice = "";
+    if (stageLower.includes("mid_flower") || stageLower.includes("bloom") || stageLower.includes("peak")) {
+      trimAdvice = `🛑 **RECOMMENDATION FOR ${stageLabel.toUpperCase()}: WAIT ON MAJOR TRIMMING.**
+
+- **Why Wait**: Your plants are currently in **Mid Flower (Floral Bulking)**. Heavy leaf stripping or lollipopping at this stage triggers systemic hormonal stress (ethylene surge), which halts floral expansion for 5–7 days and reduces overall bud density & final yield!
+- **What To Do Right Now**: 
+  1. **Selective Micro-Plucking ONLY**: Remove only large, inward-facing fan leaves that directly block intense light from main top colas or rub against neighboring leaves (creating wet sweat spots).
+  2. Keep all lower and mid-canopy "solar panel" leaves to feed developing calyxes.
+  3. ${vpdNum && vpdNum < 0.8 ? `Because your current VPD is **${vpdNum} kPa** (low), gently tucking or plucking 2–3 overlapping leaves will improve air movement around lower node junctions and reduce *Botrytis* mold risk without shocking the plant.` : `Maintain current canopy structure.`}`;
+    } else if (stageLower.includes("trans") || stageLower.includes("early_flower") || stageLower.includes("stretch")) {
+      trimAdvice = `🎯 **RECOMMENDATION FOR EARLY BLOOM / STRETCH:**
+- **Prime Window**: Perform your major "Lollipop" sweep at **Day 21 of Flower** (the end of vertical stretch).
+- **Execution**: Strip the lower 33% of branches (popcorn bud sites & weak suckers) and remove large fan leaves casting dense shadows over main stems.`;
+    } else if (stageLower.includes("late_flower") || stageLower.includes("ripen")) {
+      trimAdvice = `🛑 **RECOMMENDATION FOR LATE BLOOM: DO NOT TRIM.**
+- Plants are in final ripening. Only remove leaves that are 50%+ yellow or detaching naturally.`;
+    } else {
+      trimAdvice = `🌿 **RECOMMENDATION FOR VEGETATIVE GROWTH:**
+- Perform light pruning of lower weak branches. Perform major defoliation **2–3 days BEFORE flipping to 12/12** so plants recover before stretch.`;
+    }
+
+    return `### ✂️ Canopy Trimming & Defoliation Guidance
+**Grow Space:** ${space}  
+**Current Stage:** ${stageLabel}  
+
+---
+
+${trimAdvice}
+
+---
+
+#### 📋 Quick Reference Defoliation Milestones:
+- **Veg (Pre-Flip)**: Clean lower 20% of branches 3 days prior to 12/12 flip.
+- **Flower Day 21**: Major "Lollipop" sweep — strip lower 1/3 larf & shade leaves.
+- **Mid Flower (Current Stage)**: ⚠️ *Micro-pluck only.* Touch up overlapping leaves for airflow.
+- **Late Bloom**: No pruning. Protect trichome maturation.`;
+  }
+
+  // 2. WATER PREPARATION & MIXING ORDER PROTOCOL (High priority match)
   if (q.includes("mixing order") || q.includes("water prep") || q.includes("prep") || q.includes("recipe") || q.includes("cal-mag before") || q.includes("order to prep") || (q.includes("mixing") && q.includes("order"))) {
     return `### 🧪 Horticultural Water Prep & Nutrient Mixing Order
 **Grow Space:** ${space}  
@@ -227,7 +267,7 @@ function generateAgronomyAdvice(query, ctx) {
 9. **Step 8 — pH Buffer**: 🎯 **Adjust LAST.** Wait 15 minutes after all salts are dissolved. Measure pH and adjust incrementally using diluted pH Down/Up to target **5.80 pH**.`;
   }
 
-  // 2. FLUSH & FILL ROUTINE (High priority match)
+  // 3. FLUSH & FILL ROUTINE (High priority match)
   if (q.includes("flush") || q.includes("clean") || (q.includes("when") && (q.includes("reservoir") || q.includes("water change")))) {
     return `### 🌊 Reservoir Flush & Routine Protocol
 **Grow Space:** ${space}  
@@ -247,7 +287,26 @@ function generateAgronomyAdvice(query, ctx) {
 - **Quick Logging**: You can record your flush on the **Cultivation Plan & Tasks** card under **Parameters & Reservoir Routine** using the **Log Flush & Fill Completed** button!`;
   }
 
-  // 3. TARGET CORRIDOR & CULTIVATION LIMITS ADVICE
+  // 4. LIGHTING & PPFD / DLI GUIDANCE
+  if (q.includes("light") || q.includes("dli") || q.includes("ppfd") || q.includes("distance") || q.includes("dimmer") || q.includes("lux") || q.includes("height")) {
+    return `### 💡 Canopy Lighting & Photoperiod Protocol
+**Grow Space:** ${space}  
+**Stage:** ${stageLabel}
+
+---
+
+#### Target Light Intensity Guidelines:
+- **Target PPFD**: ${isBloom ? "**700 – 1000 µmol/m²/s**" : "**400 – 600 µmol/m²/s**"}
+- **Daily Light Integral (DLI)**: ${isBloom ? "**35 – 45 mol/m²/day** (12h schedule)" : "**30 – 40 mol/m²/day** (18h schedule)"}
+- **Hanging Height**: 18" – 24" above canopy top (adjust dimmer to match PPFD).
+
+---
+
+#### Agronomic Tip:
+- High light intensity must be backed by adequate VPD (${idealVpdLow.toFixed(2)}–${idealVpdHigh.toFixed(2)} kPa) and root zone EC. If leaves pray upwards at a 45° angle, light absorption is optimal!`;
+  }
+
+  // 5. TARGET CORRIDOR & CULTIVATION LIMITS ADVICE
   if (q.includes("corridor") || q.includes("target ec") || q.includes("target ph") || (q.includes("target") && (q.includes("corridor") || q.includes("ec") || q.includes("ph") || q.includes("vpd") || q.includes("parameter")))) {
     return `### 🎯 Target Cultivation Corridors for ${space}
 **Lifecycle Stage:** ${stageLabel}
@@ -269,7 +328,7 @@ function generateAgronomyAdvice(query, ctx) {
 - **Reset Frequency:** Every 7–10 days *(Days since flush: **${daysSinceFlush}**)*`;
   }
 
-  // 4. VPD & ENVIRONMENTAL CORRIDOR CHECK
+  // 6. VPD & ENVIRONMENTAL CORRIDOR CHECK
   if (q.includes("vpd") || q.includes("humidity") || q.includes("vapor") || (q.includes("sweet spot") && !q.includes("ph"))) {
     let vpdEval = "";
     if (vpdNum !== null) {
@@ -309,7 +368,7 @@ ${vpdEval || "Maintain atmospheric stability in target corridor."}
 - **Climate Targets**: Daytime canopy temp: **74°F–78°F**, Nighttime temp: **68°F–72°F**.`;
   }
 
-  // 5. CANOPY HEALTH & TELEMETRY VIGOR (Full multi-variable diagnosis)
+  // 7. CANOPY HEALTH & TELEMETRY VIGOR (Full multi-variable diagnosis)
   if (q.includes("health") || q.includes("canopy") || q.includes("vigor") || q.includes("telemetry") || q.includes("status") || q.includes("how are my") || q.includes("how healthy") || q.includes("check")) {
     let vpdAlert = "";
     if (vpdNum !== null) {
@@ -383,7 +442,7 @@ ${rootStatus.length > 0 ? rootStatus.join("\n") : "- Telemetry nominal across al
 3. 💧 ${phNum && phNum < 5.6 ? "Monitor pH: Allow natural upward drift toward 5.80; do not over-adjust." : "Verify reservoir level and top off with balanced RO mix as water is consumed."}`;
   }
 
-  // 6. PH MANAGEMENT & DRIFT
+  // 8. PH MANAGEMENT & DRIFT
   if (q.includes("ph") || q.includes("drift") || q.includes("acid") || q.includes("alkal")) {
     if (ph !== null) {
       if (ph > targetPhHigh) {
@@ -397,7 +456,7 @@ ${rootStatus.length > 0 ? rootStatus.join("\n") : "- Telemetry nominal across al
     return `### 🧪 Hydroponic pH Management\nFor **${stage}**, maintain your reservoir between **${targetPhLow} and ${targetPhHigh}** (sweet spot: **5.80**). Always mix Cal-Mag and base nutrients completely before testing and adjusting pH as the final step!`;
   }
 
-  // 7. EC / SALINITY & FEEDING STRENGTH
+  // 9. EC / SALINITY & FEEDING STRENGTH
   if (q.includes("ec") || q.includes("ppm") || q.includes("feed") || q.includes("burn") || q.includes("strength") || q.includes("nutrient")) {
     if (ec !== null) {
       if (ec > targetEcHigh) {
@@ -410,12 +469,29 @@ ${rootStatus.length > 0 ? rootStatus.join("\n") : "- Telemetry nominal across al
     }
   }
 
-  // 8. STAGE & MILESTONES
+  // 10. STAGE & MILESTONES
   if (q.includes("flip") || q.includes("harvest") || q.includes("stage") || q.includes("flower") || q.includes("time") || q.includes("when")) {
     return `### 🔄 Cultivation Pipeline & Milestone Projections\n- **Current Space**: ${space}\n- **Stage**: ${stage} (Day ${daysInStage})\n\n**Guidance for ${stage}:**\n- For transitioning from Veg to Flower (12/12 flip), ensure canopy trellis is 70–80% full, as plants stretch 50–100% in height during weeks 1–3 of flower.\n- Perform lower canopy defoliation (lollipop) 3 days prior to flip.\n- Transition light schedule to 12h ON / 12h OFF and transition base nutrient ratios toward higher bloom macro-nutrients.`;
   }
 
-  return `### 🧠 TendrilGrow Autonomous Agronomist for ${space}\nHere is the real-time cultivation status for your **${stage}** cycle:\n\n- **Telemetry**: pH: **${ph || "--"}** | EC: **${ec || "--"} mS/cm** | VPD: **${vpd || "--"} kPa** | Temp: **${temp || "--"}°F**\n- **Reservoir**: Water Temp: **${waterTemp || "--"}°F** | Days Since Flush: **${daysSinceFlush}**\n- **System Health**: All automated sensor telemetry is monitored in real time.\n\nAsk me anything specific like *"Analyze my pH"*, *"How do I prep this week's water recipe?"*, or *"Is my VPD in the sweet spot?"*!`;
+  // 11. GENERAL NLP CATCH-ALL ACTION PROTOCOL
+  return `### 🧠 TendrilGrow Autonomous Agronomist for ${space}
+**Current Stage:** ${stageLabel}  
+
+---
+
+#### Telemetry Briefing:
+- **pH:** **${ph || "--"}** *(Target: ${targetPhLow.toFixed(2)}–${targetPhHigh.toFixed(2)})*
+- **EC:** **${ec || "--"} mS/cm** *(Target: ${targetEcLow.toFixed(2)}–${targetEcHigh.toFixed(2)} mS/cm)*
+- **VPD:** **${vpd || "--"} kPa** *(Target: ${idealVpdLow.toFixed(2)}–${idealVpdHigh.toFixed(2)} kPa)*
+- **Water Temp:** **${waterTemp ? `${waterTemp}°F` : "--"}** | **Days Since Flush:** ${daysSinceFlush}
+
+---
+
+#### Action Guidance for "${query}":
+1. ${vpdNum && vpdNum < idealVpdLow ? `⚠️ **VPD is currently low (${vpdNum} kPa)**. Increase exhaust fan speed and lower humidity to **45%–50% RH** to prevent transpiration stall and mold.` : `Maintain canopy environmental stability.`}
+2. 💧 ${phNum && phNum < 5.6 ? `pH is sitting low (**${phNum}**). Allow natural drift back toward **5.80**.` : `Reservoir telemetry is balanced.`}
+3. ✂️ For trimming/pruning in **${stageLabel}**, avoid heavy leaf stripping; perform selective plucking of overlapping leaves only.`;
 }
 
 // ============================================================================
