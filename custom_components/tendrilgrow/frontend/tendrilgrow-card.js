@@ -2079,9 +2079,9 @@ class TendrilGrowTwinCard extends HTMLElement {
 
         <div class="drawer-body ${this._activeDrawer === "actions" ? "open" : ""}" id="body-actions">
           <div class="actions-tray">
-            <button class="action-chip" id="action-inspect">💡 Inspection Light (100%)</button>
-            <button class="action-chip" id="action-feed">🧪 Feeding Mode</button>
-            <button class="action-chip" id="action-flush">🚀 Flush Routine</button>
+            <button class="action-chip" id="action-inspect" title="Set grow light to 100% brightness for manual canopy check">💡 Inspection Light (100%)</button>
+            <button class="action-chip" id="action-feed" title="Open AI Cultivation Advisor & Feeding Recipe">🧪 Feeding Mode</button>
+            <button class="action-chip" id="action-flush" title="Record reservoir flush routine & reset flush timer">🚀 Flush Routine</button>
           </div>
         </div>
       </div>
@@ -2161,7 +2161,7 @@ class TendrilGrowTwinCard extends HTMLElement {
       };
     }
 
-    // Preset Inspection Light
+    // Preset Inspection Light (Set light to 100% brightness for manual canopy checks)
     const actInspect = root.getElementById("action-inspect");
     if (actInspect && this._config.light) {
       actInspect.onclick = () => {
@@ -2169,6 +2169,38 @@ class TendrilGrowTwinCard extends HTMLElement {
           entity_id: this._config.light,
           brightness: 255,
         });
+        actInspect.textContent = "💡 Light Set to 100%";
+        setTimeout(() => {
+          actInspect.textContent = "💡 Inspection Light (100%)";
+        }, 3000);
+      };
+    }
+
+    // Quick Action: Feeding Mode
+    const actFeed = root.getElementById("action-feed");
+    if (actFeed) {
+      actFeed.onclick = () => {
+        this._toggleDrawer("advisor");
+        actFeed.textContent = "🧪 Viewing Feeding Recs";
+        setTimeout(() => {
+          actFeed.textContent = "🧪 Feeding Mode";
+        }, 2500);
+      };
+    }
+
+    // Quick Action: Flush Routine
+    const actFlush = root.getElementById("action-flush");
+    if (actFlush) {
+      actFlush.onclick = () => {
+        if (this._config.flush_now) {
+          this._callService("button", "press", { entity_id: this._config.flush_now });
+        } else {
+          this._callService("tendrilgrow", "mark_flush", {});
+        }
+        actFlush.textContent = "✅ Flush Recorded!";
+        setTimeout(() => {
+          actFlush.textContent = "🚀 Flush Routine";
+        }, 3500);
       };
     }
   }
