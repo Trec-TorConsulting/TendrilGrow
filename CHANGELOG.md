@@ -6,6 +6,21 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+### Added
+- **Ultimate HACS Digital Twin & Cockpit Frontend**:
+  - Bundled custom Lovelace cards directly within the integration: `<tendrilgrow-twin-card>` and `<tendrilgrow-overview-card>`.
+  - Automatic frontend resource injection via `StaticPathConfig` (`/tendrilgrow_static/`) and `add_extra_js_url`, eliminating manual dashboard resource setup in Home Assistant.
+  - Interactive 2.5D visual grow tent schematic HUD:
+    - Dynamic animated ceiling exhaust duct fan (spins with RPM proportional to fan speed).
+    - Glowing quantum LED grow light bar with radiating beam and tap-to-dim controls.
+    - Glassmorphism Canopy Telemetry capsule (Canopy Temp, RH, Leaf VPD) with dynamic optimal-band glowing border.
+    - Cutaway hydroponic reservoir with liquid ripple animation, active aeration bubbles, and 1-tap pump controls (RDWC, Air, Chiller).
+    - Seamless 1-click toggle between 2.5D Digital Twin schematic and live camera stream overlay.
+  - Sweet-spot target range visual meters for Canopy Temp, Humidity, Leaf VPD, pH, EC, and Water Temperature.
+  - Responsive multi-device ergonomics optimized for mobile phones (vertical compact stack), wall-mounted tablets (split-screen HUD), and desktop browsers (wide telemetry command center).
+  - Modernized `dashboards/tendrial_grow.yaml` replacing 136 repetitive rectangular tiles with clean digital twin cockpits.
+  - Added `--twin` / `--digital-twin` mode to `scripts/generate_dashboard.py`.
+
 ## [0.3.14] - 2026-09-30
 
 ### Added

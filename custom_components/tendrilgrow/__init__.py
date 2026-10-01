@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -172,11 +173,53 @@ class _EphemeralStore:
         self._payload = dict(payload)
 
 
+async def _async_register_frontend(hass: Any) -> None:
+    """Register static path and extra js url for TendrilGrow custom card."""
+    if not isinstance(getattr(hass, "data", None), dict):
+        return
+    if hass.data.get(f"{DOMAIN}_frontend_registered"):
+        return
+    hass.data[f"{DOMAIN}_frontend_registered"] = True
+
+    frontend_dir = Path(__file__).parent / "frontend"
+    if not frontend_dir.is_dir():
+        return
+
+    http = getattr(hass, "http", None)
+    if http and hasattr(http, "async_register_static_paths"):
+        try:
+            from homeassistant.components.http import StaticPathConfig
+
+            await http.async_register_static_paths(
+                [
+                    StaticPathConfig(
+                        "/tendrilgrow_static",
+                        str(frontend_dir),
+                        cache_headers=False,
+                    )
+                ]
+            )
+        except Exception:  # noqa: BLE001
+            LOGGER.debug(
+                "Could not register static path for TendrilGrow frontend", exc_info=True
+            )
+
+    try:
+        from homeassistant.components.frontend import add_extra_js_url
+
+        add_extra_js_url(hass, "/tendrilgrow_static/tendrilgrow-card.js")
+    except Exception:  # noqa: BLE001
+        LOGGER.debug(
+            "Could not add extra js url for TendrilGrow frontend", exc_info=True
+        )
+
+
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Set up from yaml (unused)."""
     _ = config
     hass.data.setdefault(DOMAIN, {})
     await _async_register_services(hass)
+    await _async_register_frontend(hass)
     return True
 
 
@@ -184,6 +227,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up TendrilGrow from a config entry."""
     hass.data.setdefault(DOMAIN, {})
     await _async_register_services(hass)
+    await _async_register_frontend(hass)
 
     merged_config = dict(entry.data)
     merged_config.update(getattr(entry, "options", {}))

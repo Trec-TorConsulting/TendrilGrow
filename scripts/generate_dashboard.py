@@ -875,6 +875,254 @@ def build_overview(spaces: list[dict]) -> dict:
     return view
 
 
+def build_digital_twin_space_view(space: dict) -> dict:
+    """Build a modern Digital Twin HUD view for one grow space."""
+    slug = space.get("slug") or "space"
+    title = space.get("title") or "Grow Space"
+    reg = space.get("reg") or {}
+    sensors = space.get("sensors") or {}
+    controls = space.get("controls") or {}
+    pumps = space.get("pumps") or {}
+
+    twin_card: dict[str, Any] = {
+        "type": "custom:tendrilgrow-twin-card",
+        "name": title,
+    }
+    if space.get("camera"):
+        twin_card["camera"] = space["camera"]
+    if controls.get("lights"):
+        twin_card["light"] = controls["lights"]
+    if controls.get("fans"):
+        twin_card["fan"] = controls["fans"]
+    if controls.get("inline_fans"):
+        twin_card["duct_fan"] = controls["inline_fans"]
+
+    for pump_key in ("rdwc_pump", "air_pump", "chiller_pump"):
+        pump_entity = pumps.get(pump_key) or reg.get(pump_key)
+        if pump_entity:
+            twin_card[pump_key] = pump_entity
+
+    for sensor_key in (
+        "temperature",
+        "humidity",
+        "ph",
+        "ec",
+        "water_temperature",
+        "tds",
+        "orp",
+    ):
+        if sensors.get(sensor_key):
+            twin_card[sensor_key] = sensors[sensor_key]
+
+    for reg_key in ("vpd", "leaf_vpd", "dew_point"):
+        if reg.get(reg_key):
+            twin_card[reg_key] = reg[reg_key]
+
+    if reg.get("ctx_stage"):
+        twin_card["stage"] = reg["ctx_stage"]
+    if reg.get("ctx_stage_started"):
+        twin_card["stage_started"] = reg["ctx_stage_started"]
+    if reg.get("ctx_week_in_stage"):
+        twin_card["week"] = reg["ctx_week_in_stage"]
+    if reg.get("stage_projection"):
+        twin_card["projection"] = reg["stage_projection"]
+    if reg.get("ai_health_score"):
+        twin_card["ai_health_score"] = reg["ai_health_score"]
+    if reg.get("ai_health_summary"):
+        twin_card["ai_health_summary"] = reg["ai_health_summary"]
+    if reg.get("run_ai_health_check"):
+        twin_card["run_ai_health_check"] = reg["run_ai_health_check"]
+
+    for alert_key in (
+        "mold_risk",
+        "flush_due",
+        "metrics_out_of_range",
+        "ai_critical_alert",
+    ):
+        if reg.get(alert_key):
+            twin_card[alert_key] = reg[alert_key]
+
+    for band_key in (
+        "target_ph_low",
+        "target_ph_high",
+        "target_ec_low",
+        "target_ec_high",
+        "target_vpd_low",
+        "target_vpd_high",
+    ):
+        ctx_key = f"ctx_{band_key}"
+        if reg.get(ctx_key):
+            twin_card[band_key] = reg[ctx_key]
+
+    sections: list[dict[str, Any]] = [
+        {
+            "type": "grid",
+            "cards": [twin_card],
+            "column_span": 2,
+        }
+    ]
+
+    controls_cards: list[dict[str, Any]] = []
+    scheds = space.get("controller_schedules") or {}
+    schedule_rows = [
+        {"entity": scheds[role], "name": label, "icon": icon}
+        for role, label, icon in CONTROLLER_SCHEDULE_ROLES
+        if scheds.get(role)
+    ]
+    if schedule_rows:
+        controls_cards.append(
+            {
+                "type": "entities",
+                "title": "Controller Schedule Status",
+                "entities": schedule_rows,
+            }
+        )
+    lung = _lung_room_card(space)
+    if lung:
+        controls_cards.append(lung)
+    if controls_cards:
+        sections.append(
+            {
+                "type": "grid",
+                "cards": [
+                    _heading("Controller Schedules & Ambient", style="subtitle"),
+                    *controls_cards,
+                ],
+            }
+        )
+
+    plan_cards: list[dict[str, Any]] = []
+    if reg.get("stage_projection"):
+        plan_cards.append(_projection_markdown(reg["stage_projection"]))
+    todo = reg.get("todo") or space.get("grow_tasks") or f"todo.{slug}_grow_tasks"
+    plan_cards.append({"type": "todo-list", "entity": todo, "title": "Grow Tasks"})
+    sections.append(
+        {
+            "type": "grid",
+            "cards": [
+                _heading("Cultivation Plan & Tasks", style="subtitle"),
+                *plan_cards,
+            ],
+        }
+    )
+
+    trend_cards = _trends_cards(space)
+    if trend_cards:
+        sections.append(
+            {
+                "type": "grid",
+                "cards": [
+                    _heading("24h Telemetry Trends", style="subtitle"),
+                    *trend_cards,
+                ],
+                "column_span": 2,
+            }
+        )
+
+    if reg.get("ai_health_score"):
+        advisor = _advisor_cards(reg["ai_health_score"])
+        sections.append(
+            {
+                "type": "grid",
+                "cards": [
+                    _heading("AI Cultivation Intelligence", style="subtitle"),
+                    *advisor,
+                ],
+                "column_span": 2,
+            }
+        )
+
+    return {
+        "path": f"zone-{slug}",
+        "title": title,
+        "icon": "mdi:sprout",
+        "type": "sections",
+        "max_columns": 2,
+        "sections": sections,
+        "badges": _space_badges(space),
+    }
+
+
+def build_digital_twin_overview(spaces: list[dict]) -> dict:
+    """Build the modern executive overview card comparing all spaces."""
+    overview_spaces = []
+    for s in spaces:
+        reg = s.get("reg") or {}
+        sensors = s.get("sensors") or {}
+        controls = s.get("controls") or {}
+        item: dict[str, Any] = {
+            "name": s.get("title") or "Grow Space",
+            "path": f"/tendrial-grow/zone-{s.get('slug')}",
+        }
+        if s.get("camera"):
+            item["camera"] = s["camera"]
+        if sensors.get("temperature"):
+            item["temperature"] = sensors["temperature"]
+        if sensors.get("humidity"):
+            item["humidity"] = sensors["humidity"]
+        if reg.get("vpd"):
+            item["vpd"] = reg["vpd"]
+        if sensors.get("ph"):
+            item["ph"] = sensors["ph"]
+        if reg.get("ai_health_score"):
+            item["ai_health_score"] = reg["ai_health_score"]
+        if reg.get("ctx_stage"):
+            item["stage"] = reg["ctx_stage"]
+        if controls.get("lights"):
+            item["light"] = controls["lights"]
+        if controls.get("fans"):
+            item["fan"] = controls["fans"]
+        overview_spaces.append(item)
+
+    cards = [
+        _heading("All Grow Spaces", style="title"),
+        {
+            "type": "custom:tendrilgrow-overview-card",
+            "title": "Cultivation Network Overview",
+            "spaces": overview_spaces,
+        },
+    ]
+
+    trend = _trend_entities(spaces)
+    sections: list[dict[str, Any]] = [
+        {
+            "type": "grid",
+            "cards": cards,
+            "column_span": 2,
+        }
+    ]
+    if trend:
+        sections.append(
+            {
+                "type": "grid",
+                "cards": [
+                    _heading("24-Hour Telemetry Trends", style="subtitle"),
+                    {
+                        "type": "history-graph",
+                        "title": "Water Temperature and pH Trend (24h)",
+                        "hours_to_show": 24,
+                        "entities": trend,
+                    },
+                ],
+                "column_span": 2,
+            }
+        )
+
+    badges = []
+    for s in spaces:
+        badges.extend(_space_badges(s))
+
+    return {
+        "path": "overview",
+        "title": "Executive",
+        "icon": "mdi:view-dashboard",
+        "type": "sections",
+        "max_columns": 2,
+        "sections": sections,
+        "badges": badges,
+    }
+
+
 async def fetch_diagnostics(session, url, token, entry_id, ssl_ctx) -> dict:
     endpoint = f"{url}/api/diagnostics/config_entry/{entry_id}"
     headers = {"Authorization": f"Bearer {token}"}
@@ -966,11 +1214,19 @@ async def main() -> int:
                 title = str(entry.get("title") or entry_id)
                 spaces.append(classify(entry_id, title, registry, eff, states, devices))
 
-            config = {
-                "title": DEFAULT_TITLE,
-                "views": [build_overview(spaces)]
-                + [build_space_view(s) for s in spaces],
-            }
+            twin_mode = ("--digital-twin" in args) or ("--twin" in args)
+            if twin_mode:
+                config = {
+                    "title": DEFAULT_TITLE,
+                    "views": [build_digital_twin_overview(spaces)]
+                    + [build_digital_twin_space_view(s) for s in spaces],
+                }
+            else:
+                config = {
+                    "title": DEFAULT_TITLE,
+                    "views": [build_overview(spaces)]
+                    + [build_space_view(s) for s in spaces],
+                }
 
             proposed = Path(tempfile.gettempdir()) / "tendrilgrow_generated.yaml"
             proposed.write_text(

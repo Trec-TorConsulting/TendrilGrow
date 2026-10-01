@@ -393,3 +393,47 @@ def test_dry_run_returns_before_lovelace_save():
     assert dry_run < save
     assert "return 0" in main[dry_run:save]
     assert '"url_path": url_path' in main[save - 200 : save + 200]
+
+
+def test_digital_twin_space_view_generation():
+    space = _space("3x3 Mothers Tent", "3x3_mothers_tent", "tent")
+    space["controls"] = {
+        "lights": "light.tent_light",
+        "fans": "fan.tent_fan",
+        "inline_fans": "fan.tent_duct",
+    }
+    view = GEN.build_digital_twin_space_view(space)
+
+    assert view["type"] == "sections"
+    assert view["path"] == "zone-3x3_mothers_tent"
+    assert view["title"] == "3x3 Mothers Tent"
+
+    first_section = view["sections"][0]
+    twin_card = first_section["cards"][0]
+    assert twin_card["type"] == "custom:tendrilgrow-twin-card"
+    assert twin_card["name"] == "3x3 Mothers Tent"
+    assert twin_card["camera"] == "camera.tent"
+    assert twin_card["light"] == "light.tent_light"
+    assert twin_card["fan"] == "fan.tent_fan"
+    assert twin_card["duct_fan"] == "fan.tent_duct"
+    assert twin_card["ph"] == "sensor.tent_ph"
+    assert twin_card["ec"] == "sensor.tent_ec"
+    assert twin_card["target_ph_low"] == "number.tent_ph_low"
+
+
+def test_digital_twin_overview_generation():
+    first = _space("Tent A", "tent_a", "a")
+    second = _space("Tent B", "tent_b", "b")
+    view = GEN.build_digital_twin_overview([first, second])
+
+    assert view["type"] == "sections"
+    assert view["path"] == "overview"
+    assert view["title"] == "Executive"
+
+    overview_card = view["sections"][0]["cards"][1]
+    assert overview_card["type"] == "custom:tendrilgrow-overview-card"
+    assert len(overview_card["spaces"]) == 2
+    assert overview_card["spaces"][0]["name"] == "Tent A"
+    assert overview_card["spaces"][0]["path"] == "/tendrial-grow/zone-tent_a"
+    assert overview_card["spaces"][1]["name"] == "Tent B"
+
