@@ -4346,6 +4346,9 @@ class TendrilGrowPlanCard extends HTMLElement {
           --tg-cyan: #06b6d4;
           --tg-amber: #f59e0b;
           --tg-violet: #8b5cf6;
+          max-width: 100%;
+          overflow: hidden;
+          box-sizing: border-box;
         }
 
         * {
@@ -4358,8 +4361,11 @@ class TendrilGrowPlanCard extends HTMLElement {
           background: var(--tg-bg);
           border-radius: 18px;
           border: 1px solid var(--tg-border);
-          padding: 18px;
+          padding: 16px;
           box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+          max-width: 100%;
+          overflow: hidden;
+          box-sizing: border-box;
         }
 
         /* HEADER */
@@ -4667,28 +4673,26 @@ class TendrilGrowPlanCard extends HTMLElement {
 
         /* SETTINGS & PARAMETERS TAB */
         .settings-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
+          display: flex;
+          flex-direction: column;
           gap: 14px;
-        }
-
-        @media (max-width: 680px) {
-          .settings-grid {
-            grid-template-columns: 1fr;
-          }
-          .milestones-grid {
-            grid-template-columns: 1fr;
-          }
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
         }
 
         .setting-card {
           background: rgba(15, 23, 42, 0.7);
           border: 1px solid var(--tg-border);
           border-radius: 14px;
-          padding: 14px;
+          padding: 14px 16px;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 10px;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+          overflow: hidden;
         }
 
         .setting-card-title {
@@ -4706,18 +4710,29 @@ class TendrilGrowPlanCard extends HTMLElement {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 10px;
+          gap: 12px;
+          padding: 4px 0;
+          min-width: 0;
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .setting-row > div:first-child {
+          min-width: 0;
+          flex: 1 1 auto;
         }
 
         .setting-label {
-          font-size: 12px;
+          font-size: 12.5px;
           font-weight: 600;
           color: #e6edf3;
+          line-height: 1.3;
         }
 
         .setting-sublabel {
           font-size: 10.5px;
           color: #64748b;
+          margin-top: 1px;
         }
 
         .setting-select, .setting-input-date {
@@ -4729,6 +4744,8 @@ class TendrilGrowPlanCard extends HTMLElement {
           padding: 6px 10px;
           outline: none;
           font-family: inherit;
+          max-width: 170px;
+          flex-shrink: 0;
         }
 
         .setting-select:focus, .setting-input-date:focus {
@@ -4743,32 +4760,36 @@ class TendrilGrowPlanCard extends HTMLElement {
           padding: 3px 8px;
           border-radius: 6px;
           border: 1px solid rgba(6, 182, 212, 0.25);
+          flex-shrink: 0;
         }
 
         .stepper-ctrl {
-          display: flex;
+          display: inline-flex;
           align-items: center;
-          gap: 4px;
-          background: rgba(13, 17, 23, 0.7);
+          gap: 2px;
+          background: rgba(13, 17, 23, 0.75);
           border: 1px solid var(--tg-border);
           border-radius: 8px;
           padding: 2px 4px;
+          flex-shrink: 0;
         }
 
         .stepper-btn {
-          width: 24px;
-          height: 24px;
+          width: 22px;
+          height: 22px;
           background: rgba(255, 255, 255, 0.06);
           border: 1px solid var(--tg-border);
-          border-radius: 6px;
+          border-radius: 5px;
           color: #f0f6fc;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 700;
           cursor: pointer;
           display: flex;
           align-items: center;
           justify-content: center;
           transition: background 0.15s;
+          padding: 0;
+          user-select: none;
         }
 
         .stepper-btn:hover {
@@ -4781,26 +4802,31 @@ class TendrilGrowPlanCard extends HTMLElement {
           font-size: 12px;
           font-weight: 700;
           color: #f0f6fc;
-          min-width: 32px;
+          min-width: 28px;
           text-align: center;
+          font-variant-numeric: tabular-nums;
         }
 
         .range-stepper-row {
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 4px;
+          flex-shrink: 0;
         }
 
         /* FLUSH HERO BOX */
         .flush-hero-card {
-          grid-column: 1 / -1;
           background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(16, 185, 129, 0.08));
           border: 1px solid rgba(6, 182, 212, 0.35);
           border-radius: 14px;
-          padding: 16px;
+          padding: 14px 16px;
           display: flex;
           flex-direction: column;
           gap: 12px;
+          width: 100%;
+          max-width: 100%;
+          box-sizing: border-box;
+          overflow: hidden;
         }
 
         .flush-top-row {
@@ -4816,15 +4842,17 @@ class TendrilGrowPlanCard extends HTMLElement {
           border: none;
           border-radius: 10px;
           color: #0b0f17;
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 800;
-          padding: 10px 18px;
+          padding: 8px 14px;
           cursor: pointer;
           box-shadow: 0 4px 16px rgba(6, 182, 212, 0.35);
           transition: all 0.2s ease;
           display: flex;
           align-items: center;
-          gap: 8px;
+          justify-content: center;
+          gap: 6px;
+          white-space: nowrap;
         }
 
         .btn-log-flush:hover {
@@ -4834,23 +4862,22 @@ class TendrilGrowPlanCard extends HTMLElement {
 
         .flush-stats-grid {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 10px;
-        }
-
-        @media (max-width: 500px) {
-          .flush-stats-grid {
-            grid-template-columns: 1fr;
-          }
+          grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+          gap: 8px;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         .flush-stat-box {
           background: rgba(13, 17, 23, 0.8);
           border: 1px solid var(--tg-border);
           border-radius: 10px;
-          padding: 8px 12px;
+          padding: 8px 10px;
           display: flex;
           flex-direction: column;
+          min-width: 0;
+          overflow: hidden;
+          box-sizing: border-box;
         }
 
         .flush-stat-label {
@@ -4978,10 +5005,10 @@ class TendrilGrowPlanCard extends HTMLElement {
                 </div>
                 <div class="flush-stat-box">
                   <span class="flush-stat-label">Flush Interval</span>
-                  <div class="stepper-ctrl" style="margin-top:2px;width:fit-content;">
+                  <div class="stepper-ctrl" style="margin-top:4px;width:100%;box-sizing:border-box;justify-content:space-between;">
                     <button class="stepper-btn" id="btn-flush-int-dec">-</button>
                     <span class="stepper-val" id="flush-interval-val">7</span>
-                    <span style="font-size:11px;color:#94a3b8;padding-right:4px;">days</span>
+                    <span style="font-size:11px;color:#94a3b8;padding-right:2px;">days</span>
                     <button class="stepper-btn" id="btn-flush-int-inc">+</button>
                   </div>
                 </div>
