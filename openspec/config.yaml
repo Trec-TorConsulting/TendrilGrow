@@ -6,6 +6,9 @@ context: |
   Lovelace dashboards + AI advisor + automations) for indoor plant cultivation,
   distributed via HACS.
 
+  Status:
+    - Live and public! Published on the Home Assistant Forum under "Share My Project": https://community.home-assistant.io/t/growers-who-use-home-assistant/1027033
+
   Distribution:
     - HACS custom integration under custom_components/tendrilgrow/
     - Bundled/companion Lovelace dashboard cards
