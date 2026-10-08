@@ -288,7 +288,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             LOGGER.debug("Unable to start AI health check scheduler", exc_info=True)
 
     async def _async_flush_tick(_now) -> None:
-        await async_check_flush_due(hass, entry)
+        # runtime is stored after this closure is created, so resolve it at tick time.
+        current = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+        if current is None:
+            return
+        await async_check_flush_due(hass, entry, current)
 
     try:
         unsubscribe_flush_ticker = async_track_time_interval(

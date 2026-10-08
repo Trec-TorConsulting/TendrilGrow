@@ -102,6 +102,22 @@ _FLORA_RATES_ML_PER_GAL: dict[str, str] = {
 }
 
 _POST_HARVEST_STAGES = frozenset({"harvest", "dry", "cure", "ready"})
+# A working grow stays high. Mild, single issues remain a good score.
+_SCORE_SCALE = (
+    "Score the crop generously. A healthy canopy is a high score.\n"
+    "- 85-100: healthy plants, measurements inside their bands, or only a "
+    "cosmetic nit such as a few tipped leaves.\n"
+    "- 75-84: one mild issue, such as light tip burn, a few off-color leaves, "
+    "or one reading slightly outside its band.\n"
+    "- 55-74: a clear problem to correct this week, such as widespread burn or "
+    "deficiency, or a reading well outside its band.\n"
+    "- 30-54: serious stress, such as wilt, widespread lockout, or several "
+    "readings far from target.\n"
+    "- 0-29: crop-threatening damage, such as mold or collapse.\n"
+    "Severity is low at 75 or above, medium from 55 to 74, high from 30 to 54, "
+    "and critical at 29 or below. Do not score an in-band reading or a "
+    "cosmetic nit below 85.\n"
+)
 _HYDRO_TYPES = frozenset({"rdwc", "dwc"})
 _EC_TREND_NOISE = 0.05
 
@@ -838,6 +854,7 @@ def _build_prompt(
             "empty array. Do not discuss pH, EC, nutrients, ORP, or a feed mix.\n\n"
             "Return STRICT JSON only, no markdown, with keys:\n"
             "- score: integer 0-100 (health and quality of what is shown)\n"
+            f"{_SCORE_SCALE}"
             "- confidence: integer 0-100\n"
             "- confidence_rationale: one short sentence\n"
             "- severity: one of low, medium, high, critical\n"
@@ -867,6 +884,7 @@ def _build_prompt(
         "Return STRICT JSON only, no markdown, with keys:\n"
         "- score: integer 0-100 (plant health and quality trajectory). Do not "
         "lower the score for a value inside the active band.\n"
+        f"{_SCORE_SCALE}"
         "- confidence: integer 0-100\n"
         "- confidence_rationale: one short sentence naming the image and "
         "measurement limits\n"

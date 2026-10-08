@@ -831,6 +831,59 @@ def test_rewrite_lovelace_does_not_duplicate_existing_date() -> None:
 
 
 @pytest.mark.asyncio
+async def test_flush_tick_passes_runtime() -> None:
+    """Hourly flush check must receive the runtime that holds flush state."""
+    entry = SimpleNamespace(
+        entry_id="entry-flush-tick",
+        title="Clone",
+        data={
+            "space_id": "space-flush",
+            "name": "Clone",
+            "grow_space_name": "Clone",
+            "grow_type": "rdwc",
+            "grow_size": "2x2",
+            "ai_provider": "none",
+            "sensor_mappings": {},
+            "control_mappings": {},
+        },
+        options={},
+        add_update_listener=Mock(return_value=lambda: None),
+    )
+    hass = SimpleNamespace(
+        data={},
+        config_entries=SimpleNamespace(
+            async_forward_entry_setups=AsyncMock(return_value=True),
+            async_unload_platforms=AsyncMock(return_value=True),
+        ),
+        async_create_task=Mock(side_effect=_consume_task),
+        services=SimpleNamespace(async_register=Mock(), async_remove=Mock()),
+    )
+    captured: dict[str, object] = {}
+
+    def _capture_interval(_hass, action, _interval):
+        captured["action"] = action
+        return Mock()
+
+    with (
+        patch(
+            "custom_components.tendrilgrow.async_track_time_interval",
+            side_effect=_capture_interval,
+        ),
+        patch(
+            "custom_components.tendrilgrow.async_check_flush_due",
+            new_callable=AsyncMock,
+        ) as mock_check,
+        patch("custom_components.tendrilgrow.async_call_later"),
+    ):
+        assert await async_setup_entry(hass, entry)
+        action = captured["action"]
+        await action(None)
+
+    runtime = hass.data["tendrilgrow"]["entry-flush-tick"]
+    mock_check.assert_awaited_once_with(hass, entry, runtime)
+
+
+@pytest.mark.asyncio
 async def test_setup_with_no_ai_provider_does_not_schedule_startup_ai_check() -> None:
     entry = SimpleNamespace(
         entry_id="entry-no-ai",

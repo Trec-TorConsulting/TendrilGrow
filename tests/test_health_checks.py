@@ -66,6 +66,21 @@ def test_build_prompt_includes_context_and_metrics() -> None:
     assert "confidence_rationale" in prompt
     assert "feeding_schedule" in prompt
     assert "13 gallons" in prompt
+    assert "Score the crop generously" in prompt
+    assert "75-84: one mild issue" in prompt
+    assert "cosmetic nit below 85" in prompt
+
+
+def test_dry_stage_prompt_uses_the_generous_score_scale() -> None:
+    prompt = _build_prompt(
+        _grow_space(),
+        {},
+        {"growth_stage": "dry"},
+        retention_days=7,
+    )
+
+    assert "Score the crop generously" in prompt
+    assert "75-84: one mild issue" in prompt
 
 
 def test_build_prompt_handles_empty_context_and_metrics() -> None:
