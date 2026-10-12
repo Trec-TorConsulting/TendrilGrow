@@ -6,10 +6,11 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
-## [0.3.16] - 2026-10-08
+## [0.3.16] - 2026-10-12
 
 ### Fixed
 - Reservoir flush ticker passes the grow runtime into `async_check_flush_due`, so the hourly check no longer raises `TypeError` and clone flush sensors can update.
+- Cultivation plan growth-stage dropdown uses the select entity's options, so changing stage on the 3x3 and 4x4 no longer fails with an invalid option.
 
 ### Changed
 - AI health scores treat a healthy canopy, in-band readings, and a single mild issue as a high score instead of grading those nits like a failing crop.

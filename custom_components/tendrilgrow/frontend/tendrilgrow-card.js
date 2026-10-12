@@ -5350,13 +5350,17 @@ class TendrilGrowPlanCard extends HTMLElement {
                 </div>
                 <select class="setting-select" id="setting-stage-select">
                   <option value="seedling">Seedling</option>
+                  <option value="mother">Mother</option>
+                  <option value="clone">Clone</option>
                   <option value="vegetative">Vegetative</option>
-                  <option value="early_bloom">Early Bloom</option>
-                  <option value="mid_bloom">Mid Bloom</option>
-                  <option value="late_bloom">Late Bloom</option>
-                  <option value="flush">Ripening / Flush</option>
-                  <option value="harvested">Harvested</option>
-                  <option value="curing">Curing</option>
+                  <option value="early_flower">Early flower</option>
+                  <option value="mid_flower">Mid flower</option>
+                  <option value="late_flower">Late flower</option>
+                  <option value="flush">Flush</option>
+                  <option value="harvest">Harvest</option>
+                  <option value="dry">Dry</option>
+                  <option value="cure">Cure</option>
+                  <option value="ready">Ready</option>
                 </select>
               </div>
               <div class="setting-row">
@@ -5878,7 +5882,7 @@ function calculateNutrientDosing(stageName, targetEcLow, targetEcHigh, reservoir
       ...(hasHydroguard ? [{ name: "Hydroguard (Bacillus Inoculant)", cat: "Beneficials", rate: 2.0, unit: "ml/gal", hint: "Label rate: 2 ml/gal. Prevents root rot and Pythium damping-off." }] : []),
       { name: "General Hydroponics pH Down", cat: "pH Buffer", rate: null, customText: "Buffer LAST to 5.8", hint: "Adjust pH LAST after all salts and additives have dissolved." },
     ];
-  } else if (s.includes("trans") || s.includes("stretch") || s.includes("early_bloom") || s.includes("early flower")) {
+  } else if (s.includes("trans") || s.includes("stretch") || s.includes("early_flower") || s.includes("early_bloom") || s.includes("early flower")) {
     phaseTitle = "Transition & Early Bloom (Stretch)";
     estEc = `${Math.max(ecLow, Math.min(ecHigh, 1.65)).toFixed(2)} mS/cm`;
     items = [
@@ -5891,7 +5895,18 @@ function calculateNutrientDosing(stageName, targetEcLow, targetEcHigh, reservoir
       ...(hasHydroguard ? [{ name: "Hydroguard (Bacillus Inoculant)", cat: "Beneficials", rate: 2.0, unit: "ml/gal", hint: "Root inoculant. Add after base salts dissolve." }] : []),
       { name: "General Hydroponics pH Down", cat: "pH Buffer", rate: null, customText: "Buffer LAST to 5.8", hint: "Adjust pH LAST after salts dissolve." },
     ];
-  } else if (s.includes("mid_bloom") || s.includes("peak") || s.includes("bloom") || s.includes("flower")) {
+  } else if (s.includes("late_flower") || s.includes("late_bloom") || s.includes("ripen")) {
+    phaseTitle = "Late Bloom & Ripening";
+    estEc = `${Math.max(ecLow, Math.min(ecHigh, 1.4)).toFixed(2)} mS/cm`;
+    items = [
+      { name: "CaliMagic (Cal-Mag)", cat: "Cal-Mag", rate: 2.0, unit: "ml/gal", hint: "Dissolve before base NPK." },
+      { name: "FloraMicro (Base 5-0-1)", cat: "Base / Micro", rate: 3.5, unit: "ml/gal", hint: "Tapered trace elements. Add before Bloom." },
+      { name: "FloraBloom (Flower 0-5-4)", cat: "Bloom", rate: 7.0, unit: "ml/gal", hint: "Final resin hardening." },
+      ...(hasKoolBloom ? [{ name: "Dry KoolBloom (2-45-28)", cat: "Ripener", rate: 0.8, unit: "g/gal", hint: "Final ripening bloom stressor." }] : []),
+      ...(hasHydroguard ? [{ name: "Hydroguard (Bacillus Inoculant)", cat: "Beneficials", rate: 2.0, unit: "ml/gal", hint: "Maintains sterile root zone." }] : []),
+      { name: "General Hydroponics pH Down", cat: "pH Buffer", rate: null, customText: "Buffer LAST to 5.8", hint: "Adjust pH LAST after salts dissolve." },
+    ];
+  } else if (s.includes("mid_flower") || s.includes("mid_bloom") || s.includes("peak") || s.includes("bloom") || s.includes("flower")) {
     phaseTitle = "Peak Bloom & Floral Bulking";
     estEc = `${Math.max(ecLow, Math.min(ecHigh, 1.95)).toFixed(2)} mS/cm`;
     items = [
@@ -5902,17 +5917,6 @@ function calculateNutrientDosing(stageName, targetEcLow, targetEcHigh, reservoir
       { name: "FloraBloom (Flower 0-5-4)", cat: "Bloom", rate: 8.5, unit: "ml/gal", hint: "High phosphorus/potassium for calyx expansion & weight." },
       ...(hasKoolBloom ? [{ name: "Liquid KoolBloom (0-10-10)", cat: "Booster", rate: 2.5, unit: "ml/gal", hint: "Intensifies terpene & resin production." }] : []),
       ...(hasHydroguard ? [{ name: "Hydroguard (Bacillus Inoculant)", cat: "Beneficials", rate: 2.0, unit: "ml/gal", hint: "Root inoculant. Protects deep root zone." }] : []),
-      { name: "General Hydroponics pH Down", cat: "pH Buffer", rate: null, customText: "Buffer LAST to 5.8", hint: "Adjust pH LAST after salts dissolve." },
-    ];
-  } else if (s.includes("late_bloom") || s.includes("ripen")) {
-    phaseTitle = "Late Bloom & Ripening";
-    estEc = `${Math.max(ecLow, Math.min(ecHigh, 1.4)).toFixed(2)} mS/cm`;
-    items = [
-      { name: "CaliMagic (Cal-Mag)", cat: "Cal-Mag", rate: 2.0, unit: "ml/gal", hint: "Dissolve before base NPK." },
-      { name: "FloraMicro (Base 5-0-1)", cat: "Base / Micro", rate: 3.5, unit: "ml/gal", hint: "Tapered trace elements. Add before Bloom." },
-      { name: "FloraBloom (Flower 0-5-4)", cat: "Bloom", rate: 7.0, unit: "ml/gal", hint: "Final resin hardening." },
-      ...(hasKoolBloom ? [{ name: "Dry KoolBloom (2-45-28)", cat: "Ripener", rate: 0.8, unit: "g/gal", hint: "Final ripening bloom stressor." }] : []),
-      ...(hasHydroguard ? [{ name: "Hydroguard (Bacillus Inoculant)", cat: "Beneficials", rate: 2.0, unit: "ml/gal", hint: "Maintains sterile root zone." }] : []),
       { name: "General Hydroponics pH Down", cat: "pH Buffer", rate: null, customText: "Buffer LAST to 5.8", hint: "Adjust pH LAST after salts dissolve." },
     ];
   } else {
