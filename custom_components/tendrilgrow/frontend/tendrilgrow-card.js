@@ -5626,6 +5626,26 @@ class TendrilGrowPlanCard extends HTMLElement {
     bindTextInput(additivesInput, "additives");
   }
 
+  _syncStageOptions(stageSelect) {
+    const stateObj = getState(this._hass, this._config.stage);
+    const options = stateObj && stateObj.attributes && stateObj.attributes.options;
+    if (!Array.isArray(options) || options.length === 0) return;
+    const wanted = options.join("\0");
+    const have = Array.from(stageSelect.options).map((opt) => opt.value).join("\0");
+    if (wanted === have) return;
+    const onchange = stageSelect.onchange;
+    stageSelect.onchange = null;
+    stageSelect.replaceChildren(
+      ...options.map((opt) => {
+        const el = document.createElement("option");
+        el.value = opt;
+        el.textContent = String(opt).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        return el;
+      })
+    );
+    stageSelect.onchange = onchange;
+  }
+
   _formatDate(dateStr) {
     if (!dateStr) return "--";
     try {
@@ -5720,6 +5740,7 @@ class TendrilGrowPlanCard extends HTMLElement {
     // Settings Tab Updates
     const stageSelect = root.getElementById("setting-stage-select");
     if (stageSelect && this._config.stage) {
+      this._syncStageOptions(stageSelect);
       const curStage = getStateStr(this._hass, this._config.stage, "").toLowerCase();
       for (let i = 0; i < stageSelect.options.length; i++) {
         if (stageSelect.options[i].value === curStage || stageSelect.options[i].text.toLowerCase() === curStage) {

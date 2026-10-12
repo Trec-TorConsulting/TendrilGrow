@@ -6,6 +6,11 @@ The format is inspired by Keep a Changelog and semantic versioning.
 
 ## [Unreleased]
 
+## [0.3.17] - 2026-10-12
+
+### Fixed
+- Growth-stage dropdown is built from the select entity's options and the card script URL includes the integration version, so a browser no longer keeps the old `early_bloom` list after an update.
+
 ## [0.3.16] - 2026-10-12
 
 ### Fixed

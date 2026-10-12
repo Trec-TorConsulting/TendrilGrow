@@ -41,7 +41,7 @@ async def test_async_register_frontend_success() -> None:
         assert hass.data.get("tendrilgrow_frontend_registered") is True
         hass.http.async_register_static_paths.assert_awaited_once()
         mock_add_url.assert_called_once_with(
-            hass, "/tendrilgrow_static/tendrilgrow-card.js"
+            hass, "/tendrilgrow_static/tendrilgrow-card.js?v=0.3.17"
         )
 
         # Calling a second time should be idempotent (early exit)

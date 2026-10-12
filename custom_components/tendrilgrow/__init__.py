@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -173,6 +174,18 @@ class _EphemeralStore:
         self._payload = dict(payload)
 
 
+def _frontend_card_url() -> str:
+    """Version the card URL so browsers do not keep a stale module."""
+    version = "0"
+    manifest_path = Path(__file__).parent / "manifest.json"
+    try:
+        loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
+        version = str(loaded.get("version") or version)
+    except (OSError, json.JSONDecodeError, TypeError):
+        pass
+    return f"/tendrilgrow_static/tendrilgrow-card.js?v={version}"
+
+
 async def _async_register_frontend(hass: Any) -> None:
     """Register static path and extra js url for TendrilGrow custom card."""
     if not isinstance(getattr(hass, "data", None), dict):
@@ -207,7 +220,7 @@ async def _async_register_frontend(hass: Any) -> None:
     try:
         from homeassistant.components.frontend import add_extra_js_url
 
-        add_extra_js_url(hass, "/tendrilgrow_static/tendrilgrow-card.js")
+        add_extra_js_url(hass, _frontend_card_url())
     except Exception:  # noqa: BLE001
         LOGGER.debug(
             "Could not add extra js url for TendrilGrow frontend", exc_info=True
